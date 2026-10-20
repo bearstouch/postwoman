@@ -6,35 +6,48 @@ This file provides guidance to Claude Code (claude.ai/claude-code) when working 
 
 PostWoman 💅 is a native macOS REST API client built with SwiftUI and SwiftData. It's a Postman clone designed for testing REST APIs with folder organization and code generation.
 
-## Tech Stack
+## Toolchain and commands
 
-- **Language**: Swift 5.9+
-- **UI Framework**: SwiftUI 5.0
-- **Data Persistence**: SwiftData
-- **Networking**: URLSession with async/await
-- **Minimum Target**: macOS 14.0 (Sonoma)
+Requires Xcode 26 / Swift 6.2 (Swift 6 language mode, strict concurrency), macOS 14+. The app is a
+Swift package (`Package.swift`); there is no `.xcodeproj` (open `Package.swift` in Xcode if needed).
 
-## Build Commands
-
-```bash
-# Build the project
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman -configuration Debug build
-
-# Build for release
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman -configuration Release build
-
-# Clean build
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman clean
-
-# Open in Xcode
-open PostWoman.xcodeproj
+```sh
+swift build                                    # build (must be warning-free)
+swift test                                     # XCTest suite
+swift test --filter PostWomanTests.CURLGeneratorTests   # one test class
+swift format -i -r Sources Tests               # format (config: .swift-format)
+swift format lint --strict -r Sources Tests    # lint: must print nothing
+swift run PostWoman                            # run unbundled (store: ~/Library/Application Support/PostWoman Dev)
+scripts/run-app.sh [--build-only]              # assemble, ad-hoc sign (sandboxed, com.bearstouch.postwoman.dev), verify (and open) .build/PostWoman.app
+scripts/package-release.sh                     # Universal 2 DMG; ad-hoc unless POSTWOMAN_SIGN_IDENTITY / POSTWOMAN_NOTARY_PROFILE
+scripts/package-thin-release.sh                # Apple silicon + Intel DMGs from dist/PostWoman.app
+scripts/generate-app-icon.sh                   # AppIcon.icns (+ swift run icon) from Design/AppIcon/AppIcon.iconset
 ```
+
+Always run format + lint + build + test before committing. CI (`.github/workflows/ci.yml`) runs
+the same steps on `macos-26`, and fails on any warning in `Sources/`.
+
+## Releases
+
+- Version, bundle identifier, minimum macOS and architectures live in `release/manifest.json`.
+  `AppVersion.release` must match it (`AppVersionTests`); bump both and add a `## [x.y.z]`
+  section to `CHANGELOG.md` (it becomes the GitHub release notes).
+- Push tag `vX.Y.Z` (must equal the manifest version) to run `.github/workflows/release.yml`:
+  test, sign (Developer ID secrets optional, else ad-hoc + pre-release), package the three DMGs,
+  notarize when credentials exist, publish with `SHA256SUMS.txt` and `release-evidence.json`.
+- The app is signed with the hardened runtime and `release/PostWoman.entitlements` (App Sandbox,
+  network client, user-selected files). The SwiftData store lives in that container, which is keyed by
+  the bundle identifier `com.bearstouch.postwoman`: changing it orphans users' data. Releases up
+  to 0.9.0 used `com.postwoman.app`.
+- SwiftPM has no asset catalog: the icon is `Design/AppIcon/AppIcon.icns` (copied into the bundle)
+  and the pink accent is `Color.postWomanPink`, applied with `.tint` at each scene root. Use it
+  instead of `Color.accentColor`.
 
 ## Architecture
 
 ### Data Models (SwiftData)
 
-All models are in `PostWoman/Models/`:
+All models are in `Sources/PostWoman/Models/`:
 
 - **`Folder`** - Collection containers with nested hierarchy (parent/subfolders relationship)
 - **`APIRequest`** - Request configuration (URL, method, headers, body, auth)
@@ -42,9 +55,9 @@ All models are in `PostWoman/Models/`:
 
 ### Key Services
 
-Located in `PostWoman/Services/`:
+Located in `Sources/PostWoman/Services/`:
 
-- **`HTTPClient`** - Actor-based URLSession wrapper for executing requests
+- **`HTTPClient`** - `@MainActor` URLSession wrapper for executing requests (it reads SwiftData models, which belong to the main context; never pass `@Model` objects to other actors)
 - **`AuthenticationHandler`** - Applies Bearer/Basic auth to requests
 - **`CodeGenerator/`** - Generates cURL, Swift, Python code from requests
 
@@ -76,9 +89,10 @@ Menu commands use `NotificationCenter` to communicate with views:
 ## File Organization
 
 ```
-PostWoman/
+Sources/PostWoman/
 ├── App/
-│   ├── PostWomanApp.swift      # @main entry, ModelContainer setup
+│   ├── PostWomanApp.swift      # @main entry, ModelContainer setup, unbundled-run AppDelegate
+│   ├── AppVersion.swift        # Release version (matches release/manifest.json)
 │   ├── ContentView.swift       # Root NavigationSplitView
 │   └── AppCommands.swift       # Menu commands and shortcuts
 ├── Models/                     # SwiftData @Model classes
@@ -89,7 +103,11 @@ PostWoman/
 │   ├── CodeGeneration/        # Code generator sheet
 │   └── Shared/                # Reusable components
 ├── Services/                  # Business logic
-└── Utilities/                 # Helpers (JSONFormatter)
+└── Utilities/                 # Helpers (JSONFormatter, AppStyle)
+Tests/PostWomanTests/          # XCTest (@testable import PostWoman)
+release/                       # manifest.json, PostWoman.entitlements
+scripts/                       # run-app, package-release, package-thin-release, make-dmg, generate-app-icon
+Design/                        # AppIcon (iconset + icns), DMG background (make-background.swift)
 ```
 
 ## Common Tasks

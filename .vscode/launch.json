@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "name": "Debug PostWoman",
+            "target": "PostWoman",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug PostWoman"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "name": "Release PostWoman",
+            "target": "PostWoman",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release PostWoman"
+        }
+    ]
+}

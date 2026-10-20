@@ -5,17 +5,16 @@ This guide helps developers navigate the PostWoman codebase and understand how t
 ## Quick Start
 
 ```bash
-# Open the project in Xcode
-open PostWoman.xcodeproj
-
-# Build from command line
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman -configuration Debug build
+swift build                 # build (Swift Package Manager)
+swift run PostWoman         # run unbundled
+scripts/run-app.sh          # run as a sandboxed .build/PostWoman.app
+open Package.swift          # or open the package in Xcode
 ```
 
 ## Project Structure Overview
 
 ```
-PostWoman/
+Sources/PostWoman/
 ├── App/                    # Application entry point and configuration
 │   ├── PostWomanApp.swift  # @main entry, SwiftData ModelContainer setup
 │   ├── ContentView.swift   # Root 3-column NavigationSplitView
@@ -107,7 +106,7 @@ RequestEditorView.sendRequest()
        ├─► Sets isLoading = true
        │
        ▼
-HTTPClient.execute(request:)  [Actor - thread-safe]
+HTTPClient.execute(request:)  [@MainActor - reads SwiftData models]
        │
        ├─► Build URL with query params
        ├─► Apply headers
@@ -302,7 +301,9 @@ var folder: Folder?
 ### View the SwiftData Database
 The database is stored at:
 ```
-~/Library/Containers/com.kingbongsoftware.PostWoman/Data/Library/Application Support/
+~/Library/Containers/com.bearstouch.postwoman/Data/Library/Application Support/       # installed app
+~/Library/Containers/com.bearstouch.postwoman.dev/Data/Library/Application Support/   # scripts/run-app.sh
+~/Library/Application Support/PostWoman Dev/                                   # swift run
 ```
 
 ### Common Issues
@@ -323,12 +324,14 @@ var request: APIRequest            // ✗ Won't update UI
 ## Testing Changes
 
 ```bash
-# Build and check for errors
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman -configuration Debug build
+swift format -i -r Sources Tests               # format
+swift format lint --strict -r Sources Tests    # lint: must print nothing
+swift build                                    # must be warning-free
+swift test                                     # XCTest suite
+swift test --filter PostWomanTests.CURLGeneratorTests   # one test class
 
 # Clean build (if having cache issues)
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman clean
-xcodebuild -project PostWoman.xcodeproj -scheme PostWoman -configuration Debug build
+rm -rf .build && swift build
 ```
 
 ## File Quick Reference

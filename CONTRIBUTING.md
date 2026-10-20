@@ -16,7 +16,7 @@ Thank you for your interest in contributing to PostWoman! This document provides
 ### Prerequisites
 
 - macOS 14.0 (Sonoma) or later
-- Xcode 15.0 or later
+- Xcode 26 / Swift 6.2 toolchain
 - Git
 
 ### Development Setup
@@ -31,15 +31,18 @@ Thank you for your interest in contributing to PostWoman! This document provides
 
 3. **Add the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/ORIGINAL_OWNER/postwoman.git
+   git remote add upstream https://github.com/bearstouch/postwoman.git
    ```
 
-4. **Open in Xcode**:
+4. **Build, test and run**:
    ```bash
-   open PostWoman.xcodeproj
+   swift build                                  # must be warning-free
+   swift test
+   swift format lint --strict -r Sources Tests  # must print nothing
+   swift run PostWoman                          # or scripts/run-app.sh for a sandboxed .app
    ```
-
-5. **Build and run** (⌘R) to verify everything works
+   You can also open `Package.swift` in Xcode. Format with `swift format -i -r Sources Tests`
+   (config: `.swift-format`). CI runs the same lint, build, test and app-bundle steps.
 
 ## How to Contribute
 
@@ -51,7 +54,7 @@ Before creating bug reports, please check the existing issues to avoid duplicate
 - **Steps to reproduce** the behavior
 - **Expected behavior** vs what actually happened
 - **Screenshots** if applicable
-- **Environment details**: macOS version, Xcode version
+- **Environment details**: macOS version, Xcode/Swift version
 
 ### Suggesting Features
 
@@ -116,7 +119,7 @@ Feature requests are welcome! Please provide:
 ### File Organization
 
 ```
-PostWoman/
+Sources/PostWoman/
 ├── App/                    # App entry point and root views
 ├── Models/                 # SwiftData @Model classes
 ├── Views/
@@ -160,7 +163,7 @@ User Action → View → Service → Network/Storage → View Update
 
 | Component | Purpose |
 |-----------|---------|
-| `HTTPClient` | Actor-based networking with URLSession |
+| `HTTPClient` | Main-actor networking with URLSession async/await |
 | `AuthenticationHandler` | Applies auth to requests |
 | `CodeGenerator/` | Exports requests as code |
 | `ContentView` | Root NavigationSplitView layout |

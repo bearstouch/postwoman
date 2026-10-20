@@ -4,6 +4,16 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-10-20
+
+### Changed
+- Build with Swift Package Manager (`Package.swift`, Swift 6 language mode) instead of an Xcode project
+- CI lints with `swift format`, builds warning-free, runs the new XCTest suite and assembles the app bundle on macOS 26
+- Releases build Universal 2, Apple silicon and Intel DMGs with hardened runtime, optional Developer ID signing and notarization, checksums and release evidence; the version comes from `release/manifest.json`
+- `HTTPClient` runs on the main actor so SwiftData models are no longer read off the main thread
+- Bundle identifier is now `com.bearstouch.postwoman` (was `com.postwoman.app`). The app gets a new sandbox container, so collections and history from 0.9.0 do not carry over; export collections from 0.9.0 (folder menu → Export) and import them in 0.9.1
+- About window and app copyright now credit Bearstouch, and the license link points to github.com/bearstouch/postwoman
+
 ## [1.0.0] - 2026-01-15
 
 ### Added

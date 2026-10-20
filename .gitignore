@@ -1,20 +1,15 @@
-# Xcode
-build/
-DerivedData/
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
-*.xcodeproj/project.xcworkspace/xcuserdata/
-
 # Swift Package Manager
 .build/
 .swiftpm/
 Package.resolved
 
-# CocoaPods
-Pods/
+# Xcode (opening Package.swift)
+DerivedData/
+*.xcuserstate
+xcuserdata/
 
-# Carthage
-Carthage/Build/
+# Release output
+dist/
 
 # macOS
 .DS_Store
@@ -22,36 +17,8 @@ Carthage/Build/
 .LSOverride
 ._*
 
-# Thumbnails
-Thumbs.db
-
-# IDE
+# Editors
 *.swp
 *.swo
 *~
 .idea/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata/
-*.moved-aside
-*.xccheckout
-*.xcscmblueprint
-
-# Playgrounds
-timeline.xctimeline
-playground.xcworkspace
-
-# Archives
-*.xcarchive
-
-# Fastlane
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots/**/*.png
-fastlane/test_output
