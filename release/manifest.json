@@ -1,0 +1,13 @@
+{
+  "bundleIdentifier": "com.bearstouch.postwoman",
+  "name": "PostWoman",
+  "displayName": "PostWoman 💅",
+  "copyright": "Made with ❤️ by Bearstouch",
+  "version": "0.9.1",
+  "minimumMacOS": "14.0",
+  "architectures": ["arm64", "x86_64"],
+  "packageFormat": "dmg",
+  "entitlements": "release/PostWoman.entitlements",
+  "artifacts": ["PostWoman.app/Contents/MacOS/PostWoman", "PostWoman.app/Contents/Resources/AppIcon.icns", "PostWoman.app/Contents/Info.plist"],
+  "dependencies": []
+}

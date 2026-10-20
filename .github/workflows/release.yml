@@ -1,69 +1,138 @@
 name: Release
 
+# Push a tag matching the manifest version (e.g. v0.9.1) to build, sign and publish a
+# GitHub release. Manual runs build the DMGs as a workflow artifact without publishing.
+#
+# Optional secrets for a distributable build (otherwise the build is ad-hoc signed and
+# the release is marked as a pre-release that Gatekeeper will block):
+#   MACOS_CERTIFICATE_P12       base64 Developer ID Application certificate (.p12)
+#   MACOS_CERTIFICATE_PASSWORD  password for the .p12
+#   MACOS_SIGN_IDENTITY         e.g. "Developer ID Application: Example (TEAMID)"
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   notarytool credentials (app-specific password)
+
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  build-and-release:
-    name: Build and Release
-    runs-on: macos-15
-
+  release:
+    name: Package and publish
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Build Release
+      - name: Select Xcode 26
         run: |
-          xcodebuild -project PostWoman.xcodeproj \
-            -scheme PostWoman \
-            -configuration Release \
-            -derivedDataPath build \
-            -destination 'platform=macOS' \
-            build
+          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          swift --version
 
-      - name: Create DMG
+      - name: Read version
+        id: version
         run: |
-          # Find the built app
-          APP_PATH=$(find build -name "PostWoman.app" -type d | head -1)
-          echo "Found app at: $APP_PATH"
+          version=$(python3 -c 'import json;print(json.load(open("release/manifest.json"))["version"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match release/manifest.json version $version"; exit 1
+          fi
 
-          # Create a temporary directory for DMG contents
-          mkdir -p dmg_contents
-          cp -R "$APP_PATH" dmg_contents/
+      - name: Test
+        run: swift test
 
-          # Create Applications symlink for drag-and-drop install
-          ln -s /Applications dmg_contents/Applications
-
-          # Create the DMG
-          hdiutil create -volname "PostWoman" \
-            -srcfolder dmg_contents \
-            -ov -format UDZO \
-            "PostWoman-${{ github.ref_name }}.dmg"
-
-      - name: Get release notes
-        id: release_notes
-        run: |
-          # Extract version from tag
-          VERSION="${{ github.ref_name }}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: PostWoman-${{ github.ref_name }}.dmg
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
-          generate_release_notes: true
+      - name: Import signing certificate
+        id: signing
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -z "$P12" ] || [ -z "$IDENTITY" ]; then
+            echo "::warning::No signing certificate configured; building an ad-hoc signed (non-distributable) release."
+            echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          keychain_password=$(uuidgen)
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "POSTWOMAN_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            xcrun notarytool store-credentials postwoman-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+            echo "POSTWOMAN_NOTARY_PROFILE=postwoman-notary" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Notary credentials not configured; the release will be signed but not notarized."
+          fi
+
+      - name: Package Universal 2
+        run: scripts/package-release.sh
+
+      - name: Package Apple silicon and Intel
+        run: scripts/package-thin-release.sh
+
+      - name: Checksums
+        run: |
+          cd dist
+          shasum -a 256 PostWoman-*.dmg | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: PostWoman-${{ steps.version.outputs.version }}
+          path: |
+            dist/PostWoman-*.dmg
+            dist/SHA256SUMS.txt
+            dist/release-evidence.json
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          notarized=$(python3 -c 'import json;print(str(json.load(open("dist/release-evidence.json"))["notarized"]).lower())')
+          # Release notes are the matching CHANGELOG.md section.
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found && /^\[[^]]+\]: / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          printf '\n### Downloads\n\n- `PostWoman-%s.dmg`: Universal 2, runs on Apple silicon and Intel (recommended)\n- `PostWoman-%s-apple-silicon.dmg`: Apple silicon (arm64) only\n- `PostWoman-%s-intel.dmg`: Intel (x86_64) only\n\nVerify with `shasum -a 256 -c SHA256SUMS.txt`. Requires macOS 14 or later.\n' "$VERSION" "$VERSION" "$VERSION" >> "$RUNNER_TEMP/notes.md"
+          if [ "$SIGNED" != true ]; then
+            printf '\n> **Note:** this build is ad-hoc signed and is not notarized. Gatekeeper will block it; build from source or wait for a signed release.\n' >> "$RUNNER_TEMP/notes.md"
+          elif [ "$notarized" != true ]; then
+            printf '\n> **Note:** this build is signed but not notarized, so Gatekeeper will warn before opening it.\n' >> "$RUNNER_TEMP/notes.md"
+          fi
+          flags=(--title "PostWoman $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag)
+          if [ "$SIGNED" != true ] || [ "$notarized" != true ] || [[ "$VERSION" == 0.* ]] || [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" "${flags[@]}" \
+            "dist/PostWoman-$VERSION.dmg#PostWoman $VERSION (Universal: Apple silicon + Intel)" \
+            "dist/PostWoman-$VERSION-apple-silicon.dmg#PostWoman $VERSION (Apple silicon)" \
+            "dist/PostWoman-$VERSION-intel.dmg#PostWoman $VERSION (Intel)" \
+            dist/SHA256SUMS.txt dist/release-evidence.json
+
+      - name: Clean up keychain
+        if: always() && steps.signing.outputs.signed == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true

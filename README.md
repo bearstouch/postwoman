@@ -37,7 +37,7 @@ Export requests as code in multiple languages:
 
 Download the latest DMG installer from the [Releases](../../releases) page:
 
-1. Download `PostWoman-vX.X.X.dmg`
+1. Download `PostWoman-X.Y.Z.dmg` (Universal), or the `-apple-silicon` / `-intel` variant
 2. Open the DMG file
 3. Drag PostWoman to your Applications folder
 4. Eject the DMG and launch PostWoman from Applications
@@ -46,36 +46,39 @@ Download the latest DMG installer from the [Releases](../../releases) page:
 
 #### Requirements
 - macOS 14.0 (Sonoma) or later
-- Xcode 15.0 or later
+- Xcode 26 / Swift 6.2 toolchain (the app builds with Swift Package Manager)
 
 #### Steps
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/postwoman.git
+   git clone https://github.com/bearstouch/postwoman.git
    cd postwoman
    ```
 
-2. Open in Xcode:
+2. Build and run:
    ```bash
-   open PostWoman.xcodeproj
+   swift run PostWoman            # unbundled, uses its own dev store
+   scripts/run-app.sh             # sandboxed .build/PostWoman.app (com.bearstouch.postwoman.dev)
+   ```
+   Or open `Package.swift` in Xcode (or the folder in VS Code with the Swift extension) and run the `PostWoman` scheme.
+
+3. Test and lint:
+   ```bash
+   swift test
+   swift format lint --strict -r Sources Tests
    ```
 
-3. Build and run (Cmd+R)
-
-#### Build DMG Installer
-
-To create a distributable DMG:
+#### Build DMG Installers
 
 ```bash
-./scripts/build-dmg.sh
+scripts/package-release.sh       # Universal 2 DMG in dist/ (+ dist/release-evidence.json)
+scripts/package-thin-release.sh  # Apple silicon and Intel DMGs from the Universal app
 ```
 
-Options:
-- `-v, --version VERSION` - Set version string
-- `-d, --debug` - Build debug configuration
-
-The DMG will be created in the `dist/` directory.
+Builds are ad-hoc signed unless `POSTWOMAN_SIGN_IDENTITY` (Developer ID) is set; set
+`POSTWOMAN_NOTARY_PROFILE` (a `notarytool` keychain profile) to notarize and staple.
+The version comes from `release/manifest.json`.
 
 ## Usage
 
@@ -100,7 +103,8 @@ The DMG will be created in the `dist/` directory.
 ## Project Structure
 
 ```
-PostWoman/
+Package.swift               # SwiftPM manifest (executable + tests)
+Sources/PostWoman/
 ├── App/                    # App entry point and main views
 ├── Models/                 # SwiftData models
 ├── Views/
@@ -113,6 +117,10 @@ PostWoman/
 │   ├── AuthenticationHandler.swift
 │   └── CodeGenerator/     # cURL, Swift, Python generators
 └── Utilities/             # JSON formatting, helpers
+Tests/PostWomanTests/       # XCTest suite
+release/                    # manifest.json (version, bundle id) and entitlements
+scripts/                    # app bundle, DMG and release packaging
+Design/                     # app icon and DMG background sources
 ```
 
 ## Tech Stack
@@ -120,6 +128,7 @@ PostWoman/
 - **UI Framework**: SwiftUI
 - **Data Persistence**: SwiftData
 - **Networking**: URLSession with async/await
+- **Build**: Swift Package Manager, Swift 6 language mode
 - **Target Platform**: macOS 14+
 
 ## Contributing
