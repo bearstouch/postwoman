@@ -49,13 +49,7 @@ struct ResponseStatusView: View {
     }
 
     private var statusColor: Color {
-        switch response.statusCode {
-        case 200..<300: return .green
-        case 300..<400: return .orange
-        case 400..<500: return .red
-        case 500..<600: return .red
-        default: return .gray
-        }
+        Theme.status(response.statusCode)
     }
 
     private func formatBytes(_ bytes: Int) -> String {

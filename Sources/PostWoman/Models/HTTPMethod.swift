@@ -21,10 +21,10 @@ enum HTTPMethod: String, Codable, CaseIterable, Identifiable {
     /// Color associated with each HTTP method for UI visualization
     var color: Color {
         switch self {
-        case .get: return .green  // Safe read operations
-        case .post: return .orange  // Resource creation
-        case .put: return .blue  // Resource updates
-        case .delete: return .red  // Destructive operations
+        case .get: return Theme.success  // Safe read operations
+        case .post: return Theme.warning  // Resource creation
+        case .put: return Theme.info  // Resource updates
+        case .delete: return Theme.failure  // Destructive operations
         }
     }
 }

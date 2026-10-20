@@ -4,6 +4,17 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Dark mode: the request list and History no longer draw a white background behind white text
+- Responses show standard status text ("200 OK" instead of "200 no error")
+- Short response bodies and generated code start at the top left instead of floating in the middle
+- The History column is titled "History"
+
+### Changed
+- A dark appearance in the style of Trellis: near-black panes, hairline borders, softer method and status colors, a framed body editor and a glowing Send button. Light mode keeps the system look
+
 ## [0.9.1] - 2026-10-20
 
 ### Changed

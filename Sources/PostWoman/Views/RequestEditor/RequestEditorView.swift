@@ -39,6 +39,7 @@ struct RequestEditorView: View {
                 tabContent
             }
             .frame(minHeight: 300)
+            .background(Theme.canvas)
 
             ResponseViewerView(response: response, isLoading: isLoading)
                 .frame(minHeight: 200)

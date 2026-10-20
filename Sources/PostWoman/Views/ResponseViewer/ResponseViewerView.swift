@@ -26,7 +26,7 @@ struct ResponseViewerView: View {
                 emptyResponseView
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Theme.canvas)
     }
 
     private var loadingView: some View {
@@ -66,7 +66,7 @@ struct ResponseViewerView: View {
                             .fontWeight(selectedTab == tab ? .semibold : .regular)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(selectedTab == tab ? Color.postWomanPink.opacity(0.15) : Color.clear)
+                            .background(selectedTab == tab ? Theme.selection : Color.clear)
                             .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
@@ -75,7 +75,7 @@ struct ResponseViewerView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Theme.bar)
 
             Divider()
 

@@ -57,7 +57,8 @@ struct HistoryListView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .background(.white)
+        .background(Theme.listBackground)
+        .navigationTitle("History")
         .searchable(text: $searchText, prompt: "Search history")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -118,10 +119,10 @@ struct HistoryRowView: View {
                 if let statusCode = item.statusCode {
                     Text("\(statusCode)")
                         .font(.caption)
-                        .foregroundColor(statusColor(for: statusCode))
+                        .foregroundColor(Theme.status(statusCode))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(statusColor(for: statusCode).opacity(0.15))
+                        .background(Theme.status(statusCode).opacity(0.15))
                         .cornerRadius(3)
                 }
 
@@ -141,13 +142,4 @@ struct HistoryRowView: View {
         .padding(.vertical, 2)
     }
 
-    private func statusColor(for code: Int) -> Color {
-        switch code {
-        case 200..<300: return .green
-        case 300..<400: return .orange
-        case 400..<500: return .red
-        case 500..<600: return .red
-        default: return .gray
-        }
-    }
 }

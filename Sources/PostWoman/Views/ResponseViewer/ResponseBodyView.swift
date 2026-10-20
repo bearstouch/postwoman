@@ -31,7 +31,7 @@ struct ResponseBodyView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1))
+                        .background(Theme.chip)
                         .cornerRadius(4)
                 }
 
@@ -57,6 +57,8 @@ struct ResponseBodyView: View {
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // Short bodies start at the top left instead of floating in the middle.
+                .defaultScrollAnchor(.topLeading)
             } else {
                 VStack {
                     Text("No response body")

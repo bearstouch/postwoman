@@ -36,7 +36,7 @@ struct RequestTabView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Theme.bar)
     }
 
     private func badgeCount(for tab: RequestTab) -> Int? {
@@ -66,14 +66,14 @@ struct TabButton: View {
                         .font(.caption2)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(isSelected ? Color.postWomanPink : Color.secondary.opacity(0.3))
+                        .background(isSelected ? Color.postWomanPink : Theme.chip)
                         .foregroundColor(isSelected ? .white : .primary)
                         .cornerRadius(8)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(isSelected ? Color.postWomanPink.opacity(0.15) : Color.clear)
+            .background(isSelected ? Theme.selection : Color.clear)
             .cornerRadius(6)
         }
         .buttonStyle(.plain)

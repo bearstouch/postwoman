@@ -39,8 +39,9 @@ struct BodyTabView: View {
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)
                     .padding(8)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .cornerRadius(4)
+                    .background(Theme.field)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline))
                     .padding()
             }
         }

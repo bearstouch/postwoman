@@ -34,6 +34,7 @@ struct URLBarView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .shadow(color: url.isEmpty ? .clear : Theme.accentGlow, radius: 10)
             .disabled(url.isEmpty || isLoading)
             .keyboardShortcut(.return, modifiers: .command)
         }
