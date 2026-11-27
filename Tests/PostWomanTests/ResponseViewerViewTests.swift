@@ -314,6 +314,19 @@ final class ResponseViewerViewTests: XCTestCase {
         XCTAssertFalse(ViewHosting.text(in: hosting).contains("View mode"))
     }
 
+    func testABodyThatIsNotTextSaysWhyItIsNotShown() {
+        XCTAssertEqual(ResponseSummary.emptyBodyMessage(Fixture.binary), "The body (2.0 KB) isn't UTF-8 text, so it isn't shown")
+        XCTAssertEqual(ResponseSummary.emptyBodyMessage(Fixture.empty), "No response body")
+        XCTAssertEqual(ResponseSummary.emptyBodyMessage(HTTPResponse(statusCode: 204, headers: [], body: nil, responseTime: 0, contentType: nil)), "No response body")
+        XCTAssertEqual(ResponseSummary.emptyBodyMessage(HTTPResponse(statusCode: 200, headers: [], body: nil, responseTime: 0, contentType: nil, bodySize: 0)), "No response body")
+
+        let hosting = ViewHosting.host(ResponseViewerView(response: Fixture.binary, isLoading: false), size: wide)
+        defer { ViewHosting.close(hosting) }
+        let text = ViewHosting.text(in: hosting)
+        XCTAssertTrue(text.contains("The body (2.0 KB) isn't UTF-8 text, so it isn't shown"))
+        XCTAssertFalse(text.contains("No response body"), "Not beside a summary that says 2.0 KB arrived.")
+    }
+
     func testTheShownTabIsExposedAsSelected() {
         let hosting = ViewHosting.host(ResponseViewerView(response: Fixture.json, isLoading: false), size: wide)
         defer { ViewHosting.close(hosting) }

@@ -107,7 +107,7 @@ struct ResponseViewerView: View {
             case .body:
                 ResponseBodyView(
                     responseBody: response.body, contentType: response.contentType, assembledText: response.stream?.text,
-                    followsEnd: response.stream?.isLive == true)
+                    followsEnd: response.stream?.isLive == true, emptyMessage: ResponseSummary.emptyBodyMessage(response))
             case .events:
                 ResponseEventsView(events: response.stream?.events ?? [], isLive: response.stream?.isLive == true)
             case .headers:
@@ -222,6 +222,12 @@ enum ResponseSummary {
     /// The body's size as received, else the UTF-8 size of its text.
     static func bodySize(_ response: HTTPResponse) -> Int {
         response.bodySize ?? response.body?.utf8.count ?? 0
+    }
+
+    /// What the Body tab says when there is no text to show: a body that arrived but isn't UTF-8 (an image, say) has no text.
+    static func emptyBodyMessage(_ response: HTTPResponse) -> String {
+        guard response.body == nil, let size = response.bodySize, size > 0 else { return "No response body" }
+        return "The body (\(formatBytes(size))) isn't UTF-8 text, so it isn't shown"
     }
 
     static func formatBytes(_ bytes: Int) -> String {
