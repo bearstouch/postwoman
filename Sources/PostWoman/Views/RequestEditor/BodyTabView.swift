@@ -144,13 +144,16 @@ enum FormBody {
         }
     }
 
+    /// What a form name or value keeps unencoded: query characters other than the separators `&` and `=`, and `+` (a space).
+    private static let fieldAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))
+
     /// The enabled, named fields, percent-encoded and joined with `&`.
     static func body(from pairs: [KeyValuePair]) -> String {
         pairs
             .filter { $0.isEnabled && !$0.key.isEmpty }
             .map { pair in
-                let key = pair.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pair.key
-                let value = pair.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pair.value
+                let key = pair.key.addingPercentEncoding(withAllowedCharacters: fieldAllowed) ?? pair.key
+                let value = pair.value.addingPercentEncoding(withAllowedCharacters: fieldAllowed) ?? pair.value
                 return "\(key)=\(value)"
             }
             .joined(separator: "&")

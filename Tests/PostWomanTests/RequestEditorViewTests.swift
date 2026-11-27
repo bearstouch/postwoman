@@ -369,6 +369,25 @@ final class BodyTabViewTests: XCTestCase {
         XCTAssertEqual(FormBody.body(from: []), "")
     }
 
+    func testFormFieldsWithSeparatorsInThemSurviveARoundTrip() {
+        let pairs = [KeyValuePair(key: "q", value: "a&b=c"), KeyValuePair(key: "k&=", value: "1+1"), KeyValuePair(key: "plain", value: "x")]
+        let body = FormBody.body(from: pairs)
+        XCTAssertEqual(body, "q=a%26b%3Dc&k%26%3D=1%2B1&plain=x")
+        let back = FormBody.pairs(from: body)
+        XCTAssertEqual(back.map(\.key), ["q", "k&=", "plain"])
+        XCTAssertEqual(back.map(\.value), ["a&b=c", "1+1", "x"])
+    }
+
+    func testOpeningAFormBodyLeavesEncodedSeparatorsAsTheyAre() throws {
+        let (container, _, request) = try EditorHosting.store()
+        request.bodyType = .urlEncoded
+        request.bodyContent = "q=a%26b&n=1%2B1"
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.label), ["q", "a&b", "n", "1+1"])
+        XCTAssertEqual(request.bodyContent, "q=a%26b&n=1%2B1")
+    }
+
     func testAJSONBodyShowsItsTextAndAPrettifyButton() throws {
         let (container, _, request) = try EditorHosting.store()
         EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
