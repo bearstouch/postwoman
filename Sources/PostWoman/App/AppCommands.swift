@@ -65,16 +65,9 @@ struct AppCommands: Commands {
 
         // Environment menu: the current collection's environments
         CommandMenu("Environment") {
-            Button("Use Default Only") {
-                NotificationCenter.default.post(name: .selectEnvironment, object: nil, userInfo: ["index": 0])
-            }
-            .keyboardShortcut("0", modifiers: .control)
-
-            ForEach(1..<10) { index in
-                Button("Use Environment \(index)") {
-                    NotificationCenter.default.post(name: .selectEnvironment, object: nil, userInfo: ["index": index])
-                }
-                .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .control)
+            ForEach(EnvironmentShortcut.all) { shortcut in
+                Button(shortcut.title) { shortcut.post() }
+                    .keyboardShortcut(shortcut.key, modifiers: .control)
             }
 
             Divider()
@@ -89,6 +82,27 @@ struct AppCommands: Commands {
             .keyboardShortcut("e", modifiers: .command)
         }
     }
+}
+
+/// An Environment menu item that picks the current collection's environment by position: ⌃0 Default only, ⌃1…⌃9 the others.
+struct EnvironmentShortcut: Identifiable, Sendable {
+    /// 0 is Default only; 1… the collection's other environments in order (`.selectEnvironment`'s `userInfo["index"]`).
+    let index: Int
+
+    var id: Int { index }
+
+    var title: String { index == 0 ? "Use Default Only" : "Use Environment \(index)" }
+
+    /// The digit, pressed with Control.
+    var key: KeyEquivalent { KeyEquivalent(Character("\(index)")) }
+
+    /// Posts `.selectEnvironment` for this position.
+    func post(to center: NotificationCenter = .default) {
+        center.post(name: .selectEnvironment, object: nil, userInfo: ["index": index])
+    }
+
+    /// ⌃0 to ⌃9, in menu order.
+    static let all = (0..<10).map { EnvironmentShortcut(index: $0) }
 }
 
 /// Extension providing notification names used for inter-view communication.

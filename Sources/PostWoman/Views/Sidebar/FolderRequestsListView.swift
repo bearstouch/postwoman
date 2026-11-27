@@ -8,13 +8,7 @@ struct FolderRequestsListView: View {
 
     @State private var searchText: String = ""
 
-    private var filteredRequests: [APIRequest] {
-        let requests = folder.requests?.sorted(by: { $0.sortOrder < $1.sortOrder }) ?? []
-        if searchText.isEmpty {
-            return requests
-        }
-        return requests.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.url.localizedCaseInsensitiveContains(searchText) }
-    }
+    private var filteredRequests: [APIRequest] { SidebarActions.requests(in: folder, matching: searchText) }
 
     var body: some View {
         List(selection: $selectedRequest) {
@@ -56,34 +50,14 @@ struct FolderRequestsListView: View {
     }
 
     private func createRequest() {
-        let request = APIRequest(name: "New Request", folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
-        modelContext.insert(request)
-        selectedRequest = request
+        selectedRequest = SidebarActions.createRequest(in: folder, context: modelContext)
     }
 
     private func duplicateRequest(_ request: APIRequest) {
-        let newRequest = APIRequest(
-            name: "\(request.name) Copy",
-            url: request.url,
-            method: request.method,
-            folder: folder
-        )
-        newRequest.headers = request.headers
-        newRequest.queryParams = request.queryParams
-        newRequest.bodyType = request.bodyType
-        newRequest.bodyContent = request.bodyContent
-        newRequest.authenticationType = request.authenticationType
-        newRequest.sortOrder = (folder.requests?.count ?? 0)
-
-        modelContext.insert(newRequest)
-        selectedRequest = newRequest
+        selectedRequest = SidebarActions.duplicate(request, in: folder, context: modelContext)
     }
 
     private func deleteRequest(_ request: APIRequest) {
-        modelContext.delete(request)
-        if selectedRequest?.id == request.id {
-            selectedRequest = nil
-        }
+        selectedRequest = SidebarActions.delete(request, selected: selectedRequest, context: modelContext)
     }
 }

@@ -13,30 +13,9 @@ struct HistoryListView: View {
     @State private var searchText: String = ""
     @State private var selectionID: UUID?
 
-    private var groupedHistory: [(String, [RequestHistory])] {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: filteredHistory) { item -> String in
-            if calendar.isDateInToday(item.timestamp) {
-                return "Today"
-            } else if calendar.isDateInYesterday(item.timestamp) {
-                return "Yesterday"
-            } else {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                return formatter.string(from: item.timestamp)
-            }
-        }
-        return grouped.sorted { $0.value.first?.timestamp ?? Date() > $1.value.first?.timestamp ?? Date() }
-    }
+    private var groupedHistory: [(String, [RequestHistory])] { SidebarActions.groupedByDay(filteredHistory) }
 
-    private var filteredHistory: [RequestHistory] {
-        if searchText.isEmpty {
-            return history
-        }
-        return history.filter { item in
-            item.url.localizedCaseInsensitiveContains(searchText) || item.method.rawValue.localizedCaseInsensitiveContains(searchText)
-        }
-    }
+    private var filteredHistory: [RequestHistory] { SidebarActions.history(history, matching: searchText) }
 
     var body: some View {
         List(selection: $selectionID) {
@@ -94,15 +73,12 @@ struct HistoryListView: View {
     }
 
     private func deleteHistoryItem(_ item: RequestHistory) {
-        if selectedHistory?.id == item.id { selectedHistory = nil }
-        modelContext.delete(item)
+        selectedHistory = SidebarActions.deleteHistory(item, selected: selectedHistory, context: modelContext)
     }
 
     private func clearHistory() {
         selectedHistory = nil
-        for item in history {
-            modelContext.delete(item)
-        }
+        SidebarActions.clearHistory(history, context: modelContext)
     }
 }
 

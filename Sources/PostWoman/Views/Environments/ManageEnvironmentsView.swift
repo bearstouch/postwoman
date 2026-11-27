@@ -129,32 +129,15 @@ struct ManageEnvironmentsView: View {
     }
 
     private func add() {
-        let used = Set(EnvironmentColor.allCases.prefix(3)).subtracting(folder.overrideEnvironments.map(\.color))
-        let environment = folder.addEnvironment(
-            named: uniqueName("New Environment"), color: used.sorted { $0.rawValue < $1.rawValue }.first ?? .gray)
-        editingID = environment.id
+        editingID = EnvironmentActions.add(to: folder).id
     }
 
     private func duplicate(_ environment: CollectionEnvironment) {
-        let copies = environment.variables.map { Variable(key: $0.key, value: $0.value, isEnabled: $0.isEnabled, isSecret: $0.isSecret) }
-        let name = environment.isDefault ? "New Environment" : "\(environment.name) Copy"
-        let copy = folder.addEnvironment(named: uniqueName(name), color: environment.isDefault ? .gray : environment.color, variables: copies)
-        editingID = copy.id
+        editingID = EnvironmentActions.duplicate(environment, in: folder).id
     }
 
     private func delete(_ environment: CollectionEnvironment) {
-        guard !environment.isDefault else { return }
-        if folder.selectedEnvironmentID == environment.id { folder.selectedEnvironmentID = nil }
-        if editingID == environment.id { editingID = folder.defaultEnvironment?.id }
-        modelContext.delete(environment)
-    }
-
-    private func uniqueName(_ base: String) -> String {
-        let names = Set((folder.environments ?? []).map(\.name))
-        guard names.contains(base) else { return base }
-        var index = 2
-        while names.contains("\(base) \(index)") { index += 1 }
-        return "\(base) \(index)"
+        editingID = EnvironmentActions.delete(environment, in: folder, context: modelContext, editingID: editingID)
     }
 }
 

@@ -12,11 +12,8 @@ struct ContentView: View {
     @Query(sort: \Folder.sortOrder)
     private var folders: [Folder]
 
-    /// The currently selected API request being edited or viewed.
-    @State private var selectedRequest: APIRequest?
-
-    /// The history entry shown in the detail column while History is selected.
-    @State private var selectedHistory: RequestHistory?
+    /// The sidebar item, the request or History entry shown, and the collection an environment sheet is open for.
+    @State private var selection = ContentSelection()
 
     /// Enumeration representing the different sections available in the sidebar navigation.
     /// Each case corresponds to a different view that can be displayed in the content column.
@@ -26,15 +23,6 @@ struct ContentView: View {
         /// Shows a specific folder and its requests.
         case folder(UUID)
     }
-
-    /// The currently selected item in the sidebar navigation.
-    @State private var sidebarSelection: SidebarItem? = .history
-
-    /// The collection whose environments the Manage Environments sheet shows.
-    @State private var managedFolder: Folder?
-
-    /// The collection the New Environment sheet adds to.
-    @State private var newEnvironmentFolder: Folder?
 
     /// Controls the visibility of the NavigationSplitView columns.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -46,7 +34,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Primary sidebar column with workspace navigation
-            List(selection: $sidebarSelection) {
+            List(selection: $selection.sidebar) {
                 Section("General") {
                     Label("History", systemImage: "clock")
                         .tag(SidebarItem.history)
@@ -80,12 +68,12 @@ struct ContentView: View {
         } content: {
             // Content column that changes based on sidebar selection
             Group {
-                switch sidebarSelection {
+                switch selection.sidebar {
                 case .history:
-                    HistoryListView(selectedHistory: $selectedHistory, onRestore: restore)
+                    HistoryListView(selectedHistory: $selection.history, onRestore: restore)
                 case .folder(let folderID):
                     if let folder = folders.first(where: { $0.id == folderID }) {
-                        FolderRequestsListView(folder: folder, selectedRequest: $selectedRequest)
+                        FolderRequestsListView(folder: folder, selectedRequest: $selection.request)
                     } else {
                         ContentUnavailableView("Folder not found", systemImage: "folder.badge.questionmark")
                     }
@@ -99,9 +87,9 @@ struct ContentView: View {
         } detail: {
             // Detail column showing request editor or empty state
             Group {
-                if sidebarSelection == .history, let history = selectedHistory, !history.isDeleted {
+                if selection.sidebar == .history, let history = selection.history, !history.isDeleted {
                     HistoryDetailView(history: history, onRestore: restore)
-                } else if let request = selectedRequest, !request.isDeleted {
+                } else if let request = selection.request, !request.isDeleted {
                     RequestEditorView(request: request)
                 } else {
                     EmptyStateView()
@@ -126,101 +114,39 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .createNewRequest)) { _ in
             createRequest()
         }
-        .sheet(item: $managedFolder) { folder in
+        .sheet(item: $selection.managedFolder) { folder in
             ManageEnvironmentsView(folder: folder)
         }
-        .sheet(item: $newEnvironmentFolder) { folder in
+        .sheet(item: $selection.newEnvironmentFolder) { folder in
             NewEnvironmentView(folder: folder)
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageEnvironments)) { notification in
-            managedFolder = folder(for: notification)
+            selection.managedFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .newEnvironment)) { notification in
-            newEnvironmentFolder = folder(for: notification)
+            selection.newEnvironmentFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectEnvironment)) { notification in
-            guard let folder = currentFolder, let index = notification.userInfo?["index"] as? Int else { return }
-            let environments = folder.overrideEnvironments
-            if index == 0 {
-                folder.selectedEnvironmentID = nil
-            } else if index <= environments.count {
-                folder.selectedEnvironment = environments[index - 1]
-            }
+            selection.selectEnvironment(notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .remoteAgentWillDelete)) { notification in
             // An agent is deleting models over MCP: never keep showing one that is gone.
             guard let ids = notification.userInfo?["ids"] as? Set<UUID> else { return }
-            if let request = selectedRequest, ids.contains(request.id) { selectedRequest = nil }
-            if let history = selectedHistory, ids.contains(history.id) { selectedHistory = nil }
-            if case .folder(let folderID) = sidebarSelection, ids.contains(folderID) { sidebarSelection = .history }
-            if let folder = managedFolder, ids.contains(folder.id) { managedFolder = nil }
-            if let folder = newEnvironmentFolder, ids.contains(folder.id) { newEnvironmentFolder = nil }
+            selection.dropSelections(of: ids)
         }
     }
 
-    /// The collection of the request being edited, else the selected collection. Its environment is the one the
-    /// toolbar shows and the Environment menu changes.
-    private var currentFolder: Folder? {
-        if sidebarSelection != .history, let request = selectedRequest, !request.isDeleted, let folder = request.folder { return folder }
-        if case .folder(let folderID) = sidebarSelection { return folders.first { $0.id == folderID } }
-        return nil
-    }
-
-    /// The collection a notification names (`userInfo["folderID"]`), else the current one.
-    private func folder(for notification: Notification) -> Folder? {
-        guard let id = notification.userInfo?["folderID"] as? UUID else { return currentFolder }
-        return folders.first { $0.id == id }
-    }
+    /// The collection whose environment the toolbar shows and the Environment menu changes.
+    private var currentFolder: Folder? { selection.currentFolder(in: folders) }
 
     /// Creates a new folder/collection at the root level.
-    private func createFolder() {
-        let folder = Folder(name: "New Collection", sortOrder: folders.count)
-        modelContext.insert(folder)
-        folder.ensureDefaultEnvironment()
-        sidebarSelection = .folder(folder.id)
-    }
+    private func createFolder() { selection.createFolder(in: folders, context: modelContext) }
 
     /// Creates a new request in the currently selected folder, or the first folder, or a new folder.
-    private func createRequest() {
-        let folder: Folder
-        if case .folder(let folderID) = sidebarSelection,
-            let selectedFolder = folders.first(where: { $0.id == folderID })
-        {
-            folder = selectedFolder
-        } else if let firstFolder = folders.first {
-            folder = firstFolder
-            sidebarSelection = .folder(folder.id)
-        } else {
-            folder = Folder(name: "Default Collection")
-            modelContext.insert(folder)
-            folder.ensureDefaultEnvironment()
-            sidebarSelection = .folder(folder.id)
-        }
+    private func createRequest() { selection.createRequest(in: folders, context: modelContext) }
 
-        let request = APIRequest(name: "New Request", folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
-        modelContext.insert(request)
-        selectedRequest = request
-    }
-
-    /// Opens a history entry's request in the editor as a new request in the first collection
-    /// (a new one when there is none), so it stays in the sidebar.
-    private func restore(_ history: RequestHistory) {
-        let folder: Folder
-        if let firstFolder = folders.first {
-            folder = firstFolder
-        } else {
-            folder = Folder(name: "Default Collection")
-            modelContext.insert(folder)
-            folder.ensureDefaultEnvironment()
-        }
-        let request = history.makeRequest(folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
-        modelContext.insert(request)
-        selectedHistory = nil
-        selectedRequest = request
-        sidebarSelection = .folder(folder.id)
-    }
+    /// Opens a history entry's request in the editor as a new request.
+    private func restore(_ history: RequestHistory) { selection.restore(history, in: folders, context: modelContext) }
 
     /// Deletes the folders at the specified indices.
     private func deleteFolders(at offsets: IndexSet) {
@@ -236,7 +162,7 @@ struct ContentView: View {
             existingFolderCount: folders.count
         ) { importedFolder in
             if let folder = importedFolder {
-                sidebarSelection = .folder(folder.id)
+                selection.sidebar = .folder(folder.id)
             }
         }
     }

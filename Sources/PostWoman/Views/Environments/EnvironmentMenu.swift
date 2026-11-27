@@ -140,25 +140,19 @@ struct NewEnvironmentView: View {
         .background(Theme.canvas)
         .onAppear {
             copyFrom = folder.selectedEnvironment?.id ?? copySources.first?.id
-            let taken = Set(folder.overrideEnvironments.map(\.color))
-            color = [EnvironmentColor.green, .orange, .red, .pink, .gray].first { !taken.contains($0) } ?? .gray
+            color = EnvironmentActions.colorForNew(in: folder)
         }
     }
 
-    private var copySources: [CollectionEnvironment] {
-        (folder.defaultEnvironment.map { [$0] } ?? []) + folder.overrideEnvironments
-    }
+    private var copySources: [CollectionEnvironment] { EnvironmentActions.copySources(in: folder) }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private func create() {
-        guard !trimmedName.isEmpty else { return }
-        var variables: [Variable] = []
-        if startsAsCopy, let source = copySources.first(where: { $0.id == copyFrom }) {
-            variables = source.variables.map { Variable(key: $0.key, value: $0.value, isEnabled: $0.isEnabled, isSecret: $0.isSecret) }
-        }
-        let environment = folder.addEnvironment(named: trimmedName, color: color, variables: variables)
-        if selectsNow { folder.selectedEnvironment = environment }
+        guard
+            let environment = EnvironmentActions.create(
+                named: name, color: color, copyFrom: startsAsCopy ? copyFrom : nil, in: folder, selectsNow: selectsNow)
+        else { return }
         onCreate(environment)
         dismiss()
     }
