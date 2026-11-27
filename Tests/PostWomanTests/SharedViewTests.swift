@@ -233,6 +233,14 @@ final class VariableStatusMarkTests: XCTestCase {
         XCTAssertTrue(status.help.contains("token is not defined"))
     }
 
+    func testTheMarkSaysInWordsWhetherAVariableIsMissing() throws {
+        for (texts, label) in [(["{{host}}"], "Variables"), (["{{host}}", "{{token}}"], "Undefined variables")] {
+            let hosting = ViewHosting.host(VariableStatusMark(texts: texts, resolver: resolver), size: CGSize(width: 40, height: 20))
+            XCTAssertEqual(hosting.nodes("AXImage").first?.label, label, "\(texts)")
+            ViewHosting.close(hosting)
+        }
+    }
+
     func testTheMarkKeepsItsPlaceWhenThereAreNoVariables() {
         let hosting = ViewHosting.host(VariableStatusMark(texts: ["plain"], resolver: resolver), size: CGSize(width: 40, height: 20))
         defer { ViewHosting.close(hosting) }

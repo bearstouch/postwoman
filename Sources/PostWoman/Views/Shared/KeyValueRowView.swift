@@ -86,6 +86,8 @@ struct VariableStatusMark: View {
         let hasMissing: Bool
         let help: String
         var symbol: String { hasMissing ? "exclamationmark.triangle.fill" : "curlybraces" }
+        /// What VoiceOver reads before the help, instead of the symbol's name.
+        var label: String { hasMissing ? "Undefined variables" : "Variables" }
     }
 
     static func status(texts: [String], resolver: VariableResolver) -> Status? {
@@ -102,6 +104,7 @@ struct VariableStatusMark: View {
                 .foregroundStyle(status.hasMissing ? Theme.warning : Theme.info)
                 .frame(width: 16)
                 .help(status.help)
+                .accessibilityLabel(status.label)
         } else {
             Color.clear.frame(width: 16, height: 1)
         }
