@@ -5,7 +5,7 @@ import os
 
 /// Answers every request with `RecordingStubProtocol.reply` and records what arrived, body included
 /// (URLSession moves `httpBody` into `httpBodyStream` before a protocol sees it).
-private final class RecordingStubProtocol: URLProtocol, @unchecked Sendable {
+private final class RecordingStubProtocol: URLProtocol {
     struct Reply: Sendable {
         var status = 200
         var headers: [String: String] = [:]
@@ -51,7 +51,8 @@ private final class RecordingStubProtocol: URLProtocol, @unchecked Sendable {
         }
         if let failure = reply.failure {
             if reply.failureDelay > 0 {
-                DispatchQueue.global().asyncAfter(deadline: .now() + reply.failureDelay) { [self] in client?.urlProtocol(self, didFailWithError: URLError(failure)) }
+                nonisolated(unsafe) let stub = self
+                DispatchQueue.global().asyncAfter(deadline: .now() + reply.failureDelay) { stub.client?.urlProtocol(stub, didFailWithError: URLError(failure)) }
             } else {
                 client?.urlProtocol(self, didFailWithError: URLError(failure))
             }

@@ -121,7 +121,7 @@ final class StreamExpectationTests: XCTestCase {
 
 /// Serves `StreamingStubProtocol.script` for every request: the response, then each chunk after its delay;
 /// `finishes: false` leaves the stream open until the task is cancelled.
-final class StreamingStubProtocol: URLProtocol, @unchecked Sendable {
+final class StreamingStubProtocol: URLProtocol {
     struct Script: Sendable {
         var contentType: String
         var chunks: [(delay: TimeInterval, text: String)]
@@ -138,13 +138,14 @@ final class StreamingStubProtocol: URLProtocol, @unchecked Sendable {
         let script = Self.script
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": script.contentType])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        DispatchQueue.global().async { [self] in
+        nonisolated(unsafe) let stub = self
+        DispatchQueue.global().async {
             for chunk in script.chunks {
                 Thread.sleep(forTimeInterval: chunk.delay)
-                if stopped.withLock({ $0 }) { return }
-                client?.urlProtocol(self, didLoad: Data(chunk.text.utf8))
+                if stub.stopped.withLock({ $0 }) { return }
+                stub.client?.urlProtocol(stub, didLoad: Data(chunk.text.utf8))
             }
-            if script.finishes, !stopped.withLock({ $0 }) { client?.urlProtocolDidFinishLoading(self) }
+            if script.finishes, !stub.stopped.withLock({ $0 }) { stub.client?.urlProtocolDidFinishLoading(stub) }
         }
     }
 
