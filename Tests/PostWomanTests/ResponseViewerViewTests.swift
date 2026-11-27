@@ -280,6 +280,15 @@ final class ResponseViewerViewTests: XCTestCase {
         }
     }
 
+    func testTheStreamBadgeIconIsNotReadAsASymbolName() {
+        for end in [StreamEnd.completed, .stopped, .failed("Lost")] {
+            let hosting = ViewHosting.host(ResponseViewerView(response: Fixture.stream(end), isLoading: false), size: wide)
+            defer { ViewHosting.close(hosting) }
+            let symbol = ResponseSummary.streamSymbol(Fixture.stream(end).stream!)!
+            XCTAssertFalse(ViewHosting.text(in: hosting).contains(symbol), "VoiceOver would read \u{201C}\(symbol)\u{201D} before the badge's words.")
+        }
+    }
+
     func testPressingATabShowsItsContent() {
         let hosting = ViewHosting.host(ResponseViewerView(response: Fixture.json, isLoading: false), size: wide)
         defer { ViewHosting.close(hosting) }

@@ -275,7 +275,9 @@ private struct StreamBadge: View {
     var body: some View {
         HStack(spacing: 5) {
             if let symbol = ResponseSummary.streamSymbol(stream) {
+                // The words beside it say the same; VoiceOver would read some symbols by their names.
                 Image(systemName: symbol)
+                    .accessibilityHidden(true)
             } else {
                 Circle()
                     .fill(Color.appAccent)
