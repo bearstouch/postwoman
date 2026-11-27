@@ -50,6 +50,7 @@ struct HistoryListView: View {
                     Image(systemName: "trash")
                 }
                 .help("Clear History")
+                .accessibilityLabel("Clear History")
                 .disabled(history.isEmpty)
             }
         }

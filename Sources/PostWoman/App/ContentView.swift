@@ -63,6 +63,8 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .help("New Folder or Import Collection")
+                    .accessibilityLabel("Add Collection")
                 }
             }
         } content: {

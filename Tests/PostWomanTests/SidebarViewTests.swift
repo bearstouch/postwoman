@@ -487,18 +487,25 @@ final class HistoryListViewTests: XCTestCase {
         defer { host.close() }
         XCTAssertTrue(host.text.contains("No History"))
         XCTAssertTrue(host.text.contains("Your request history will appear here"))
-        XCTAssertEqual(host.toolbarButtons.first { $0.label != "Search" }?.isEnabled, false, "Clear History is disabled")
+        XCTAssertEqual(host.toolbarButtons.first { $0.label == "Clear History" }?.isEnabled, false, "Clear History is disabled")
     }
 
     func testClearingFromTheToolbarEmptiesTheList() throws {
         let fixture = try SidebarFixture()
         let host = host(fixture, width: 700)
         defer { host.close() }
-        let clear = try XCTUnwrap(host.toolbarButtons.first { $0.label != "Search" })
+        let clear = try XCTUnwrap(host.toolbarButtons.first { $0.label == "Clear History" })
         host.press(clear)
         XCTAssertEqual(try fixture.history(), [])
         XCTAssertTrue(host.text.contains("No History"))
         XCTAssertEqual(try fixture.folders().count, 2)
+    }
+
+    func testTheClearButtonIsNamedNotReadAsItsIcon() throws {
+        let fixture = try SidebarFixture()
+        let host = host(fixture, width: 700)
+        defer { host.close() }
+        XCTAssertEqual(host.toolbarButtons.map(\.label).filter { $0 != "Search" }, ["Clear History"])
     }
 
     func testTheListFollowsNewEntries() throws {
@@ -553,6 +560,17 @@ final class HistoryDetailViewTests: XCTestCase {
         defer { host.close() }
         host.press(try XCTUnwrap(host.button("Open as Request")))
         XCTAssertEqual(restored, [fixture.serverError.id])
+    }
+
+    func testTheToolbarButtonIsNamedNotReadAsItsIcon() throws {
+        let fixture = try SidebarFixture()
+        var restored = 0
+        let host = host(fixture.success, fixture) { _ in restored += 1 }
+        defer { host.close() }
+        let button = try XCTUnwrap(host.toolbarButtons.first, "\(host.toolbarButtons.map(\.label))")
+        XCTAssertEqual(button.label, "Open as New Request")
+        host.press(button)
+        XCTAssertEqual(restored, 1)
     }
 
     func testTabsShowParamsHeadersBodyAndMaskedAuth() throws {
@@ -796,6 +814,16 @@ final class ContentViewTests: XCTestCase {
             let menu = try XCTUnwrap(host.nodes.first { $0.label == "No Environment" })
             XCTAssertFalse(menu.isEnabled)
         }
+    }
+
+    func testToolbarButtonsAreNamedNotReadAsTheirIcons() throws {
+        let fixture = try SidebarFixture()
+        let host = host(fixture)
+        defer { host.close() }
+        let labels = host.toolbarButtons.map(\.label)
+        XCTAssertTrue(labels.contains("Add Collection"), "\(labels)")
+        XCTAssertTrue(labels.contains("Clear History"), "\(labels)")
+        XCTAssertFalse(labels.contains("Add") || labels.contains("Bin") || labels.contains("Trash"), "\(labels)")
     }
 
     func testNewRequestFromTheMenuOpensItInTheEditor() throws {
