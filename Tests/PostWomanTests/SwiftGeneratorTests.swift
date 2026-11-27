@@ -24,6 +24,66 @@ private func parseErrors(_ source: String) throws -> String? {
     return process.terminationStatus == 0 ? nil : String(decoding: output, as: UTF8.self)
 }
 
+/// A `URLProtocol` put before the generated code: it answers the generated request offline by printing what was sent as JSON and exiting.
+private let capturingHarness = #"""
+    import Foundation
+    final class CapturingProtocol: URLProtocol {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            var body = request.httpBody ?? Data()
+            if body.isEmpty, let stream = request.httpBodyStream {
+                stream.open()
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while case let count = stream.read(&buffer, maxLength: buffer.count), count > 0 { body.append(buffer, count: count) }
+            }
+            let sent: [String: Any] = [
+                "url": request.url?.absoluteString ?? "", "method": request.httpMethod ?? "", "headers": request.allHTTPHeaderFields ?? [:],
+                "body": body.base64EncodedString(),
+            ]
+            FileHandle.standardOutput.write(try! JSONSerialization.data(withJSONObject: sent))
+            exit(0)
+        }
+        override func stopLoading() {}
+    }
+    URLProtocol.registerClass(CapturingProtocol.self)
+
+    """#
+
+/// Compiles the generated code with `swiftc` and runs it against `CapturingProtocol`, returning what the request sent (body decoded to `Data`).
+private func runGenerated(_ source: String) throws -> [String: Any]? {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftGeneratorRun-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("main.swift")
+    let binary = directory.appendingPathComponent("generated")
+    try (capturingHarness + source).write(to: file, atomically: true, encoding: .utf8)
+    let compile = Process()
+    compile.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+    compile.arguments = ["swiftc", "-swift-version", "5", "-o", binary.path, file.path]
+    let errors = Pipe()
+    compile.standardError = errors
+    compile.standardOutput = Pipe()
+    try compile.run()
+    let compileErrors = errors.fileHandleForReading.readDataToEndOfFile()
+    compile.waitUntilExit()
+    guard compile.terminationStatus == 0 else {
+        XCTFail(String(decoding: compileErrors, as: UTF8.self))
+        return nil
+    }
+    let run = Process()
+    run.executableURL = binary
+    let output = Pipe()
+    run.standardOutput = output
+    run.standardError = Pipe()
+    try run.run()
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    run.waitUntilExit()
+    guard run.terminationStatus == 0, var sent = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+    sent["body"] = (sent["body"] as? String).flatMap { Data(base64Encoded: $0) }
+    return sent
+}
+
 final class SwiftGeneratorTests: XCTestCase {
     func testPlainGetBuildsTheURLAndSetsTheMethod() {
         let output = lines(APIRequest(name: "g", url: "https://api.example.com/users"))
@@ -112,7 +172,7 @@ final class SwiftGeneratorTests: XCTestCase {
         let request = APIRequest(name: "b", url: "https://h", method: .post)
         request.bodyType = .json
         request.bodyContent = "{\n  \"name\": \"Ada\"\n}"
-        XCTAssertTrue(code(request).contains("let jsonBody = \"\"\"\n{\n  \"name\": \"Ada\"\n}\n\"\"\"\nrequest.httpBody = jsonBody.data(using: .utf8)\n"))
+        XCTAssertTrue(code(request).contains("let jsonBody = #\"\"\"\n{\n  \"name\": \"Ada\"\n}\n\"\"\"#\nrequest.httpBody = jsonBody.data(using: .utf8)\n"))
         XCTAssertTrue(lines(request).contains(#"request.setValue("application/json", forHTTPHeaderField: "Content-Type")"#))
     }
 
@@ -172,5 +232,41 @@ final class SwiftGeneratorTests: XCTestCase {
         request.authenticationType = .bearer
         request.authBearerToken = "tok\"en"
         if let errors = try parseErrors(code(request)) { XCTFail(errors) }
+    }
+
+    func testGeneratedCodeSendsTheJSONBodyByteForByte() throws {
+        let request = APIRequest(name: "j", url: "https://api.example.com/items", method: .post)
+        request.bodyType = .json
+        request.bodyContent = "{\"esc\":\"x\\ny\",\"interp\":\"\\(x)\",\"hash\":\"#\\\"\\\"\\\"#\",\"raw\":\"\\#(y)\",\"quotes\":\"\"\"\",\"path\":\"C:\\\\dir\"}\r\n{\"tab\":\"\t\"}"
+        let sent = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual(sent["body"] as? Data, Data(request.bodyContent.utf8))
+        XCTAssertEqual(sent["method"] as? String, "POST")
+    }
+
+    func testURLQueryItemsHeadersAndBodiesAreEscapedLiterals() throws {
+        let request = APIRequest(name: "e", url: #"https://h/a"b\(c)"#, method: .put)
+        request.queryParams = [KeyValuePair(key: #"q"\(n)"#, value: #"v"\(x)\"#)]
+        request.headers = [KeyValuePair(key: #"X-"K"\(k)"#, value: "v")]
+        request.bodyType = .text
+        request.bodyContent = "say \"hi\" \\(x) \u{0}\u{1}\r\n"
+        if let errors = try parseErrors(code(request)) { XCTFail(errors) }
+        request.headers = [KeyValuePair(key: "X-V", value: #"a"\(b)\"#)]
+        let sent = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual(sent["url"] as? String, "https://h/a%22b%5C(c)?q%22%5C(n)=v%22%5C(x)%5C")
+        XCTAssertEqual((sent["headers"] as? [String: String])?["X-V"], #"a"\(b)\"#)
+        XCTAssertEqual(sent["body"] as? Data, Data(request.bodyContent.utf8))
+    }
+
+    func testBasicAndBearerCredentialsAreEscapedLiterals() throws {
+        let request = APIRequest(name: "c", url: "https://h")
+        request.authenticationType = .basic
+        request.authBasicUsername = #"u"\(1)"#
+        request.authBasicPassword = #"p\(2)\"#
+        let basic = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual((basic["headers"] as? [String: String])?["Authorization"], "Basic " + Data(#"u"\(1):p\(2)\"#.utf8).base64EncodedString())
+        request.authenticationType = .bearer
+        request.authBearerToken = #"t"\(k)"#
+        let bearer = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual((bearer["headers"] as? [String: String])?["Authorization"], #"Bearer t"\(k)"#)
     }
 }
