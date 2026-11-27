@@ -65,6 +65,13 @@ final class RemoteAgentSettingsTests: XCTestCase {
         XCTAssertNotEqual(RemoteAgentToken.regenerate(at: url), token)
     }
 
+    func testCLIInstallCommandQuotesTheBundlePath() {
+        XCTAssertEqual(
+            MCPClientSetup.cliInstallCommand(bundlePath: "/Applications/PostWoman.app"), "'/Applications/PostWoman.app/Contents/Helpers/postwoman' cli install-link")
+        XCTAssertEqual(MCPClientSetup.cliInstallCommand(bundlePath: "/Users/a/Bob's/PostWoman.app"), #"'/Users/a/Bob'\''s/PostWoman.app/Contents/Helpers/postwoman' cli install-link"#)
+        XCTAssertNil(MCPClientSetup.cliInstallCommand(bundlePath: "/Users/a/.build/debug"))
+    }
+
     func testSnippetsNeverHoldTheToken() {
         for setup in MCPClientSetup.allCases {
             let snippet = setup.snippet(url: "http://127.0.0.1:7778/mcp")

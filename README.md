@@ -40,6 +40,21 @@ claude mcp add --transport http postwoman http://127.0.0.1:7778/mcp \
   --header "Authorization: Bearer pwm_…"
 ```
 
+### Command line
+- `postwoman` drives the running app through the same MCP server, from your shell or scripts. It ships inside the app; link it onto your PATH once (or use **Copy Client Setup → Command-line tool** in Settings):
+
+```sh
+/Applications/PostWoman.app/Contents/Helpers/postwoman cli install-link   # → ~/.local/bin/postwoman
+postwoman collection list
+postwoman request create --collection ID --name "Get user" --url https://api.example.com/users/1
+postwoman request execute --id ID --include          # body on stdout, status and timing on stderr
+postwoman request execute -X POST --url https://httpbin.org/post -H "Accept: application/json" -d '{"a":1}'
+postwoman history list --limit 10
+postwoman help                                       # every command; add --json for machine-readable output
+```
+
+- It finds the agent token and endpoint from the app itself; override with `--server` / `--agent-token` or `POSTWOMAN_URL` / `POSTWOMAN_TOKEN`. Exit statuses are stable (for example 3 for a refused token, 4 for not found, 7 when the app isn't reachable, 22 for `--fail` on a 4xx/5xx response).
+
 ## Installation
 
 ### Download (Recommended)
@@ -123,6 +138,7 @@ Sources/PostWoman/
 │   ├── CodeGeneration/    # Code export
 │   └── Settings/          # General, Appearance, Remote Agent
 ├── RemoteAgent/           # MCP server: HTTP listener, endpoint, tools
+Sources/PostWomanCLI/       # the postwoman command (MCP client); PostWomanCLIMain is its entry point
 ├── Services/
 │   ├── HTTPClient.swift   # Networking
 │   ├── AuthenticationHandler.swift

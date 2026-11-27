@@ -8,6 +8,6 @@
   "architectures": ["arm64", "x86_64"],
   "packageFormat": "dmg",
   "entitlements": "release/PostWoman.entitlements",
-  "artifacts": ["PostWoman.app/Contents/MacOS/PostWoman", "PostWoman.app/Contents/Resources/AppIcon.icns", "PostWoman.app/Contents/Info.plist"],
+  "artifacts": ["PostWoman.app/Contents/MacOS/PostWoman", "PostWoman.app/Contents/Resources/AppIcon.icns", "PostWoman.app/Contents/Info.plist", "PostWoman.app/Contents/Helpers/postwoman"],
   "dependencies": []
 }

@@ -21,13 +21,18 @@ for pair in arm64:apple-silicon x86_64:intel; do
     rm -f "$app/Contents/CodeResources" # the Universal app's stapled ticket does not match the thinned app
     /usr/bin/lipo -thin "$arch" "$app/Contents/MacOS/PostWoman" -output "$app/Contents/MacOS/PostWoman.thin"
     mv "$app/Contents/MacOS/PostWoman.thin" "$app/Contents/MacOS/PostWoman"
+    /usr/bin/lipo -thin "$arch" "$app/Contents/Helpers/postwoman" -output "$app/Contents/Helpers/postwoman.thin"
+    mv "$app/Contents/Helpers/postwoman.thin" "$app/Contents/Helpers/postwoman"
     if [ "$identity" = "-" ]; then
+        /usr/bin/codesign --force --options runtime --sign - --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
         /usr/bin/codesign --force --options runtime --entitlements "$entitlements" --sign - --identifier "$bundle_id" "$app"
     else
+        /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
         /usr/bin/codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" --identifier "$bundle_id" "$app"
     fi
     /usr/bin/codesign --verify --deep --strict "$app"
     [ "$(/usr/bin/lipo -archs "$app/Contents/MacOS/PostWoman")" = "$arch" ] || { echo "$label app is not $arch" >&2; exit 1; }
+    [ "$(/usr/bin/lipo -archs "$app/Contents/Helpers/postwoman")" = "$arch" ] || { echo "$label CLI is not $arch" >&2; exit 1; }
 
     dmg="$PWD/dist/PostWoman-$version-$label.dmg"
     notarize=false

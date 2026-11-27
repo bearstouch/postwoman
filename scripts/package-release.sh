@@ -22,13 +22,16 @@ mkdir -p "$dist"
 # Per-architecture native builds combined into Universal 2 with lipo.
 for arch in arm64 x86_64; do
     swift build --configuration release --triple "$arch-apple-macosx$minimum" --product PostWoman
+    swift build --configuration release --triple "$arch-apple-macosx$minimum" --product postwoman-cli
 done
 arm=$(swift build --configuration release --triple "arm64-apple-macosx$minimum" --show-bin-path)
 intel=$(swift build --configuration release --triple "x86_64-apple-macosx$minimum" --show-bin-path)
 
 app="$dist/PostWoman.app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Helpers"
 /usr/bin/lipo -create "$arm/PostWoman" "$intel/PostWoman" -output "$app/Contents/MacOS/PostWoman"
+# The command-line tool, which talks to the app's MCP server (Settings → Remote Agent).
+/usr/bin/lipo -create "$arm/postwoman-cli" "$intel/postwoman-cli" -output "$app/Contents/Helpers/postwoman"
 # The PostWoman_PostWoman.bundle resources only serve unbundled runs; the app icon comes from AppIcon.icns.
 cp Design/AppIcon/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cat > "$app/Contents/Info.plist" <<PLIST
@@ -53,9 +56,12 @@ PLIST
 
 # Hardened runtime plus the App Sandbox entitlements (network client, user-selected files).
 # The sandbox container (and its SwiftData store) is keyed by the bundle identifier.
+# Nested code first (hardened runtime, no sandbox: the CLI runs in the user's shell), then the app seals it.
 if [ "$identity" = "-" ]; then
+    /usr/bin/codesign --force --options runtime --sign - --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
     /usr/bin/codesign --force --options runtime --entitlements "$entitlements" --sign - --identifier "$bundle_id" "$app"
 else
+    /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
     /usr/bin/codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" --identifier "$bundle_id" "$app"
 fi
 
@@ -102,6 +108,8 @@ if info["CFBundleIdentifier"] != manifest["bundleIdentifier"]: problems.append("
 if info["CFBundleShortVersionString"] != manifest["version"]: problems.append("version mismatch")
 missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/MacOS/PostWoman")))
 if missing: problems.append(f"Contents/MacOS/PostWoman lacks {sorted(missing)}")
+missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/Helpers/postwoman")))
+if missing: problems.append(f"Contents/Helpers/postwoman lacks {sorted(missing)}")
 problems += [f"missing {a}" for a in manifest["artifacts"] if not os.path.exists(os.path.join(os.path.dirname(app), a))]
 if runtime != "true": problems.append("hardened runtime missing")
 if sandboxed != "true": problems.append("app sandbox entitlement missing")
@@ -109,7 +117,7 @@ if sandboxed != "true": problems.append("app sandbox entitlement missing")
 if notary_requested == "true" and stapled != "true": problems.append("notarization or stapling failed")
 evidence = {
     "version": manifest["version"], "dmg": os.path.basename(dmg), "signingIdentity": "ad-hoc (not distributable)" if identity == "-" else identity,
-    "architectures": {"app": archs(os.path.join(app, "Contents/MacOS/PostWoman"))},
+    "architectures": {"app": archs(os.path.join(app, "Contents/MacOS/PostWoman")), "cli": archs(os.path.join(app, "Contents/Helpers/postwoman"))},
     "minimumMacOS": info["LSMinimumSystemVersion"], "signatureVerified": verified == "true", "hardenedRuntime": runtime == "true", "sandboxed": sandboxed == "true",
     "notarized": notarized == "true", "stapled": stapled == "true", "gatekeeperLocal": gatekeeper.strip(), "manifestProblems": problems,
 }

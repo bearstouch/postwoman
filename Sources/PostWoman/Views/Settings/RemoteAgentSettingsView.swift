@@ -140,6 +140,10 @@ struct RemoteAgentSettingsView: View {
                             Button("Codex (config.toml)") { copy(MCPClientSetup.codex.snippet(url: controller.clientURL)) }
                             Button("OpenCode command") { copy(MCPClientSetup.opencode.snippet(url: controller.clientURL)) }
                             Button("Generic MCP JSON") { copy(MCPClientSetup.json.snippet(url: controller.clientURL)) }
+                            if let command = MCPClientSetup.cliInstallCommand(bundlePath: Bundle.main.bundlePath) {
+                                Divider()
+                                Button("Command-line tool (install link)") { copy(command) }
+                            }
                         }
                         .fixedSize()
                         .disabled(!controller.settings.mcpEnabled)
@@ -147,7 +151,7 @@ struct RemoteAgentSettingsView: View {
                 } label: {
                     SettingsLabel(
                         "Connect an agent",
-                        help: "Replace <TOKEN> with the access token, or set \(MCPClientSetup.tokenVariable) for Codex. The snippets never contain the token itself.")
+                        help: "Replace <TOKEN> with the access token, or set \(MCPClientSetup.tokenVariable) for Codex. The snippets never contain the token itself. The postwoman command finds the token on its own.")
                 }
             }
         }

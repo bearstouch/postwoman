@@ -18,10 +18,11 @@ swift test --filter PostWomanTests.CURLGeneratorTests   # one test class
 swift format -i -r Sources Tests               # format (config: .swift-format)
 swift format lint --strict -r Sources Tests    # lint: must print nothing
 swift run PostWoman                            # run unbundled (store: ~/Library/Application Support/PostWoman Dev)
+swift run postwoman-cli help                   # the CLI (bundled as Contents/Helpers/postwoman); needs the app's MCP server on
 scripts/run-app.sh [--build-only]              # assemble, ad-hoc sign (sandboxed, com.bearstouch.postwoman.dev), verify (and open) .build/PostWoman.app
 scripts/package-release.sh                     # Universal 2 DMG; ad-hoc unless POSTWOMAN_SIGN_IDENTITY / POSTWOMAN_NOTARY_PROFILE
 scripts/package-thin-release.sh                # Apple silicon + Intel DMGs from dist/PostWoman.app
-scripts/generate-app-icon.sh                   # AppIcon.icns (+ swift run icon) from Design/AppIcon/AppIcon.iconset
+scripts/generate-app-icon.sh                   # iconset + AppIcon.icns (+ swift run icon) from Design/AppIcon/PostWoman*.svg
 ```
 
 Always run format + lint + build + test before committing. CI (`.github/workflows/ci.yml`) runs
@@ -64,6 +65,16 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   `RemoteAgentController` (environment object of the Settings scene) applies them; it is started in `PostWomanApp.init`.
 - Adding a tool: declare it in `MCPTools.all` and handle it in `MCPToolHandler.run`; `MCPServerTests` checks every tool is dispatched.
 - Listening needs `com.apple.security.network.server` in `release/PostWoman.entitlements`.
+
+### CLI (`postwoman`)
+- `Sources/PostWomanCLI` (library) + `PostWomanCLIMain` (product `postwoman-cli`, renamed `postwoman` in the bundle; the names
+  differ only so they don't clash with `PostWoman` in `.build`). It is an MCP client of the app: no app code is shared, so it
+  has its own `JSONValue`. Every side effect goes through `CLIEnvironment`, so tests use fakes.
+- `CLICommands.all` maps each `noun verb` to a tool and its flags. Adding an MCP tool means adding a command:
+  `CLIContractTests` fails otherwise, and checks every flag builds arguments the tool's schema accepts.
+- It finds the token and URL in the app's container (`AppLocation`: release, dev, `swift run`), trying each until one answers.
+- The scripts sign `Contents/Helpers/postwoman` (hardened runtime, not sandboxed) before sealing the app. `CLI.version` must
+  match `AppVersion.release`.
 
 ## Architecture
 
@@ -125,9 +136,11 @@ Sources/PostWoman/
 │   ├── CodeGeneration/        # Code generator sheet
 │   ├── Settings/              # Settings window (General, Appearance)
 │   └── Shared/                # Reusable components
+├── RemoteAgent/               # MCP server (listener, endpoint, tools)
 ├── Services/                  # Business logic
 └── Utilities/                 # Helpers (JSONFormatter, AppStyle, ThemeStore, ThemeCatalog)
-Tests/PostWomanTests/          # XCTest (@testable import PostWoman)
+Sources/PostWomanCLI/          # the postwoman command (MCP client); PostWomanCLIMain/main.swift runs it
+Tests/PostWomanTests/          # XCTest (@testable import PostWoman, PostWomanCLI)
 release/                       # manifest.json, PostWoman.entitlements
 scripts/                       # run-app, package-release, package-thin-release, make-dmg, generate-app-icon
 Design/                        # AppIcon (iconset + icns), DMG background (make-background.swift)

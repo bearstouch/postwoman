@@ -135,6 +135,12 @@ enum MCPClientSetup: String, CaseIterable, Sendable {
 
     static let tokenVariable = "POSTWOMAN_TOKEN"
 
+    /// Links the bundled `postwoman` command into ~/.local/bin; nil for unbundled runs, which have no bundled command.
+    static func cliInstallCommand(bundlePath: String) -> String? {
+        guard bundlePath.hasSuffix(".app") else { return nil }
+        return "'\(bundlePath.replacingOccurrences(of: "'", with: "'\\''"))/Contents/Helpers/postwoman' cli install-link"
+    }
+
     func snippet(url: String) -> String {
         switch self {
         case .claudeCode: "claude mcp add --transport http postwoman \(url) --header \"Authorization: Bearer <TOKEN>\""

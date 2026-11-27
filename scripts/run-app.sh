@@ -11,6 +11,7 @@ if [ "${1:-}" = "--build-only" ]; then
     shift
 fi
 swift build --configuration debug --product PostWoman
+swift build --configuration debug --product postwoman-cli
 bin_path=$(swift build --configuration debug --show-bin-path)
 destination="$PWD/.build/PostWoman.app"
 staging=$(mktemp -d "$PWD/.build/postwoman-app.XXXXXX")
@@ -27,10 +28,12 @@ cleanup() {
 trap cleanup 0
 trap 'exit 130' INT
 trap 'exit 143' TERM
-mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Helpers"
 # Always assemble fresh files: do not overwrite a running executable or a stale signature.
 cp "$bin_path/PostWoman" "$bundle/Contents/MacOS/PostWoman"
 chmod u+x "$bundle/Contents/MacOS/PostWoman"
+# The command-line tool (`postwoman cli install-link` puts it on PATH).
+cp "$bin_path/postwoman-cli" "$bundle/Contents/Helpers/postwoman"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -49,6 +52,8 @@ PLIST
 cp Design/AppIcon/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
 # The SwiftPM command-line signature does not seal an app's Info.plist/resources or carry entitlements.
 # Sign the completed development bundle; no certificate or account is required.
+# Nested code is signed first, then the bundle seals it. The CLI is not sandboxed: it runs in the user's shell.
+/usr/bin/codesign --force --sign - --identifier com.bearstouch.postwoman.dev.cli "$bundle/Contents/Helpers/postwoman"
 /usr/bin/codesign --force --entitlements release/PostWoman.entitlements --sign - --identifier com.bearstouch.postwoman.dev "$bundle"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"
 # `open` only re-activates an app that is already running, so quit the old dev build first.
