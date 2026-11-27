@@ -19,6 +19,7 @@ struct BodyTabView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Prettify \(bodyType.rawValue)")
+                    .accessibilityLabel("Prettify \(bodyType.rawValue)")
                     .disabled(!BodyEditing.hasContent(bodyContent))
                 }
 

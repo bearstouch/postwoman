@@ -359,6 +359,16 @@ final class BodyTabViewTests: XCTestCase {
         }
     }
 
+    func testThePrettifyButtonIsNamedForWhatItDoes() throws {
+        let (container, _, request) = try EditorHosting.store()
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(ViewHosting.buttonLabels(in: hosting).contains("Prettify JSON"), "\(ViewHosting.buttonLabels(in: hosting))")
+        request.bodyType = .xml
+        ViewHosting.settle()
+        XCTAssertTrue(ViewHosting.buttonLabels(in: hosting).contains("Prettify XML"), "\(ViewHosting.buttonLabels(in: hosting))")
+    }
+
     func testChangingTheBodyTypeSwapsTheEditor() throws {
         let (container, _, request) = try EditorHosting.store()
         let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
