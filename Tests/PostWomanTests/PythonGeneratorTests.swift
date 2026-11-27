@@ -19,6 +19,12 @@ private func body(_ content: String, _ type: ContentType) -> APIRequest {
 
 /// Evaluates the generated script with `python3` after stubbing `requests`, returning what the request call received as JSON.
 private func pythonCall(_ source: String) throws -> [String: Any]? {
+    guard let data = try pythonOutput(source) else { return nil }
+    return try JSONSerialization.jsonObject(with: data) as? [String: Any]
+}
+
+/// What the stubbed request call received, as the JSON text `json.dumps` writes (dict order kept), or nil if the script failed.
+private func pythonOutput(_ source: String) throws -> Data? {
     let python = ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"].first { FileManager.default.isExecutableFile(atPath: $0) }
     guard let python else { throw XCTSkip("python3 not found") }
     let stub = """
@@ -48,8 +54,7 @@ private func pythonCall(_ source: String) throws -> [String: Any]? {
     try input.fileHandleForWriting.close()
     let data = output.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
-    guard process.terminationStatus == 0 else { return nil }
-    return try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    return process.terminationStatus == 0 ? data : nil
 }
 
 final class PythonGeneratorTests: XCTestCase {
@@ -155,9 +160,10 @@ final class PythonGeneratorTests: XCTestCase {
 
     func testJSONBodyBecomesAPythonLiteral() {
         let output = lines(body(#"{"on":true,"off":false,"nothing":null,"n":1.5,"list":[1,2]}"#, .json))
-        for line in [#"  "on" : True,"#, #"  "off" : False,"#, #"  "nothing" : None,"#, #"  "n" : 1.5,"#] {
-            XCTAssertTrue(output.contains(line) || output.contains(String(line.dropLast())), line)
-        }
+        let start = try! XCTUnwrap(output.firstIndex(of: "json_data = {"))
+        XCTAssertEqual(
+            Array(output[start...(start + 9)]),
+            ["json_data = {", #"    "on": True,"#, #"    "off": False,"#, #"    "nothing": None,"#, #"    "n": 1.5,"#, #"    "list": ["#, "        1,", "        2,", "    ],", "}"])
         XCTAssertEqual(output.first { $0.hasPrefix("json_data") }, "json_data = {")
         XCTAssertEqual(call(body("{}", .json)), "response = requests.post(url, json=json_data)")
     }
@@ -211,5 +217,28 @@ final class PythonGeneratorTests: XCTestCase {
         XCTAssertEqual(json["admin"] as? Bool, false)
         XCTAssertEqual(json["tags"] as? [String], ["x"])
         XCTAssertTrue(json["boss"] is NSNull)
+    }
+
+    func testJSONBodyStringsAreKeptAsWrittenInPython() throws {
+        let content = #"{"name":"nullable","flag":"true or false","path":"a/b","esc":"q\"uote \\ tab\t nl\n é 💅","null":null}"#
+        let json = try XCTUnwrap(try pythonCall(code(body(content, .json)))?["json"] as? [String: Any], "The script should run")
+        XCTAssertEqual(json["name"] as? String, "nullable")
+        XCTAssertEqual(json["flag"] as? String, "true or false")
+        XCTAssertEqual(json["path"] as? String, "a/b")
+        XCTAssertEqual(json["esc"] as? String, "q\"uote \\ tab\t nl\n é 💅")
+        XCTAssertTrue(json["null"] is NSNull)
+    }
+
+    func testJSONBodyKeepsKeyOrderAndNumberLiterals() throws {
+        let content = #"{"z":1,"a":{"y":[1.5,-2,1e3,12345678901234567890],"b":true},"m":[],"e":{}}"#
+        let text = String(decoding: try XCTUnwrap(try pythonOutput(code(body(content, .json))), "The script should run"), as: UTF8.self)
+        XCTAssertTrue(text.contains(#""json": {"z": 1, "a": {"y": [1.5, -2, 1000.0, 12345678901234567890], "b": true}, "m": [], "e": {}}"#), text)
+    }
+
+    func testJSONBodyThatIsNotAnObjectStillBecomesALiteral() throws {
+        for (content, expected) in [(#"[1,"x",null]"#, #""json": [1, "x", null]"#), (#""text""#, #""json": "text""#), ("false", #""json": false"#)] {
+            let text = String(decoding: try XCTUnwrap(try pythonOutput(code(body(content, .json))), content), as: UTF8.self)
+            XCTAssertTrue(text.contains(expected), "\(content): \(text)")
+        }
     }
 }
