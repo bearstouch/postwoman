@@ -154,7 +154,7 @@ final class URLBarViewTests: XCTestCase {
         ) { hosting, variant in
             let elements = ViewHosting.elements(in: hosting)
             XCTAssertTrue(elements.contains { $0.role == .popUpButton && $0.label == "Method" }, variant)
-            XCTAssertTrue(elements.contains { $0.role == .textField && $0.label == "https://{{host}}/users?key={{token}}" }, variant)
+            XCTAssertTrue(elements.contains { $0.role == .textField && $0.value == "https://{{host}}/users?key={{token}}" }, variant)
             XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Send"], variant)
             let resolved = try XCTUnwrap(elements.first { $0.label == "Resolved URL" }, variant)
             XCTAssertTrue(resolved.help.contains("host = api.example.com  (Default)"), variant)
@@ -305,8 +305,8 @@ final class HeadersTabViewTests: XCTestCase {
             let elements = ViewHosting.elements(in: hosting)
             XCTAssertTrue(elements.contains { $0.label == "Request Headers" }, variant)
             XCTAssertTrue(elements.contains { $0.role == .menuButton && $0.label == "Common Headers" }, variant)
-            XCTAssertTrue(elements.contains { $0.role == .textField && $0.label == "Accept" }, variant)
-            XCTAssertTrue(elements.contains { $0.role == .textField && $0.label == "application/json" }, variant)
+            XCTAssertTrue(elements.contains { $0.role == .textField && $0.value == "Accept" }, variant)
+            XCTAssertTrue(elements.contains { $0.role == .textField && $0.value == "application/json" }, variant)
             EditorHosting.assertButtonsAreLabelled(in: hosting, variant)
         }
     }
@@ -384,7 +384,7 @@ final class BodyTabViewTests: XCTestCase {
         request.bodyContent = "q=a%26b&n=1%2B1"
         let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
         defer { ViewHosting.close(hosting) }
-        XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.label), ["q", "a&b", "n", "1+1"])
+        XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value), ["q", "a&b", "n", "1+1"])
         XCTAssertEqual(request.bodyContent, "q=a%26b&n=1%2B1")
     }
 
@@ -421,7 +421,7 @@ final class BodyTabViewTests: XCTestCase {
         request.bodyType = .urlEncoded
         request.bodyContent = "a=1&b=two"
         ViewHosting.settle()
-        let fields = ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.label)
+        let fields = ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value)
         XCTAssertEqual(fields, ["a", "1", "b", "two"])
 
         request.bodyType = .text

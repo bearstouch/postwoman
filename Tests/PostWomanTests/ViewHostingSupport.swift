@@ -21,7 +21,8 @@ enum ViewHosting {
         _ view: Content, size: CGSize = CGSize(width: 900, height: 600), appearance: NSAppearance.Name = .aqua, container: ModelContainer? = nil
     ) -> NSHostingView<AnyView> {
         // SwiftUI builds its accessibility tree only once an assistive app asks for it; this asks on the tests' behalf.
-        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        // There is no NSAccessibility protocol method for this attribute, so the old setter is called by selector (no warning).
+        _ = NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         let root: AnyView = container.map { AnyView(view.modelContainer($0)) } ?? AnyView(view)
         let hosting = NSHostingView(rootView: root)
         hosting.frame = CGRect(origin: .zero, size: size)
@@ -46,6 +47,8 @@ enum ViewHosting {
     struct Element: CustomStringConvertible {
         let role: NSAccessibility.Role?
         let label: String
+        /// The element's string value (what is typed in a field), separate from its label.
+        let value: String
         let help: String
         let isSelected: Bool?
         var description: String { "\(role?.rawValue ?? "?") '\(label)'" + (help.isEmpty ? "" : " help '\(help)'") }
@@ -67,7 +70,7 @@ enum ViewHosting {
             let label = texts.compactMap { $0 }.first { !$0.isEmpty } ?? ""
             // A Bool getter can't go through `perform`; KVC boxes it.
             let selected = node.responds(to: NSSelectorFromString("isAccessibilitySelected")) ? node.value(forKey: "accessibilitySelected") as? Bool : nil
-            found.append(Element(role: role, label: label, help: read(node, "accessibilityHelp") as? String ?? "", isSelected: selected))
+            found.append(Element(role: role, label: label, value: texts[2] ?? "", help: read(node, "accessibilityHelp") as? String ?? "", isSelected: selected))
             for child in read(node, "accessibilityChildren") as? [Any] ?? [] { visit(child, depth: depth + 1) }
         }
         visit(root, depth: 0)
@@ -78,5 +81,13 @@ enum ViewHosting {
     static func buttonLabels(in root: NSView) -> [String] { elements(in: root).filter { $0.role == .button }.map(\.label) }
 
     /// Every bit of text an element exposes under `root` (labels, titles, string values), for "is this shown?" checks.
-    static func text(in root: NSView) -> [String] { elements(in: root).map(\.label).filter { !$0.isEmpty } }
+    static func text(in root: NSView) -> [String] { elements(in: root).flatMap { [$0.label, $0.value] }.filter { !$0.isEmpty }.uniqued() }
+}
+
+extension Array where Element: Hashable {
+    /// The elements in order, each once (an element's label and value are often the same text).
+    fileprivate func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
 }
