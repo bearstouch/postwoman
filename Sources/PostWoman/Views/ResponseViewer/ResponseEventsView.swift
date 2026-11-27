@@ -90,6 +90,7 @@ struct ResponseEventsView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Clear filter")
+                    .accessibilityLabel("Clear filter")
                 }
             }
             .padding(.horizontal, 8)

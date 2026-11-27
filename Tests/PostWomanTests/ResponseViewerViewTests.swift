@@ -619,6 +619,16 @@ final class ResponseEventsViewTests: XCTestCase {
         XCTAssertTrue(ViewHosting.text(in: hosting).contains("No events match \u{201C}nothing here\u{201D}"))
     }
 
+    func testClearingTheFilterIsLabelledAndListsEveryEventAgain() {
+        let hosting = ViewHosting.host(ResponseEventsView(events: events), size: CGSize(width: 700, height: 400))
+        defer { ViewHosting.close(hosting) }
+        AX.type("hello", in: hosting)
+        let clear = ViewHosting.elements(in: hosting).first { $0.role == .button && $0.help == "Clear filter" }
+        XCTAssertEqual(clear?.label, "Clear filter")
+        XCTAssertTrue(AX.press("Clear filter", in: hosting))
+        XCTAssertTrue(ViewHosting.text(in: hosting).contains("[DONE]"))
+    }
+
     func testNewEventsAppearAsTheyArrive() {
         let feed = Feed(Array(events.prefix(1)))
         let hosting = ViewHosting.host(FedView(feed: feed) { ResponseEventsView(events: $0, isLive: true) }, size: CGSize(width: 700, height: 400))
@@ -718,6 +728,17 @@ final class ResponseHeadersViewTests: XCTestCase {
         AX.type("nope", in: hosting)
         XCTAssertTrue(ViewHosting.text(in: hosting).contains("No headers match \u{201C}nope\u{201D}"))
         XCTAssertTrue(ViewHosting.text(in: hosting).contains("0 of 3"))
+    }
+
+    func testClearingTheFilterIsLabelledAndShowsEveryHeaderAgain() {
+        let hosting = ViewHosting.host(ResponseHeadersView(headers: headers), size: CGSize(width: 900, height: 400))
+        defer { ViewHosting.close(hosting) }
+        XCTAssertFalse(ViewHosting.buttonLabels(in: hosting).contains("Clear filter"), "Nothing to clear yet.")
+        AX.type("content", in: hosting)
+        let clear = ViewHosting.elements(in: hosting).first { $0.role == .button && $0.help == "Clear filter" }
+        XCTAssertEqual(clear?.label, "Clear filter")
+        XCTAssertTrue(AX.press("Clear filter", in: hosting))
+        XCTAssertTrue(ViewHosting.text(in: hosting).contains("3 headers"))
     }
 
     func testNoHeadersSaysSoAndCannotCopy() {
