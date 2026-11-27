@@ -59,18 +59,26 @@ else
     /usr/bin/codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" --identifier "$bundle_id" "$app"
 fi
 
-dmg="$dist/PostWoman-$version.dmg"
-scripts/make-dmg.sh "$app" "$dmg" "PostWoman $version"
-if [ "$identity" != "-" ]; then /usr/bin/codesign --force --timestamp --sign "$identity" "$dmg"; fi
-
+# Notarize and staple the app before it goes into the DMG, so the copy users drag out of the
+# DMG carries its own ticket (Gatekeeper accepts it offline). Then notarize and staple the DMG.
 notarized=false
 stapled=false
 notary_requested=false
+dmg="$dist/PostWoman-$version.dmg"
 if [ -n "${POSTWOMAN_NOTARY_PROFILE:-}" ] && [ "$identity" != "-" ]; then
     notary_requested=true
+    zip="$dist/PostWoman-$version-notarize.zip"
+    /usr/bin/ditto -c -k --keepParent "$app" "$zip"
+    /usr/bin/xcrun notarytool submit "$zip" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait \
+        && /usr/bin/xcrun stapler staple "$app" && app_stapled=true
+    rm -f "$zip"
+fi
+scripts/make-dmg.sh "$app" "$dmg" "PostWoman $version"
+if [ "$identity" != "-" ]; then /usr/bin/codesign --force --timestamp --sign "$identity" "$dmg"; fi
+if [ "${app_stapled:-false}" = true ]; then
     /usr/bin/xcrun notarytool submit "$dmg" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait && notarized=true
     if [ "$notarized" = true ]; then
-        /usr/bin/xcrun stapler staple "$app" && /usr/bin/xcrun stapler staple "$dmg" && stapled=true
+        /usr/bin/xcrun stapler staple "$dmg" && scripts/verify-dmg-staple.sh "$dmg" && stapled=true
     fi
 fi
 

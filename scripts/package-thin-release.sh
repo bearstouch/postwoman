@@ -18,6 +18,7 @@ for pair in arm64:apple-silicon x86_64:intel; do
     rm -rf "$stage"; mkdir -p "$stage"
     app="$stage/PostWoman.app"
     cp -R "$universal" "$app"
+    rm -f "$app/Contents/CodeResources" # the Universal app's stapled ticket does not match the thinned app
     /usr/bin/lipo -thin "$arch" "$app/Contents/MacOS/PostWoman" -output "$app/Contents/MacOS/PostWoman.thin"
     mv "$app/Contents/MacOS/PostWoman.thin" "$app/Contents/MacOS/PostWoman"
     if [ "$identity" = "-" ]; then
@@ -29,13 +30,24 @@ for pair in arm64:apple-silicon x86_64:intel; do
     [ "$(/usr/bin/lipo -archs "$app/Contents/MacOS/PostWoman")" = "$arch" ] || { echo "$label app is not $arch" >&2; exit 1; }
 
     dmg="$PWD/dist/PostWoman-$version-$label.dmg"
+    notarize=false
+    if [ "$identity" != "-" ] && [ -n "${POSTWOMAN_NOTARY_PROFILE:-}" ]; then notarize=true; fi
+    # Staple the app before packaging so the copy dragged out of the DMG carries its own ticket.
+    if [ "$notarize" = true ]; then
+        zip="$stage/PostWoman-notarize.zip"
+        /usr/bin/ditto -c -k --keepParent "$app" "$zip"
+        /usr/bin/xcrun notarytool submit "$zip" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait
+        /usr/bin/xcrun stapler staple "$app"
+        rm -f "$zip"
+    fi
     scripts/make-dmg.sh "$app" "$dmg" "PostWoman $version"
     if [ "$identity" != "-" ]; then
         /usr/bin/codesign --force --timestamp --sign "$identity" "$dmg"
-        if [ -n "${POSTWOMAN_NOTARY_PROFILE:-}" ]; then
-            /usr/bin/xcrun notarytool submit "$dmg" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait
-            /usr/bin/xcrun stapler staple "$dmg"
-        fi
+    fi
+    if [ "$notarize" = true ]; then
+        /usr/bin/xcrun notarytool submit "$dmg" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait
+        /usr/bin/xcrun stapler staple "$dmg"
+        scripts/verify-dmg-staple.sh "$dmg"
     fi
     rm -rf "$stage"
     echo "$dmg ($arch)"
