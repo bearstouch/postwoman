@@ -154,10 +154,12 @@ enum ExportImportService {
         )
         context.insert(folder)
 
-        // Environments: Default's variables, then the others in order; files from before environments get an empty Default.
+        // Environments: Default's name and variables, then the others in order; files from before environments get an empty Default.
+        // A blank Default name keeps "Default", as a rename to a blank name would.
         let defaultEnvironment = folder.ensureDefaultEnvironment()
         for exported in container.folder.environments ?? [] {
             if exported.isDefault {
+                if !exported.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { defaultEnvironment.name = exported.name }
                 defaultEnvironment.variables = exported.variables
             } else {
                 let environment = folder.addEnvironment(

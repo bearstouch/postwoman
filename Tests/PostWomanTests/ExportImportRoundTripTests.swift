@@ -182,6 +182,13 @@ final class ExportImportRoundTripTests: XCTestCase {
         XCTAssertNil(try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 0).selectedEnvironment)
     }
 
+    func testARenamedDefaultKeepsItsNameThroughARoundTrip() throws {
+        let imported = try ExportImportService.importFolder(from: try ExportImportService.exportFolder(makeFullCollection()), context: context, existingFolderCount: 0)
+        XCTAssertEqual(imported.defaultEnvironment?.name, "Local")
+        XCTAssertEqual(imported.defaultEnvironmentName, "Local")
+        XCTAssertEqual(imported.environments?.filter(\.isDefault).count, 1)
+    }
+
     // MARK: Importing hand-written and older files
 
     private func file(environments: String? = nil, selected: String? = nil, requests: String = "[]", version: String = "1.0") -> Data {
@@ -208,6 +215,22 @@ final class ExportImportRoundTripTests: XCTestCase {
             XCTAssertNil(imported.selectedEnvironment, selected)
             XCTAssertEqual(imported.activeEnvironmentName, "Default", selected)
         }
+    }
+
+    func testABlankDefaultNameImportsAsDefault() throws {
+        for name in ["", "   ", "\\n\\t"] {
+            let data = file(environments: "[\(environment(name, isDefault: true)), \(environment("Staging"))]")
+            let imported = try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 0)
+            XCTAssertEqual(imported.defaultEnvironment?.name, "Default", name.debugDescription)
+            XCTAssertEqual(imported.overrideEnvironments.map(\.name), ["Staging"], name.debugDescription)
+        }
+    }
+
+    func testADefaultNameFromAHandWrittenFileIsKept() throws {
+        let data = file(environments: "[\(environment("Dev box", isDefault: true))]")
+        let imported = try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 0)
+        XCTAssertEqual(imported.defaultEnvironmentName, "Dev box")
+        XCTAssertEqual(imported.activeEnvironmentName, "Dev box")
     }
 
     func testAFileWithoutADefaultStillGetsOne() throws {
