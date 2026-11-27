@@ -47,8 +47,9 @@ final class HistoryRetentionTests: XCTestCase {
     }
 
     func testLimitDefaultsTo300AndIsClamped() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "HistoryRetentionTests"))
-        defaults.removePersistentDomain(forName: "HistoryRetentionTests")
+        let suite = "HistoryRetentionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(HistoryRetention.limit(in: defaults), 300)
         defaults.set(0, forKey: HistoryRetention.limitKey)
         XCTAssertEqual(HistoryRetention.limit(in: defaults), 1)

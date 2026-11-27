@@ -256,7 +256,7 @@ final class HistoryRecordingTests: XCTestCase {
 final class HistoryRetentionBoundaryTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext { container.mainContext }
-    private let suite = "HistoryRetentionBoundaryTests"
+    private let suite = "HistoryRetentionBoundaryTests.\(UUID().uuidString)"
 
     override func setUp() async throws {
         container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
@@ -368,7 +368,7 @@ final class HistoryRetentionBoundaryTests: XCTestCase {
 
     func testLimitReadsOnlyWholeNumbersAndClampsThem() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let cases: [(Any, Int)] = [
             (1, 1), (300, 300), (99_999, 99_999), (100_000, 100_000), (100_001, 100_000), (Int.max, 100_000), (-1, 1), (Int.min, 1), ("50", 300)
         ]
