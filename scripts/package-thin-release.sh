@@ -25,14 +25,21 @@ for pair in arm64:apple-silicon x86_64:intel; do
     mv "$app/Contents/Helpers/postwoman.thin" "$app/Contents/Helpers/postwoman"
     if [ "$identity" = "-" ]; then
         /usr/bin/codesign --force --options runtime --sign - --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
-        /usr/bin/codesign --force --options runtime --entitlements "$entitlements" --sign - --identifier "$bundle_id" "$app"
+        scripts/sign-sparkle.sh "$app" - "$arch"
+        # Ad-hoc only: no Team ID, so library validation would refuse the embedded Sparkle.framework.
+        adhoc_entitlements="$stage/adhoc.entitlements"
+        cp "$entitlements" "$adhoc_entitlements"
+        /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$adhoc_entitlements"
+        /usr/bin/codesign --force --options runtime --entitlements "$adhoc_entitlements" --sign - --identifier "$bundle_id" "$app"
     else
         /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
+        scripts/sign-sparkle.sh "$app" "$identity" "$arch"
         /usr/bin/codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" --identifier "$bundle_id" "$app"
     fi
     /usr/bin/codesign --verify --deep --strict "$app"
     [ "$(/usr/bin/lipo -archs "$app/Contents/MacOS/PostWoman")" = "$arch" ] || { echo "$label app is not $arch" >&2; exit 1; }
     [ "$(/usr/bin/lipo -archs "$app/Contents/Helpers/postwoman")" = "$arch" ] || { echo "$label CLI is not $arch" >&2; exit 1; }
+    [ "$(/usr/bin/lipo -archs "$app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle")" = "$arch" ] || { echo "$label Sparkle is not $arch" >&2; exit 1; }
 
     dmg="$PWD/dist/PostWoman-$version-$label.dmg"
     notarize=false

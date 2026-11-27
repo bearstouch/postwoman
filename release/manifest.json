@@ -7,7 +7,10 @@
   "minimumMacOS": "14.0",
   "architectures": ["arm64", "x86_64"],
   "packageFormat": "dmg",
+  "sparklePublicKey": "5wfbU1tsmRZO/ntu9OlfmqIyS1M7AUyTw1BUAwkvZG8=",
   "entitlements": "release/PostWoman.entitlements",
-  "artifacts": ["PostWoman.app/Contents/MacOS/PostWoman", "PostWoman.app/Contents/Resources/AppIcon.icns", "PostWoman.app/Contents/Info.plist", "PostWoman.app/Contents/Helpers/postwoman"],
-  "dependencies": []
+  "artifacts": ["PostWoman.app/Contents/MacOS/PostWoman", "PostWoman.app/Contents/Resources/AppIcon.icns", "PostWoman.app/Contents/Info.plist", "PostWoman.app/Contents/Helpers/postwoman", "PostWoman.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle", "PostWoman.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate", "PostWoman.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc", "PostWoman.app/Contents/Resources/Sparkle-LICENSE.txt"],
+  "dependencies": [
+    {"name": "Sparkle", "version": "2.10.0", "revision": "eef1a539a373c1f1a320624b1130fc5de7b2e100", "license": "MIT", "licenseFile": "ThirdParty/Sparkle-LICENSE.txt"}
+  ]
 }

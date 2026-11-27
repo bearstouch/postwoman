@@ -18,6 +18,9 @@ struct PostWomanApp: App {
     /// The MCP server agents use (Settings → Remote Agent). It works on the same main context as the windows.
     @State private var remoteAgent: RemoteAgentController
 
+    /// Sparkle, only in packaged builds with an update feed (Settings → Updates, Check for Updates…).
+    @State private var updates: UpdateSettingsModel?
+
     init() {
         let container = Self.makeModelContainer()
         sharedModelContainer = container
@@ -25,6 +28,7 @@ struct PostWomanApp: App {
         let remoteAgent = RemoteAgentController(container: container)
         remoteAgent.start()
         _remoteAgent = State(initialValue: remoteAgent)
+        _updates = State(initialValue: SparkleUpdater().map { UpdateSettingsModel(updater: $0) })
     }
 
     private static func makeModelContainer() -> ModelContainer {
@@ -59,14 +63,14 @@ struct PostWomanApp: App {
         }
         .modelContainer(sharedModelContainer)
         .commands {
-            AppCommands()
+            AppCommands(updates: updates)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 1300, height: 850)
 
         Settings {
-            SettingsView()
+            SettingsView(updates: updates)
                 .environment(remoteAgent)
                 .themedScene()
         }

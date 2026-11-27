@@ -5,6 +5,9 @@ import SwiftUI
 /// common actions like creating requests, sending requests, and managing environments.
 /// Commands communicate with views using NotificationCenter to maintain loose coupling.
 struct AppCommands: Commands {
+    /// Nil when this build has no update feed; the menu item is left out.
+    let updates: UpdateSettingsModel?
+
     /// The command menu structure containing File, Request, and Environment menus.
     /// Each menu item posts notifications that are observed by relevant views.
     var body: some Commands {
@@ -12,6 +15,9 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About PostWoman") {
                 AboutPanel.show()
+            }
+            if let updates {
+                CheckForUpdatesButton(updates: updates)
             }
         }
 

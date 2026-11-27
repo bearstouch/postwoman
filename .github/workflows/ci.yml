@@ -54,5 +54,8 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Test appcast script
+        run: python3 -I scripts/test-update-appcast.py
+
       - name: Assemble app bundle
         run: scripts/run-app.sh --build-only

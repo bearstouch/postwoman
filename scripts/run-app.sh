@@ -28,7 +28,7 @@ cleanup() {
 trap cleanup 0
 trap 'exit 130' INT
 trap 'exit 143' TERM
-mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Helpers"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Helpers" "$bundle/Contents/Frameworks"
 # Always assemble fresh files: do not overwrite a running executable or a stale signature.
 cp "$bin_path/PostWoman" "$bundle/Contents/MacOS/PostWoman"
 chmod u+x "$bundle/Contents/MacOS/PostWoman"
@@ -50,10 +50,13 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 </dict></plist>
 PLIST
 cp Design/AppIcon/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
+# The app links Sparkle; this Info.plist has no SUFeedURL, so a development bundle never checks for updates.
+/usr/bin/ditto "$bin_path/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
 # The SwiftPM command-line signature does not seal an app's Info.plist/resources or carry entitlements.
 # Sign the completed development bundle; no certificate or account is required.
 # Nested code is signed first, then the bundle seals it. The CLI is not sandboxed: it runs in the user's shell.
 /usr/bin/codesign --force --sign - --identifier com.bearstouch.postwoman.dev.cli "$bundle/Contents/Helpers/postwoman"
+scripts/sign-sparkle.sh "$bundle" -
 /usr/bin/codesign --force --entitlements release/PostWoman.entitlements --sign - --identifier com.bearstouch.postwoman.dev "$bundle"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"
 # `open` only re-activates an app that is already running, so quit the old dev build first.

@@ -22,6 +22,7 @@ swift run postwoman-cli help                   # the CLI (bundled as Contents/He
 scripts/run-app.sh [--build-only]              # assemble, ad-hoc sign (sandboxed, com.bearstouch.postwoman.dev), verify (and open) .build/PostWoman.app
 scripts/package-release.sh                     # Universal 2 DMG; ad-hoc unless POSTWOMAN_SIGN_IDENTITY / POSTWOMAN_NOTARY_PROFILE
 scripts/package-thin-release.sh                # Apple silicon + Intel DMGs from dist/PostWoman.app
+python3 -I scripts/test-update-appcast.py      # appcast generator checks (CI runs them)
 scripts/generate-app-icon.sh                   # iconset + AppIcon.icns (+ swift run icon) from Design/AppIcon/PostWoman*.svg
 ```
 
@@ -43,6 +44,19 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
 - SwiftPM has no asset catalog: the icon is `Design/AppIcon/AppIcon.icns` (copied into the bundle)
   and the accent (pink by default) is `Color.appAccent`, applied with `.themedScene()` at each scene root.
   Use it instead of `Color.accentColor`.
+
+### Updates (Sparkle)
+- Ported from Trellis. `Services/Updates/`: `UpdateFeed` (needs an HTTPS `SUFeedURL` and an `SUPublicEDKey` in Info.plist), `UpdatePreferences`
+  (beta opt-in, `PostWomanIncludeBetaUpdates`), the `SoftwareUpdater` protocol and `UpdateSettingsModel`; `SparkleUpdater` is the only Sparkle code.
+  Builds without a feed (`swift run`, `scripts/run-app.sh`, tests) get no updater: no menu item, no Settings → Updates, no network.
+- `scripts/package-release.sh` writes the feed keys only when `release/manifest.json` has `sparklePublicKey`. The feed is
+  `appcast.xml` on the orphan `appcast` branch, which `release.yml` updates (`scripts/update-appcast.py`, tested by
+  `scripts/test-update-appcast.py`) for notarized tag builds when the `SPARKLE_ED_PRIVATE_KEY` secret is set.
+- Unlike Trellis, PostWoman is sandboxed: Sparkle installs through `Installer.xpc` (`SUEnableInstallerLauncherService`, and the
+  `com.bearstouch.postwoman-spks`/`-spki` mach-lookup exceptions in the entitlements). `scripts/sign-sparkle.sh` drops `Downloader.xpc`
+  (the app has network.client), thins and signs the framework inside-out. Ad-hoc package builds add `disable-library-validation`.
+- `CFBundleShortVersionString` is the numeric `X.Y.Z`, `CFBundleVersion` `X.Y.Z.<build>` (alpha.N = N, beta.N = 30+N, rc.N = 60+N,
+  release = 100; Sparkle compares it), and `PostWomanVersion` the full version that `AppVersion.current` shows.
 
 ### Themes
 - Colors come from the light and dark `ThemePalette` chosen in Settings → Appearance, held by the observable

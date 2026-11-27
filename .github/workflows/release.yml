@@ -9,6 +9,7 @@ name: Release
 #   MACOS_CERTIFICATE_PASSWORD  password for the .p12
 #   MACOS_SIGN_IDENTITY         e.g. "Developer ID Application: Example (TEAMID)"
 #   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   notarytool credentials (app-specific password)
+#   SPARKLE_ED_PRIVATE_KEY      EdDSA key from Sparkle's generate_keys; without it the update feed isn't published
 
 on:
   push:
@@ -132,6 +133,47 @@ jobs:
             "dist/PostWoman-$VERSION-apple-silicon.dmg#PostWoman $VERSION (Apple silicon)" \
             "dist/PostWoman-$VERSION-intel.dmg#PostWoman $VERSION (Intel)" \
             dist/SHA256SUMS.txt dist/release-evidence.json
+
+      # Only a notarized release reaches the update feed (as in Trellis). The appcast lives alone on the orphan
+      # `appcast` branch, served from raw.githubusercontent.com (the SUFeedURL in scripts/package-release.sh).
+      - name: Publish update feed
+        if: github.ref_type == 'tag'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$SPARKLE_ED_PRIVATE_KEY" ]; then echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set; the update feed was not published."; exit 0; fi
+          notarized=$(python3 -c 'import json;print(str(json.load(open("dist/release-evidence.json"))["notarized"]).lower())')
+          if [ "$notarized" != true ]; then echo "::warning::This release isn't notarized, so it stays out of the update feed."; exit 0; fi
+          feed=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/PostWoman.app/Contents/Info.plist 2>/dev/null || true)
+          if [ -z "$feed" ]; then echo "::error::The signing key is set but the app has no SUFeedURL; add sparklePublicKey to release/manifest.json."; exit 1; fi
+          dmg="dist/PostWoman-$VERSION.dmg"
+          signature=$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "$dmg")
+          unset SPARKLE_ED_PRIVATE_KEY  # nothing after signing needs the key
+          bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/PostWoman.app/Contents/Info.plist)
+          minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' dist/PostWoman.app/Contents/Info.plist)
+          # Another tag's release may publish at the same time: rebuild on the newest feed and retry a rejected push.
+          for attempt in 1 2 3; do
+            work="$RUNNER_TEMP/appcast-$attempt"
+            if git ls-remote --exit-code --heads origin appcast > /dev/null; then
+              git fetch --depth 1 origin appcast
+              git worktree add --detach "$work" FETCH_HEAD
+            else
+              git worktree add --detach "$work" HEAD
+              git -C "$work" checkout --orphan "appcast-new-$attempt"
+              git -C "$work" rm -rfq .
+            fi
+            python3 -I scripts/update-appcast.py "$work/appcast.xml" --version "$VERSION" --bundle-version "$bundle_version" \
+              --minimum-macos "$minimum" --length "$(stat -f %z "$dmg")" --signature "$signature" \
+              --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/PostWoman-$VERSION.dmg" \
+              --notes-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+            git -C "$work" add appcast.xml
+            git -C "$work" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "chore(appcast): PostWoman $VERSION"
+            if git -C "$work" push origin HEAD:refs/heads/appcast; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish appcast.xml after 3 attempts."; exit 1
 
       - name: Clean up keychain
         if: always() && steps.signing.outputs.signed == 'true'
