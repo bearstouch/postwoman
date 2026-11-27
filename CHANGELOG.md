@@ -4,7 +4,7 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.11.0] - 2026-11-27
 
 ### Added
 - Streaming responses, such as LLM APIs with `"stream": true` (OpenAI, Anthropic, Ollama, Gemini). A `text/event-stream` or NDJSON response appears as it arrives, and a new Events tab lists each event with its arrival time and full data. For LLM replies, the Body's Text view joins the deltas into the reply, and Timing shows the first byte and first token. Send becomes Stop (⌘.) while a request runs, and a stopped stream keeps what arrived, in History too. Generated cURL adds `-N` when a request asks for a stream. Agents get `response.stream` from `request_execute` (events, text, end; streams stop after 90 s), and `postwoman request execute --text` prints the reply text
@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Settings → Remote Agent: an MCP server (off by default, like Trellis's Remote Control) that lets agents such as Claude Code, Codex and OpenCode list, create, update and delete collections, requests and history entries, and send requests (recorded in History). It listens on loopback (port 7778) unless you confirm a network address, needs the access token shown in Settings on every request, and offers ready-to-paste client setups. Saved credentials are write-only over MCP. The app now has the sandbox's incoming-connections entitlement
 
 ### Changed
+- The response tabs (Body, Events, Headers, Cookies, Timing) are icons, with their names as tooltips, so they no longer wrap in a narrow pane
 - A new layered app icon: a paper plane flying off a stack of request cards
 - About PostWoman opens the standard macOS About panel, with credits linking the MIT License and bearstouch
 
