@@ -105,11 +105,12 @@ final class SwiftGeneratorTests: XCTestCase {
             KeyValuePair(key: "lang", value: "pt")
         ]
         XCTAssertEqual(
-            Array(lines(request)[1...6]),
+            Array(lines(request)[1...5]),
             [
-                #"var components = URLComponents(string: "https://api.example.com/search")!"#, "components.queryItems = [", #"    URLQueryItem(name: "q", value: "hello world"),"#,
-                #"    URLQueryItem(name: "lang", value: "pt"),"#, "]", "let url = components.url!"
+                #"var components = URLComponents(string: "https://api.example.com/search")!"#, "let queryItems = [", #"    URLQueryItem(name: "q", value: "hello world"),"#,
+                #"    URLQueryItem(name: "lang", value: "pt"),"#, "]"
             ])
+        XCTAssertTrue(lines(request).contains("let url = components.url!"))
     }
 
     func testOnlyDisabledParamsFallBackToAPlainURL() {
@@ -255,6 +256,20 @@ final class SwiftGeneratorTests: XCTestCase {
         XCTAssertEqual(sent["url"] as? String, "https://h/a%22b%5C(c)?q%22%5C(n)=v%22%5C(x)%5C")
         XCTAssertEqual((sent["headers"] as? [String: String])?["X-V"], #"a"\(b)\"#)
         XCTAssertEqual(sent["body"] as? Data, Data(request.bodyContent.utf8))
+    }
+
+    func testParamsAreAppendedToTheURLsOwnQueryBeforeTheFragment() throws {
+        let request = APIRequest(name: "q", url: "https://h/x?a=1&raw=%2F#frag")
+        request.queryParams = [KeyValuePair(key: "b", value: "2"), KeyValuePair(key: "off", value: "1", isEnabled: false)]
+        let sent = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual(sent["url"] as? String, "https://h/x?a=1&raw=%2F&b=2#frag")
+    }
+
+    func testParamNamesAndValuesArePercentEncodedLikeTheAppSendsThem() throws {
+        let request = APIRequest(name: "q", url: "https://h/x")
+        request.queryParams = [KeyValuePair(key: "a&b=c+d#e", value: "1 2+3&4=5#6/?:@"), KeyValuePair(key: "empty", value: ""), KeyValuePair(key: "é", value: "💅")]
+        let sent = try XCTUnwrap(try runGenerated(code(request)), "The generated code should compile and send")
+        XCTAssertEqual(sent["url"] as? String, "https://h/x?a%26b%3Dc%2Bd%23e=1%202%2B3%264%3D5%236/?:@&empty=&%C3%A9=%F0%9F%92%85")
     }
 
     func testBasicAndBearerCredentialsAreEscapedLiterals() throws {

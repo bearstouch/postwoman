@@ -21,7 +21,7 @@ struct SwiftGenerator {
         if !enabledParams.isEmpty {
             code += """
                 var components = URLComponents(string: \(SwiftLiteral.string(request.url)))!
-                components.queryItems = [
+                let queryItems = [
 
                 """
             for param in enabledParams {
@@ -29,6 +29,12 @@ struct SwiftGenerator {
             }
             code += """
                 ]
+                // Added after the URL's own query (kept as written), encoded so & = + # in a name or value stay data.
+                let queryAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
+                let addedQuery = queryItems.map { item in
+                    [item.name, item.value ?? ""].map { $0.addingPercentEncoding(withAllowedCharacters: queryAllowed)! }.joined(separator: "=")
+                }.joined(separator: "&")
+                components.percentEncodedQuery = [components.percentEncodedQuery ?? "", addedQuery].filter { !$0.isEmpty }.joined(separator: "&")
                 let url = components.url!
 
                 """
