@@ -31,6 +31,7 @@ struct BodyTabView: View {
                 .frame(width: 120)
             }
             .padding()
+            .background(Theme.bar)
 
             Divider()
 

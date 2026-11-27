@@ -16,19 +16,22 @@ struct RequestEditorView: View {
     var body: some View {
         VSplitView {
             VStack(spacing: 0) {
-                requestHeader
-                    .padding()
+                VStack(spacing: 0) {
+                    requestHeader
+                        .padding()
 
-                Divider()
+                    Divider()
 
-                URLBarView(
-                    url: $request.url,
-                    method: $request.method,
-                    isLoading: isLoading,
-                    onSend: sendRequest
-                )
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                    URLBarView(
+                        url: $request.url,
+                        method: $request.method,
+                        isLoading: isLoading,
+                        onSend: sendRequest
+                    )
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                }
+                .background(Theme.bar)
 
                 Divider()
 

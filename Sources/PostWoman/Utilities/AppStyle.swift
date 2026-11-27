@@ -29,7 +29,7 @@ enum Theme {
     /// The request list and history column.
     static let listBackground = Color.adaptive(light: .white, dark: NSColor(hex: 0x0E0E11))
     /// The editor and response panes.
-    static let canvas = Color.adaptive(light: .windowBackgroundColor, dark: NSColor(hex: 0x121216))
+    static let canvas = Color.adaptive(light: .white, dark: NSColor(hex: 0x121216))
     /// Tab bars and toolbars inside the panes.
     static let bar = Color.adaptive(light: .controlBackgroundColor, dark: NSColor(hex: 0x17171C))
     /// Text areas and other inset fields.
