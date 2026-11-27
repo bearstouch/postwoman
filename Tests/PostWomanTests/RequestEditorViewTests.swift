@@ -163,6 +163,16 @@ final class URLBarViewTests: XCTestCase {
         }
     }
 
+    func testTheResolvedURLsHelpListsEachVariableOnce() throws {
+        let (_, folder, request) = try EditorHosting.store()
+        let resolver = folder.variableResolver
+        let hosting = ViewHosting.host(
+            URLBarView(url: .constant(request.url), method: .constant(.post), isLoading: false, resolver: resolver, onSend: {}), size: sizes[1])
+        defer { ViewHosting.close(hosting) }
+        let resolved = ViewHosting.elements(in: hosting).first { $0.label == "Resolved URL" }
+        XCTAssertEqual(resolved?.help, VariableDescription.help(for: resolver.tokens(in: request.url), resolver: resolver))
+    }
+
     func testAPlainURLHasNoResolvedLine() {
         let resolver = VariableResolver(defaults: [], selected: nil)
         let hosting = ViewHosting.host(

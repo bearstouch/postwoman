@@ -37,9 +37,10 @@ struct URLBarView: View {
         }
         .font(.system(.caption, design: .monospaced))
         .padding(.leading, 112)
-        .help(VariableDescription.help(for: resolver.tokens(in: url), resolver: resolver))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Resolved URL")
+        // After combining, so VoiceOver reads the help once rather than once per child.
+        .help(VariableDescription.help(for: resolver.tokens(in: url), resolver: resolver))
     }
 
     private var action: URLBarAction { URLBarAction.current(url: url, isLoading: isLoading, canStop: onStop != nil) }
