@@ -2,7 +2,7 @@ import Foundation
 
 public enum CLI {
     /// Must match `AppVersion.release` (checked by `AppVersionTests`).
-    public static let version = "0.9.1"
+    public static let version = "0.10.0"
 
     /// Runs one invocation and returns the process exit status. Never retries a tool call.
     public static func run(_ arguments: [String], environment: CLIEnvironment) async -> Int32 {
