@@ -268,12 +268,27 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
         let sent = try await send(APIRequest(name: "t", url: "https://api.example.com"))
         XCTAssertEqual(sent.timeoutInterval, 30)
     }
-    /// The app and its cURL export put params in the same place, encoded the same way, whatever the URL already has.
+    func testEscapesAlreadyInTheURLAreNotEncodedAgain() async throws {
+        let cases = [
+            ("https://api.test/a?q=%2F b", "https://api.test/a?q=%2F%20b"), ("https://api.test/a%20b c", "https://api.test/a%20b%20c"),
+            ("https://api.test/users?filter[a]=1&t={{t}}", "https://api.test/users?filter%5Ba%5D=1&t=%7B%7Bt%7D%7D"), ("https://api.test/100%", "https://api.test/100%25")
+        ]
+        for (typed, sent) in cases {
+            CapturingURLProtocol.sent.withLock { $0.removeAll() }
+            let url = try await send(APIRequest(name: "e", url: typed)).url?.absoluteString
+            XCTAssertEqual(url, sent, typed)
+        }
+    }
+
+    /// The app and its cURL export put params in the same place, encoded the same way, whatever the URL already has,
+    /// characters a URL can't hold and escapes already in it included.
     func testTheCURLExportUsesTheURLTheAppSends() async throws {
         let cases: [(url: String, params: [(String, String)])] = [
             ("https://api.test/items", [("limit", "10")]), ("https://api.test/items?", [("limit", "10")]),
             ("https://api.test/items?page=1", [("limit", "10"), ("q", "a+b&c=d#e")]), ("https://api.test/items#top", [("a b", "é")]),
-            ("https://api.test/items?page=1#top", [("x", "1")]), ("https://api.test/items?q=%20", [("k", "")]), ("https://api.test/items?page=1", [])
+            ("https://api.test/items?page=1#top", [("x", "1")]), ("https://api.test/items?q=%20", [("k", "")]), ("https://api.test/items?page=1", []),
+            ("https://api.test/a?q=%2F b", []), ("https://api.test/a%20b c", [("k", "v")]), ("https://api.test/users?filter[a]=1", [("t", "{{t}}")]),
+            ("https://api.test/{{id}}/100%", [])
         ]
         for (url, params) in cases {
             CapturingURLProtocol.sent.withLock { $0.removeAll() }

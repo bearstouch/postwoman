@@ -266,7 +266,7 @@ final class PythonGeneratorTests: XCTestCase {
         request.queryParams = [KeyValuePair(key: #"q"uote\"#, value: "1")]
         request.headers = [KeyValuePair(key: #"X-"K"\"#, value: "2")]
         let captured = try XCTUnwrap(try pythonCall(code(request)), "The script should run")
-        XCTAssertEqual(captured["url"] as? String, #"https://h/a"b\c"#)
+        XCTAssertEqual(captured["url"] as? String, "https://h/a%22b%5Cc", "The URL as the app sends it; requests would encode these too")
         XCTAssertEqual(captured["params"] as? [String: String], [#"q"uote\"#: "1"])
         XCTAssertEqual(captured["headers"] as? [String: String], [#"X-"K"\"#: "2"])
     }

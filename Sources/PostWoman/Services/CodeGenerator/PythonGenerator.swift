@@ -15,7 +15,7 @@ struct PythonGenerator {
         var code = """
             import requests
 
-            url = \(PythonLiteral.string(request.url))
+            url = \(PythonLiteral.string(RequestURL.encoded(request.url)))
 
             """
 

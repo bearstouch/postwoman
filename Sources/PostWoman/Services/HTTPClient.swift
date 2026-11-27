@@ -210,7 +210,7 @@ final class HTTPClient {
     /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
     private func makeURLRequest(_ request: some RequestFields) throws -> URLRequest {
         // Parse URL and add query parameters
-        guard var urlComponents = URLComponents(string: request.url) else {
+        guard var urlComponents = URLComponents(string: RequestURL.encoded(request.url)) else {
             throw HTTPClientError.invalidURL
         }
 

@@ -265,6 +265,14 @@ final class SwiftGeneratorTests: XCTestCase {
         XCTAssertEqual(sent["url"] as? String, "https://h/x?a=1&raw=%2F&b=2#frag")
     }
 
+    func testEscapesInAURLWithSpacesAreSentAsWrittenWithAndWithoutParams() throws {
+        let plain = APIRequest(name: "q", url: "https://h/a%2Fb c?q=%2F d")
+        XCTAssertEqual(try XCTUnwrap(try runGenerated(code(plain)))["url"] as? String, "https://h/a%2Fb%20c?q=%2F%20d")
+        let withParams = APIRequest(name: "q", url: "https://h/{{id}}?q=%2F d")
+        withParams.queryParams = [KeyValuePair(key: "b", value: "2")]
+        XCTAssertEqual(try XCTUnwrap(try runGenerated(code(withParams)))["url"] as? String, "https://h/%7B%7Bid%7D%7D?q=%2F%20d&b=2")
+    }
+
     func testParamNamesAndValuesArePercentEncodedLikeTheAppSendsThem() throws {
         let request = APIRequest(name: "q", url: "https://h/x")
         request.queryParams = [KeyValuePair(key: "a&b=c+d#e", value: "1 2+3&4=5#6/?:@"), KeyValuePair(key: "empty", value: ""), KeyValuePair(key: "é", value: "💅")]

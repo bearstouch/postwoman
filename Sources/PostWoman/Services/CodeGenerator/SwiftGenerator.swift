@@ -20,7 +20,7 @@ struct SwiftGenerator {
         let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
         if !enabledParams.isEmpty {
             code += """
-                var components = URLComponents(string: \(SwiftLiteral.string(request.url)))!
+                var components = URLComponents(string: \(SwiftLiteral.string(RequestURL.encoded(request.url))))!
                 let queryItems = [
 
                 """
@@ -40,7 +40,7 @@ struct SwiftGenerator {
                 """
         } else {
             code += """
-                let url = URL(string: \(SwiftLiteral.string(request.url)))!
+                let url = URL(string: \(SwiftLiteral.string(RequestURL.encoded(request.url))))!
 
                 """
         }

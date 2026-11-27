@@ -251,7 +251,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         request.url = "https://例え.jp/パス"
         request.headers = [KeyValuePair(key: "X-Name", value: "Zoë")]
         let lines = parts(request)
-        XCTAssertEqual(lines[2], "'https://例え.jp/パス'")
+        XCTAssertEqual(lines[2], "'https://例え.jp/%E3%83%91%E3%82%B9'", "The path as the app sends it; the host is left for curl to convert")
         XCTAssertEqual(lines[3], "-H 'X-Name: Zoë'")
         XCTAssertEqual(lines[4], "-d '{\"name\":\"Zoë 💅\"}'")
     }
@@ -266,5 +266,25 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         XCTAssertEqual(request.headers, before.1)
         XCTAssertEqual(request.queryParams, before.2)
         XCTAssertEqual(request.bodyContent, before.3)
+    }
+}
+
+/// curl itself accepts the generated URL: it fails to connect (exit 7) rather than refusing the URL (exit 3) or its globbing.
+final class CURLGeneratorCurlParsesTests: XCTestCase {
+    func testCurlAcceptsURLsWithSpacesBracesBracketsAndEscapes() throws {
+        let curl = URL(fileURLWithPath: "/usr/bin/curl")
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: curl.path), "curl is not installed")
+        for path in ["/a?q=%2F b", "/{{id}}", "/users?filter[a]=1", "/a b c", "/100%"] {
+            let request = APIRequest(name: "c", url: "http://127.0.0.1:1" + path)
+            let command = CURLGenerator().generate(from: request)
+            let url = try XCTUnwrap(command.components(separatedBy: " ").first { $0.hasPrefix("'http") }?.trimmingCharacters(in: CharacterSet(charactersIn: "'")))
+            let process = Process()
+            process.executableURL = curl
+            process.arguments = ["-sS", "--max-time", "2", "-o", "/dev/null", url]
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            process.waitUntilExit()
+            XCTAssertEqual(process.terminationStatus, 7, "\(path) → \(url)")
+        }
     }
 }

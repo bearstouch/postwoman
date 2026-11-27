@@ -68,17 +68,18 @@ struct CURLGenerator {
     /// so `a&b=c` stays one value and `a+b` is not read as `a b`.
     private static let queryComponentAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
 
-    /// The URL as written, with the enabled params appended to its query (`&`, or `?` when it has none; nothing after a bare `?`)
+    /// The URL as the app sends it (`RequestURL.encoded`), with the enabled params appended to its query (`&`, or `?` when it has none; nothing after a bare `?`)
     /// and before any `#fragment`, as `HTTPClient` sends it.
     private func urlWithParams(_ request: some RequestFields) -> String {
+        let url = RequestURL.encoded(request.url)
         let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
-        guard !enabledParams.isEmpty else { return request.url }
+        guard !enabledParams.isEmpty else { return url }
         let encode = { (text: String) in text.addingPercentEncoding(withAllowedCharacters: Self.queryComponentAllowed) ?? text }
         let query = enabledParams.map { "\(encode($0.key))=\(encode($0.value))" }.joined(separator: "&")
-        let fragmentStart = request.url.firstIndex(of: "#") ?? request.url.endIndex
-        let base = request.url[..<fragmentStart]
+        let fragmentStart = url.firstIndex(of: "#") ?? url.endIndex
+        let base = url[..<fragmentStart]
         let separator = base.hasSuffix("?") ? "" : base.contains("?") ? "&" : "?"
-        return base + separator + query + request.url[fragmentStart...]
+        return base + separator + query + url[fragmentStart...]
     }
 
     /// Wraps `text` in single quotes for a POSIX shell, so nothing in it expands; each `'` is closed, escaped and reopened (`'\''`).
