@@ -783,6 +783,22 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Folder>()), 0)
     }
 
+    func testDefaultEnvironmentIsNamedInAnyCaseWithOrWithoutACollection() async throws {
+        let (target, port) = try echoServer()
+        defer { target.stop() }
+        let url = "http://127.0.0.1:\(port)/env"
+        let collection = try await call("collection_create", ["name": .string("C")])
+        for choice in ["default", "DEFAULT", "Default"] {
+            let adHoc = try await call("request_execute", ["request": .object(["url": .string(url)]), "environmentId": .string(choice)])
+            XCTAssertEqual(adHoc["environment"], .null, choice)
+            let inCollection = try await call("request_execute", ["request": .object(["url": .string(url)]), "collectionId": id(collection), "environmentId": .string(choice)])
+            XCTAssertEqual(inCollection["environment"], .string("Default"), choice)
+        }
+        let other = await failure("request_execute", ["request": .object(["url": .string(url)]), "environmentId": .string("staging")])
+        XCTAssertEqual(other?.code, "INVALID_PARAMS")
+        XCTAssertEqual(other?.details?["field"], .string("environmentId"))
+    }
+
     func testExecuteRefusesAmbiguousOrIncompleteRequests() async throws {
         let fixture = try await fixture()
         let noURL = await failure("request_execute", ["request": .object(["name": .string("x")])])

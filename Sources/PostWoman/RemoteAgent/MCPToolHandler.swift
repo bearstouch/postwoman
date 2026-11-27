@@ -214,7 +214,8 @@ final class MCPToolHandler {
             resolver = collection.resolver(with: environment)
             environmentName = environment?.name ?? collection.defaultEnvironmentName
         } else {
-            if let choice = try args.string("environmentId"), choice != "default" {
+            // "default" in any case, as with a collection (chosenEnvironment).
+            if let choice = try args.string("environmentId"), choice.lowercased() != "default" {
                 throw MCPToolError.invalidParams("The request is in no collection, so it has no environments. Pass collectionId.", field: "environmentId")
             }
             resolver = .empty
