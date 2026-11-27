@@ -62,4 +62,34 @@ final class VariableDescriptionTests: XCTestCase {
         XCTAssertFalse(colors.contains { $0 == nil })
         XCTAssertEqual(Set(colors.compactMap { $0 }).count, 3, "Selected, Default and missing are told apart (and named in the help text too)")
     }
+    /// A plain variable whose value uses a secret: the editor must not show the secret through it, at any depth.
+    private let nested = VariableResolver(
+        defaults: [
+            Variable(key: "token", value: "s3cret", isSecret: true), Variable(key: "auth", value: "Bearer {{token}}"),
+            Variable(key: "header", value: "Authorization: {{auth}}"), Variable(key: "host", value: "api.test")
+        ],
+        selected: [Variable(key: "key", value: "k-42", isSecret: true), Variable(key: "query", value: "?key={{ key }}&h={{host}}")], selectedName: "Staging")
+
+    func testHelpMasksSecretsInsideOtherVariables() {
+        let mask = VariableDescription.mask
+        XCTAssertEqual(help("{{auth}}", nested), "auth = Bearer \(mask)  (Default)")
+        XCTAssertEqual(help("{{header}}", nested), "header = Authorization: Bearer \(mask)  (Default)", "Two levels down")
+        XCTAssertEqual(help("{{query}}", nested), "query = ?key=\(mask)&h=api.test  (Staging)", "A selected secret inside a selected value; plain values still resolve")
+        for text in ["{{auth}}", "{{header}}", "{{query}}", "{{auth}} {{header}} {{query}} {{token}} {{key}}"] {
+            XCTAssertFalse(help(text, nested).contains("s3cret"), text)
+            XCTAssertFalse(help(text, nested).contains("k-42"), text)
+        }
+    }
+
+    func testResolvedTextMasksSecretsInsideOtherVariables() {
+        let resolved = String(VariableDescription.resolvedText("https://{{host}}/x{{query}} {{header}}", resolver: nested).characters)
+        XCTAssertEqual(resolved, "https://api.test/x?key=\(VariableDescription.mask)&h=api.test Authorization: Bearer \(VariableDescription.mask)")
+    }
+
+    func testMaskingLeavesWhatIsSentUnchanged() {
+        XCTAssertEqual(nested.resolve("{{header}}"), "Authorization: Bearer s3cret", "Sending still uses the real value")
+        XCTAssertEqual(nested.resolve("{{header}}", redactSecrets: true), "Authorization: Bearer {{token}}", "History and code keep the reference")
+        XCTAssertEqual(nested.resolve("{{header}} {{nope}}", maskingSecretsWith: "*"), "Authorization: Bearer * {{nope}}", "Unknown names stay as written")
+        XCTAssertEqual(nested.resolve("no variables", maskingSecretsWith: "*"), "no variables")
+    }
 }

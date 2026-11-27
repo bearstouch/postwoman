@@ -14,7 +14,7 @@ enum VariableDescription {
         }
     }
 
-    /// One line per variable: its value (masked if secret) and where it comes from.
+    /// One line per variable: its value and where it comes from. Secrets are masked, also inside other variables' values.
     static func help(for tokens: [VariableResolver.Token], resolver: VariableResolver) -> String {
         var seen: Set<String> = []
         return tokens.filter { seen.insert($0.name).inserted }.map { line(for: $0, resolver: resolver) }.joined(separator: "\n")
@@ -22,7 +22,7 @@ enum VariableDescription {
 
     static func line(for token: VariableResolver.Token, resolver: VariableResolver) -> String {
         guard let entry = resolver.entry(token.name) else { return "\(token.name) is not defined, so it is sent as written." }
-        let value = entry.isSecret ? mask : resolver.resolve(entry.value)
+        let value = entry.isSecret ? mask : resolver.resolve(entry.value, maskingSecretsWith: mask)
         switch entry.source {
         case .selected: return "\(token.name) = \(value)  (\(resolver.selectedName ?? "selected environment"))"
         case .default: return "\(token.name) = \(value)  (\(resolver.defaultName))"
@@ -42,7 +42,7 @@ enum VariableDescription {
             cursor = token.range.upperBound
             let value: String
             if let entry = resolver.entry(token.name) {
-                value = entry.isSecret ? mask : resolver.resolve(entry.value)
+                value = entry.isSecret ? mask : resolver.resolve(entry.value, maskingSecretsWith: mask)
             } else {
                 value = String(text[token.range])
             }

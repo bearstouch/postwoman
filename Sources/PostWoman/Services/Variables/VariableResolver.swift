@@ -69,13 +69,24 @@ struct VariableResolver: Sendable, Equatable {
     /// (for History, generated code and agents).
     func resolve(_ text: String, redactSecrets: Bool = false) -> String {
         var missing: Set<String> = []
-        return resolve(text, redactSecrets: redactSecrets, depth: 0, missing: &missing)
+        return resolve(text, secrets: redactSecrets ? .reference : .value, depth: 0, missing: &missing)
+    }
+
+    /// `text` with its variables replaced and every secret, nested ones included, shown as `mask` (for the editor).
+    func resolve(_ text: String, maskingSecretsWith mask: String) -> String {
+        var missing: Set<String> = []
+        return resolve(text, secrets: .mask(mask), depth: 0, missing: &missing)
+    }
+
+    /// What a secret variable becomes in resolved text.
+    private enum SecretOutput {
+        case value, reference, mask(String)
     }
 
     /// The names `text` uses that neither environment defines, nested ones included, in order of appearance.
     func missingVariables(in text: String) -> [String] {
         var missing: Set<String> = []
-        _ = resolve(text, redactSecrets: false, depth: 0, missing: &missing)
+        _ = resolve(text, secrets: .value, depth: 0, missing: &missing)
         var seen: Set<String> = []
         var ordered: [String] = []
         // Keep the order they appear in, top level first.
@@ -86,7 +97,7 @@ struct VariableResolver: Sendable, Equatable {
         return ordered
     }
 
-    private func resolve(_ text: String, redactSecrets: Bool, depth: Int, missing: inout Set<String>) -> String {
+    private func resolve(_ text: String, secrets: SecretOutput, depth: Int, missing: inout Set<String>) -> String {
         let references = Self.references(in: text)
         guard !references.isEmpty else { return text }
         var result = ""
@@ -99,12 +110,11 @@ struct VariableResolver: Sendable, Equatable {
                 result += text[range]
                 continue
             }
-            if redactSecrets, entry.isSecret {
-                result += "{{\(name)}}"
-            } else if depth + 1 >= Self.maximumDepth {
-                result += entry.value
-            } else {
-                result += resolve(entry.value, redactSecrets: redactSecrets, depth: depth + 1, missing: &missing)
+            switch (entry.isSecret, secrets) {
+            case (true, .reference): result += "{{\(name)}}"
+            case (true, .mask(let mask)): result += mask
+            case _ where depth + 1 >= Self.maximumDepth: result += entry.value
+            default: result += resolve(entry.value, secrets: secrets, depth: depth + 1, missing: &missing)
             }
         }
         result += text[cursor...]
