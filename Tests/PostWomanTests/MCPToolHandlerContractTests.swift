@@ -537,6 +537,20 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(requests[1], secondRead)
     }
 
+    func testNewRequestsAreNumberedFromZeroAndAMoveNeverTies() async throws {
+        let collection = try await call("collection_create", ["name": .string("C")])
+        let first = try await call("request_create", ["collectionId": id(collection)])
+        let second = try await call("request_create", ["collectionId": id(collection)])
+        XCTAssertEqual(first["sortOrder"], .number(0), "The first request in an empty collection is at 0, as a move into it would be")
+        XCTAssertEqual(second["sortOrder"], .number(1))
+        let other = try await call("collection_create", ["name": .string("Other")])
+        let moving = try await call("request_create", ["collectionId": id(other)])
+        let moved = try await call("request_update", ["id": id(moving), "collectionId": id(collection)])
+        XCTAssertEqual(moved["sortOrder"], .number(2), "A moved request goes after the others, tying with none")
+        let read = try await call("collection_get", ["id": id(collection)])
+        XCTAssertEqual(list(read["requests"]).map { $0["id"] }, [id(first), id(second), id(moving)])
+    }
+
     func testRequestUpdateReplacesListsAndMovesToTheEnd() async throws {
         let fixture = try await fixture()
         let other = try await call("collection_create", ["name": .string("Other")])
