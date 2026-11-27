@@ -19,10 +19,29 @@ struct HTTPResponse {
     /// Content-Type header value from the response.
     let contentType: String?
 
-    /// Human-readable status text (e.g., "OK", "Not Found").
+    /// Cookies the response set with `Set-Cookie`.
+    var cookies: [ResponseCookie] = []
+
+    /// Where the time went (DNS, connect, TLS, waiting, download), when URLSession reported it.
+    var timing: ResponseTiming?
+
+    /// The body's size in bytes as received; nil when unknown.
+    var bodySize: Int?
+
+    /// Human-readable status text (e.g., "OK", "Not Found"). Foundation's localized strings are lowercase and
+    /// say "no error" for 200, so common codes use their standard reason phrases.
     var statusText: String {
-        HTTPURLResponse.localizedString(forStatusCode: statusCode)
+        Self.reasonPhrases[statusCode] ?? HTTPURLResponse.localizedString(forStatusCode: statusCode).capitalized
     }
+
+    private static let reasonPhrases: [Int: String] = [
+        200: "OK", 201: "Created", 202: "Accepted", 204: "No Content", 206: "Partial Content",
+        301: "Moved Permanently", 302: "Found", 303: "See Other", 304: "Not Modified", 307: "Temporary Redirect", 308: "Permanent Redirect",
+        400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 405: "Method Not Allowed", 406: "Not Acceptable",
+        408: "Request Timeout", 409: "Conflict", 410: "Gone", 413: "Content Too Large", 415: "Unsupported Media Type",
+        422: "Unprocessable Content", 429: "Too Many Requests",
+        500: "Internal Server Error", 501: "Not Implemented", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout"
+    ]
 
     /// Whether the response indicates success (status code 200-299).
     var isSuccess: Bool {
@@ -141,19 +160,27 @@ final class HTTPClient {
         }
 
         // Execute the request
-        let (data, response) = try await session.data(for: urlRequest)
+        let metrics = MetricsCollector()
+        let (data, response) = try await session.data(for: urlRequest, delegate: metrics)
         let endTime = Date()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw HTTPClientError.invalidResponse
         }
 
+        let headers = parseHeaders(from: httpResponse)
+        let headerFields = Dictionary(headers.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        let timing = metrics.timing
+
         return HTTPResponse(
             statusCode: httpResponse.statusCode,
-            headers: parseHeaders(from: httpResponse),
+            headers: headers,
             body: String(data: data, encoding: .utf8),
-            responseTime: endTime.timeIntervalSince(startTime) * 1000,
-            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type")
+            responseTime: timing?.total ?? endTime.timeIntervalSince(startTime) * 1000,
+            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type"),
+            cookies: ResponseCookie.parse(headerFields: headerFields, url: httpResponse.url ?? url),
+            timing: timing,
+            bodySize: data.count
         )
     }
 

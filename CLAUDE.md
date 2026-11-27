@@ -40,8 +40,19 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   the bundle identifier `com.bearstouch.postwoman`: changing it orphans users' data. Releases up
   to 0.9.0 used `com.postwoman.app`.
 - SwiftPM has no asset catalog: the icon is `Design/AppIcon/AppIcon.icns` (copied into the bundle)
-  and the pink accent is `Color.postWomanPink`, applied with `.tint` at each scene root. Use it
-  instead of `Color.accentColor`.
+  and the accent (pink by default) is `Color.appAccent`, applied with `.themedScene()` at each scene root.
+  Use it instead of `Color.accentColor`.
+
+### Themes
+- Colors come from the light and dark `ThemePalette` chosen in Settings → Appearance, held by the observable
+  `ThemeStore.shared` (UserDefaults keys in `ThemeStore.Key`). SwiftUI views use `Theme.*` (`Utilities/AppStyle.swift`),
+  which reads the store so views redraw on change; AppKit code views use `CodePalette`, which resolves while drawing,
+  and redraw when the `themeRevision` passed to them changes. Never hard-code a surface or syntax color.
+- `Utilities/ThemeCatalog.swift` is generated from Trellis's `Sources/TrellisCore/Resources/Themes/*.theme.json`
+  (UI colors → surfaces, ANSI colors → JSON syntax, nudged to 4.5:1 on the field). `ThemeStoreTests` checks contrast.
+- Every line is the theme's border color (`Theme.hairline`): use `HairlineDivider()` instead of `Divider()` (except
+  in menus) and `.textFieldStyle(.themed)` instead of `.roundedBorder`. Split views get `.themedSplitDividers()` on
+  a pane inside them, and windows get `ThemedWindowChrome()` (no system titlebar separator).
 
 ## Architecture
 
@@ -101,9 +112,10 @@ Sources/PostWoman/
 │   ├── RequestEditor/         # URLBarView, tab views
 │   ├── ResponseViewer/        # Response display components
 │   ├── CodeGeneration/        # Code generator sheet
+│   ├── Settings/              # Settings window (General, Appearance)
 │   └── Shared/                # Reusable components
 ├── Services/                  # Business logic
-└── Utilities/                 # Helpers (JSONFormatter, AppStyle)
+└── Utilities/                 # Helpers (JSONFormatter, AppStyle, ThemeStore, ThemeCatalog)
 Tests/PostWomanTests/          # XCTest (@testable import PostWoman)
 release/                       # manifest.json, PostWoman.entitlements
 scripts/                       # run-app, package-release, package-thin-release, make-dmg, generate-app-icon

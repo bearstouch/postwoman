@@ -4,6 +4,21 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Settings → Appearance, in a new Settings window with a sidebar like Trellis's: choose System, Light or Dark; pick a light theme and a dark theme (PostWoman plus ten inspired by Trellis's themes: Modern, GitHub, One, Nord, Tokyo, Rosé Pine, Solarized, Gruvbox, Dracula and Monokai); pick an accent color (pink by default, or the theme's own); and set the code font size
+- Every border, divider and text field outline uses the theme's border color, including the column dividers and the request/response split
+
+### Fixed
+- Dark mode: the request list and History no longer draw a white background behind white text
+- Responses show standard status text ("200 OK" instead of "200 no error")
+- Short response bodies and generated code start at the top left instead of floating in the middle
+- The History column is titled "History"
+
+### Changed
+- A dark appearance in the style of Trellis: near-black panes, hairline borders, softer method and status colors, a framed body editor and a glowing Send button. Light mode keeps the system look
+
 ## [0.9.1] - 2026-10-20
 
 ### Changed

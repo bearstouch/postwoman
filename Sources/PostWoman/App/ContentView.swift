@@ -15,6 +15,9 @@ struct ContentView: View {
     /// The currently selected API request being edited or viewed.
     @State private var selectedRequest: APIRequest?
 
+    /// The history entry shown in the detail column while History is selected.
+    @State private var selectedHistory: RequestHistory?
+
     /// Enumeration representing the different sections available in the sidebar navigation.
     /// Each case corresponds to a different view that can be displayed in the content column.
     enum SidebarItem: Hashable {
@@ -73,7 +76,7 @@ struct ContentView: View {
             Group {
                 switch sidebarSelection {
                 case .history:
-                    HistoryListView(selectedRequest: $selectedRequest)
+                    HistoryListView(selectedHistory: $selectedHistory, onRestore: restore)
                 case .folder(let folderID):
                     if let folder = folders.first(where: { $0.id == folderID }) {
                         FolderRequestsListView(folder: folder, selectedRequest: $selectedRequest)
@@ -85,19 +88,26 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .overlay(alignment: .top) { HairlineDivider() }
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 300)
         } detail: {
             // Detail column showing request editor or empty state
             Group {
-                if let request = selectedRequest {
+                if sidebarSelection == .history, let history = selectedHistory {
+                    HistoryDetailView(history: history, onRestore: restore)
+                } else if let request = selectedRequest {
                     RequestEditorView(request: request)
                 } else {
                     EmptyStateView()
                 }
             }
+            .overlay(alignment: .top) { HairlineDivider() }
+            .themedSplitDividers()
             .frame(minWidth: 600, idealWidth: 600)
         }
         .navigationSplitViewStyle(.balanced)
+        // The window draws no titlebar separator; each pane's top hairline (above) takes its place.
+        .background(ThemedWindowChrome())
         .frame(minWidth: 1100, minHeight: 700)
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
             createFolder()
@@ -134,6 +144,24 @@ struct ContentView: View {
         request.sortOrder = folder.requests?.count ?? 0
         modelContext.insert(request)
         selectedRequest = request
+    }
+
+    /// Opens a history entry's request in the editor as a new request in the first collection
+    /// (a new one when there is none), so it stays in the sidebar.
+    private func restore(_ history: RequestHistory) {
+        let folder: Folder
+        if let firstFolder = folders.first {
+            folder = firstFolder
+        } else {
+            folder = Folder(name: "Default Collection")
+            modelContext.insert(folder)
+        }
+        let request = history.makeRequest(folder: folder)
+        request.sortOrder = folder.requests?.count ?? 0
+        modelContext.insert(request)
+        selectedHistory = nil
+        selectedRequest = request
+        sidebarSelection = .folder(folder.id)
     }
 
     /// Deletes the folders at the specified indices.

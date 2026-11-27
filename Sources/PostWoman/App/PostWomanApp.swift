@@ -48,7 +48,7 @@ struct PostWomanApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(.postWomanPink)
+                .themedScene()
         }
         .modelContainer(sharedModelContainer)
         .commands {
@@ -60,12 +60,12 @@ struct PostWomanApp: App {
 
         Settings {
             SettingsView()
-                .tint(.postWomanPink)
+                .themedScene()
         }
 
         Window("About PostWoman", id: "about") {
             AboutView()
-                .tint(.postWomanPink)
+                .themedScene()
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -73,9 +73,11 @@ struct PostWomanApp: App {
     }
 }
 
-/// Gives unbundled runs (`swift run`, VS Code debugging) the Dock icon and activation a packaged app gets from its bundle.
+/// Applies the saved appearance at launch, and gives unbundled runs (`swift run`, VS Code debugging) the Dock icon
+/// and activation a packaged app gets from its bundle.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ThemeStore.shared.applyAppearance()
         guard Bundle.main.bundleURL.pathExtension != "app" else { return }
         NSApp.setActivationPolicy(.regular)
         // Bundle.module is only read here: packaged apps use Contents/Resources/AppIcon.icns and do not ship the resource bundle.
@@ -83,43 +85,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.applicationIconImage = icon
         }
         NSApp.activate()
-    }
-}
-
-/// The main settings view that provides access to application configuration.
-/// Currently contains general settings but can be extended with additional tabs
-/// for advanced configuration options.
-struct SettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettingsView()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
-        }
-        .frame(width: 450, height: 250)
-    }
-}
-
-/// General application settings view providing configuration for default request behavior.
-/// Allows users to customize default timeout values that affect all HTTP requests.
-struct GeneralSettingsView: View {
-    /// The default timeout value in seconds for HTTP requests, persisted across app launches.
-    @AppStorage("defaultTimeout") private var defaultTimeout: Double = 30.0
-
-    var body: some View {
-        Form {
-            Section("Request Defaults") {
-                HStack {
-                    Text("Default Timeout (seconds)")
-                    Spacer()
-                    TextField("Timeout", value: $defaultTimeout, format: .number)
-                        .frame(width: 300)
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
-        }
-        .padding()
     }
 }
 

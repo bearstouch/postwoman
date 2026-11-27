@@ -34,7 +34,7 @@ struct HeadersTabView: View {
                 }
                 .padding()
 
-                Divider()
+                HairlineDivider()
 
                 KeyValueEditorView(
                     pairs: $headers,

@@ -5,9 +5,13 @@ struct HistoryListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RequestHistory.timestamp, order: .reverse) private var history: [RequestHistory]
 
-    @Binding var selectedRequest: APIRequest?
+    /// The entry shown in the detail column.
+    @Binding var selectedHistory: RequestHistory?
+    /// Opens an entry's request in the editor as a new request.
+    let onRestore: (RequestHistory) -> Void
 
     @State private var searchText: String = ""
+    @State private var selectionID: UUID?
 
     private var groupedHistory: [(String, [RequestHistory])] {
         let calendar = Calendar.current
@@ -35,14 +39,15 @@ struct HistoryListView: View {
     }
 
     var body: some View {
-        List {
+        List(selection: $selectionID) {
             ForEach(groupedHistory, id: \.0) { date, items in
                 Section(date) {
                     ForEach(items) { item in
                         HistoryRowView(item: item)
+                            .tag(item.id)
                             .contextMenu {
-                                Button("Restore to New Request") {
-                                    restoreRequest(from: item)
+                                Button("Open as New Request") {
+                                    onRestore(item)
                                 }
                                 Divider()
                                 Button(role: .destructive) {
@@ -57,7 +62,8 @@ struct HistoryListView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .background(.white)
+        .background(Theme.listBackground)
+        .navigationTitle("History")
         .searchable(text: $searchText, prompt: "Search history")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -67,6 +73,14 @@ struct HistoryListView: View {
                 .help("Clear History")
                 .disabled(history.isEmpty)
             }
+        }
+        .onAppear { selectionID = selectedHistory?.id }
+        .onChange(of: selectionID) { _, id in
+            guard id != selectedHistory?.id else { return }
+            selectedHistory = history.first { $0.id == id }
+        }
+        .onChange(of: selectedHistory?.id) { _, id in
+            if selectionID != id { selectionID = id }
         }
         .overlay {
             if history.isEmpty {
@@ -79,26 +93,13 @@ struct HistoryListView: View {
         }
     }
 
-    private func restoreRequest(from historyItem: RequestHistory) {
-        let request = APIRequest(
-            name: "Restored: \(historyItem.url)",
-            url: historyItem.url,
-            method: historyItem.method
-        )
-        request.headers = historyItem.requestHeaders
-        if let body = historyItem.requestBody {
-            request.bodyContent = body
-            request.bodyType = .json
-        }
-        modelContext.insert(request)
-        selectedRequest = request
-    }
-
     private func deleteHistoryItem(_ item: RequestHistory) {
+        if selectedHistory?.id == item.id { selectedHistory = nil }
         modelContext.delete(item)
     }
 
     private func clearHistory() {
+        selectedHistory = nil
         for item in history {
             modelContext.delete(item)
         }
@@ -118,10 +119,10 @@ struct HistoryRowView: View {
                 if let statusCode = item.statusCode {
                     Text("\(statusCode)")
                         .font(.caption)
-                        .foregroundColor(statusColor(for: statusCode))
+                        .foregroundColor(Theme.status(statusCode))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(statusColor(for: statusCode).opacity(0.15))
+                        .background(Theme.status(statusCode).opacity(0.15))
                         .cornerRadius(3)
                 }
 
@@ -141,13 +142,4 @@ struct HistoryRowView: View {
         .padding(.vertical, 2)
     }
 
-    private func statusColor(for code: Int) -> Color {
-        switch code {
-        case 200..<300: return .green
-        case 300..<400: return .orange
-        case 400..<500: return .red
-        case 500..<600: return .red
-        default: return .gray
-        }
-    }
 }

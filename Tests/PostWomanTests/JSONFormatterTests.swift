@@ -18,4 +18,27 @@ final class JSONFormatterTests: XCTestCase {
         XCTAssertFalse(JSONFormatter.isValid("{not json"))
         XCTAssertTrue(JSONFormatter.isValid("[]"))
     }
+
+    func testPrettifyKeepsKeyOrderAndLiterals() {
+        let input = #"{"b":1.0,"a":["x/y","q\"u,o{te"],"e":{},"f":[ ],"n":null}"#
+        let expected = """
+            {
+              "b": 1.0,
+              "a": [
+                "x/y",
+                "q\\"u,o{te"
+              ],
+              "e": {},
+              "f": [],
+              "n": null
+            }
+            """
+        XCTAssertEqual(JSONFormatter.prettify(input), expected)
+    }
+
+    func testPrettifyIsIdempotentAndRejectsInvalidJSON() throws {
+        let once = try XCTUnwrap(JSONFormatter.prettify(#"[1, {"a": [true]}]"#))
+        XCTAssertEqual(JSONFormatter.prettify(once), once)
+        XCTAssertNil(JSONFormatter.prettify("{not json"))
+    }
 }

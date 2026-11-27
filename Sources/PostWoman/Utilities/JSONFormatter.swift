@@ -26,6 +26,88 @@ enum JSONFormatter {
         }
     }
 
+    /// Re-indents a JSON string for editing, keeping it otherwise exactly as written.
+    ///
+    /// Unlike ``format(_:)``, it keeps key order, number literals and string escapes,
+    /// because it only rewrites the whitespace between tokens.
+    ///
+    /// - Parameters:
+    ///   - jsonString: The JSON string to prettify
+    ///   - indent: The string used for one level of indentation
+    /// - Returns: The re-indented JSON, or nil if the input is invalid JSON
+    static func prettify(_ jsonString: String, indent: String = "  ") -> String? {
+        guard isValid(jsonString) else { return nil }
+
+        let scalars = Array(jsonString.unicodeScalars)
+        var output = String.UnicodeScalarView()
+        var level = 0
+        var inString = false
+        var escaped = false
+
+        func newline() {
+            output.append("\n")
+            for _ in 0..<level { output.append(contentsOf: indent.unicodeScalars) }
+        }
+
+        func nextSignificant(after index: Int) -> Unicode.Scalar? {
+            var next = index + 1
+            while next < scalars.count, isWhitespace(scalars[next]) { next += 1 }
+            return next < scalars.count ? scalars[next] : nil
+        }
+
+        var index = 0
+        while index < scalars.count {
+            let scalar = scalars[index]
+            defer { index += 1 }
+
+            if inString {
+                output.append(scalar)
+                if escaped {
+                    escaped = false
+                } else if scalar == "\\" {
+                    escaped = true
+                } else if scalar == "\"" {
+                    inString = false
+                }
+                continue
+            }
+
+            switch scalar {
+            case _ where isWhitespace(scalar):
+                break
+            case "\"":
+                inString = true
+                output.append(scalar)
+            case "{", "[":
+                output.append(scalar)
+                let close: Unicode.Scalar = scalar == "{" ? "}" : "]"
+                if nextSignificant(after: index) == close {
+                    output.append(close)
+                    while scalars[index] != close { index += 1 }
+                } else {
+                    level += 1
+                    newline()
+                }
+            case "}", "]":
+                level -= 1
+                newline()
+                output.append(scalar)
+            case ",":
+                output.append(scalar)
+                newline()
+            case ":":
+                output.append(contentsOf: ": ".unicodeScalars)
+            default:
+                output.append(scalar)
+            }
+        }
+        return String(output)
+    }
+
+    private static func isWhitespace(_ scalar: Unicode.Scalar) -> Bool {
+        scalar == " " || scalar == "\t" || scalar == "\n" || scalar == "\r"
+    }
+
     /// Minifies a JSON string by removing unnecessary whitespace.
     /// Useful for reducing payload size in API requests.
     ///

@@ -19,7 +19,7 @@ struct AuthTabView: View {
                     .frame(width: 120)
                 }
 
-                Divider()
+                HairlineDivider()
 
                 switch request.authenticationType {
                 case .none:
@@ -66,7 +66,7 @@ struct AuthTabView: View {
                         set: { request.authBearerToken = $0 }
                     )
                 )
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.themed)
 
                 Button(action: {
                     if let token = request.authBearerToken {
@@ -104,7 +104,7 @@ struct AuthTabView: View {
                             set: { request.authBasicUsername = $0 }
                         )
                     )
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.themed)
                 }
 
                 VStack(alignment: .leading) {
@@ -118,7 +118,7 @@ struct AuthTabView: View {
                             set: { request.authBasicPassword = $0 }
                         )
                     )
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.themed)
                 }
             }
 
@@ -207,10 +207,10 @@ struct LabeledTextField: View {
                 .foregroundColor(.secondary)
             if isSecure {
                 SecureField(label, text: $text)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.themed)
             } else {
                 TextField(label, text: $text)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.themed)
             }
         }
     }

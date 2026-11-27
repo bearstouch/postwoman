@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct BodyTabView: View {
@@ -12,6 +13,15 @@ struct BodyTabView: View {
 
                 Spacer()
 
+                if bodyType == .json || bodyType == .xml {
+                    Button(action: prettify) {
+                        Image(systemName: "text.alignleft")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Prettify \(bodyType.rawValue)")
+                    .disabled(bodyContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
                 Picker("Body Type", selection: $bodyType) {
                     ForEach(ContentType.allCases) { type in
                         Text(type.rawValue).tag(type)
@@ -21,8 +31,9 @@ struct BodyTabView: View {
                 .frame(width: 120)
             }
             .padding()
+            .background(Theme.bar)
 
-            Divider()
+            HairlineDivider()
 
             if bodyType == .none {
                 VStack {
@@ -35,14 +46,32 @@ struct BodyTabView: View {
             } else if bodyType == .formData || bodyType == .urlEncoded {
                 FormDataEditorView(bodyContent: $bodyContent)
             } else {
-                TextEditor(text: $bodyContent)
-                    .font(.system(.body, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .cornerRadius(4)
-                    .padding()
+                CodeTextEditor(
+                    text: $bodyContent, font: ThemeStore.shared.codeFont, highlightsJSON: bodyType == .json,
+                    themeRevision: ThemeStore.shared.revision
+                )
+                .background(Theme.field)
             }
+        }
+    }
+
+    private func prettify() {
+        let formatted: String?
+        switch bodyType {
+        case .json:
+            formatted = JSONFormatter.prettify(bodyContent)
+        case .xml:
+            formatted = (try? XMLDocument(xmlString: bodyContent, options: []))?
+                .xmlString(options: .nodePrettyPrint)
+        default:
+            formatted = nil
+        }
+        guard let formatted else {
+            NSSound.beep()
+            return
+        }
+        if formatted != bodyContent {
+            bodyContent = formatted
         }
     }
 }

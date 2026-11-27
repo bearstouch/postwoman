@@ -19,7 +19,7 @@ struct URLBarView: View {
             .tint(method.color)
 
             TextField("Enter request URL", text: $url)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.themed)
                 .font(.system(.body, design: .monospaced))
                 .onSubmit(onSend)
 
@@ -34,6 +34,7 @@ struct URLBarView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .shadow(color: url.isEmpty ? .clear : Theme.accentGlow, radius: 10)
             .disabled(url.isEmpty || isLoading)
             .keyboardShortcut(.return, modifiers: .command)
         }

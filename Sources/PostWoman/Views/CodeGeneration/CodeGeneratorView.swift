@@ -29,12 +29,12 @@ struct CodeGeneratorView: View {
             header
                 .padding()
 
-            Divider()
+            HairlineDivider()
 
             languagePicker
                 .padding()
 
-            Divider()
+            HairlineDivider()
 
             codeView
         }
@@ -78,7 +78,7 @@ struct CodeGeneratorView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(selectedLanguage == language ? Color.postWomanPink : Color.secondary.opacity(0.1))
+                    .background(selectedLanguage == language ? Color.appAccent : Theme.chip)
                     .foregroundColor(selectedLanguage == language ? .white : .primary)
                     .cornerRadius(8)
                 }
@@ -118,23 +118,24 @@ struct CodeGeneratorView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(white: 0.15))
+            .background(Theme.terminalBar)
 
             ScrollView([.horizontal, .vertical]) {
                 Text(generatedCode)
                     .font(.system(size: 13, weight: .regular, design: .monospaced))
                     .lineSpacing(4)
-                    .foregroundColor(Color(red: 0.4, green: 1.0, blue: 0.4))  // Classic terminal green
+                    .foregroundColor(Theme.terminalText)  // Trellis phosphor green
                     .textSelection(.enabled)
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .defaultScrollAnchor(.topLeading)
         }
-        .background(Color(white: 0.1))  // Dark terminal background
+        .background(Theme.terminal)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(Theme.hairline, lineWidth: 1)
         )
         .padding()
     }

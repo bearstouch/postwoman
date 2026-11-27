@@ -34,7 +34,7 @@ struct FolderRequestsListView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .background(.white)
+        .background(Theme.listBackground)
         .navigationTitle(folder.name)
         .searchable(text: $searchText, prompt: "Search requests")
         .toolbar {
