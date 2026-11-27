@@ -179,6 +179,16 @@ final class URLBarViewTests: XCTestCase {
         XCTAssertEqual(sent, 1)
     }
 
+    func testStopIsAButtonThatStopsTheRequest() {
+        var stopped = 0
+        let hosting = ViewHosting.host(
+            URLBarView(url: .constant("https://example.com"), method: .constant(.get), isLoading: true, onSend: {}, onStop: { stopped += 1 }), size: sizes[1])
+        defer { ViewHosting.close(hosting) }
+        XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Stop"], "\(ViewHosting.elements(in: hosting))")
+        XCTAssertTrue(EditorHosting.press("Stop", in: hosting))
+        XCTAssertEqual(stopped, 1)
+    }
+
     func testWhileLoadingTheBarOffersStopWithItsShortcutInHelp() {
         EditorHosting.eachVariant(
             URLBarView(url: .constant("https://example.com"), method: .constant(.get), isLoading: true, onSend: {}, onStop: {}), sizes: sizes

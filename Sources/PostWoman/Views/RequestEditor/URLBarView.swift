@@ -67,6 +67,7 @@ struct URLBarView: View {
                     HStack(spacing: 5) {
                         ProgressView()
                             .controlSize(.mini)
+                            .accessibilityHidden(true)
                         Text("Stop")
                     }
                     .frame(width: 50)
