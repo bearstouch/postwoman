@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct BodyTabView: View {
@@ -11,6 +12,15 @@ struct BodyTabView: View {
                     .font(.headline)
 
                 Spacer()
+
+                if bodyType == .json || bodyType == .xml {
+                    Button(action: prettify) {
+                        Image(systemName: "text.alignleft")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Prettify \(bodyType.rawValue)")
+                    .disabled(bodyContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
 
                 Picker("Body Type", selection: $bodyType) {
                     ForEach(ContentType.allCases) { type in
@@ -42,6 +52,26 @@ struct BodyTabView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline))
                     .padding()
             }
+        }
+    }
+
+    private func prettify() {
+        let formatted: String?
+        switch bodyType {
+        case .json:
+            formatted = JSONFormatter.prettify(bodyContent)
+        case .xml:
+            formatted = (try? XMLDocument(xmlString: bodyContent, options: []))?
+                .xmlString(options: .nodePrettyPrint)
+        default:
+            formatted = nil
+        }
+        guard let formatted else {
+            NSSound.beep()
+            return
+        }
+        if formatted != bodyContent {
+            bodyContent = formatted
         }
     }
 }

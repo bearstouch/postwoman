@@ -53,7 +53,18 @@ struct CodeTextEditor: NSViewRepresentable {
         }
         if textView.string != text {
             let selection = textView.selectedRanges
-            textView.string = text
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            // While the user is editing (e.g. Prettify), make the change undoable; otherwise
+            // (another request was selected) replace the text and drop the old undo history.
+            if textView.window?.firstResponder === textView,
+                textView.shouldChangeText(in: fullRange, replacementString: text)
+            {
+                textView.replaceCharacters(in: fullRange, with: text)
+                textView.didChangeText()
+            } else {
+                textView.string = text
+                textView.undoManager?.removeAllActions(withTarget: textView.textStorage ?? textView)
+            }
             let length = (text as NSString).length
             textView.selectedRanges = selection.map { value in
                 let range = value.rangeValue
