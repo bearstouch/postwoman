@@ -2,11 +2,16 @@ import SwiftUI
 
 struct CodeGeneratorView: View {
     let request: APIRequest
+    /// The collection's environment, for filling in `{{variables}}`.
+    var resolver: VariableResolver?
+    /// "Collection · Environment", shown on the switch.
+    var environmentLabel: String?
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedLanguage: CodeLanguage = .curl
     @State private var generatedCode: String = ""
+    @State private var resolvesVariables = true
 
     enum CodeLanguage: String, CaseIterable, Identifiable {
         case curl = "cURL"
@@ -34,6 +39,13 @@ struct CodeGeneratorView: View {
             languagePicker
                 .padding()
 
+            if let environmentLabel, resolver != nil {
+                HairlineDivider()
+                variablesSwitch(environmentLabel)
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
+            }
+
             HairlineDivider()
 
             codeView
@@ -44,6 +56,21 @@ struct CodeGeneratorView: View {
         }
         .onChange(of: selectedLanguage) { _, _ in
             generateCode()
+        }
+        .onChange(of: resolvesVariables) { _, _ in
+            generateCode()
+        }
+    }
+
+    private func variablesSwitch(_ label: String) -> some View {
+        HStack(spacing: 10) {
+            Toggle("Resolve variables with \(label)", isOn: $resolvesVariables)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            Spacer()
+            Label("Secrets stay as {{name}}", systemImage: "lock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -141,13 +168,15 @@ struct CodeGeneratorView: View {
     }
 
     private func generateCode() {
+        var source = RequestSnapshot(request)
+        if resolvesVariables, let resolver { source = source.resolved(with: resolver, redactSecrets: true) }
         switch selectedLanguage {
         case .curl:
-            generatedCode = CURLGenerator().generate(from: request)
+            generatedCode = CURLGenerator().generate(from: source)
         case .swift:
-            generatedCode = SwiftGenerator().generate(from: request)
+            generatedCode = SwiftGenerator().generate(from: source)
         case .python:
-            generatedCode = PythonGenerator().generate(from: request)
+            generatedCode = PythonGenerator().generate(from: source)
         }
     }
 

@@ -85,8 +85,9 @@ enum HTTPClientError: LocalizedError {
 }
 
 /// Executes HTTP requests: URL construction, authentication, and response parsing.
-/// Main-actor isolated because it reads SwiftData `APIRequest` models, which belong to the
-/// main context; the network wait itself suspends without blocking the main thread.
+/// Main-actor isolated because it can read SwiftData `APIRequest` models, which belong to the
+/// main context; the network wait itself suspends without blocking the main thread. Callers send a
+/// `RequestSnapshot` resolved with the collection's environment.
 @MainActor
 final class HTTPClient {
     /// The URLSession used for network requests.
@@ -106,10 +107,10 @@ final class HTTPClient {
     /// header application, authentication, body encoding, and response parsing.
     ///
     /// - Parameters:
-    ///   - request: The API request configuration to execute
+    ///   - request: The request to send, as it is: `{{variables}}` are sent as written, so resolve them first
     /// - Returns: HTTPResponse containing the server's response
     /// - Throws: HTTPClientError if the request cannot be completed
-    func execute(request: APIRequest) async throws -> HTTPResponse {
+    func execute(request: some RequestFields) async throws -> HTTPResponse {
         let startTime = Date()
 
         // Parse URL and add query parameters

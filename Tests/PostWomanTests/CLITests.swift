@@ -84,6 +84,27 @@ final class CLIArgumentTests: XCTestCase {
         XCTAssertNil(merged["include"], "Output options never reach the tool.")
     }
 
+    func testBuildsEnvironmentArguments() throws {
+        let (command, arguments, _, _) = try run([
+            "environment", "create", "--collection", "C", "--name", "Staging", "--var", "baseUrl=https://x.example.com/a=b", "--secret", "token=abc", "--select"
+        ])
+        XCTAssertEqual(command.tool, "environment_create")
+        let built = arguments.merged(nestFields: false)
+        XCTAssertEqual(built["name"], .string("Staging"))
+        XCTAssertEqual(built["select"], .bool(true))
+        XCTAssertEqual(
+            built["variables"],
+            .array([
+                .object(["key": .string("baseUrl"), "value": .string("https://x.example.com/a=b"), "secret": .bool(false)]),
+                .object(["key": .string("token"), "value": .string("abc"), "secret": .bool(true)])
+            ]))
+        XCTAssertThrowsError(try run(["environment", "update", "--id", "E", "--var", "novalue"]))
+
+        let (execute, executeArguments, _, _) = try run(["request", "execute", "--id", "R", "--env", "default"])
+        XCTAssertEqual(execute.tool, "request_execute")
+        XCTAssertEqual(executeArguments.merged(nestFields: false)["environmentId"], .string("default"))
+    }
+
     func testRejectsBadArguments() {
         func code(_ words: [String]) -> String? {
             do {

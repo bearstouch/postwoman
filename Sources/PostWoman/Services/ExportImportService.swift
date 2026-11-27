@@ -22,6 +22,18 @@ enum ExportImportService {
     struct ExportableFolder: Codable {
         let name: String
         let requests: [ExportableRequest]
+        /// The collection's environments, Default first. Absent in files from before environments.
+        var environments: [ExportableEnvironment]? = nil
+        /// The name of the environment its requests used, if not Default.
+        var selectedEnvironment: String? = nil
+    }
+
+    /// Codable representation of a CollectionEnvironment. Secret values are exported empty.
+    struct ExportableEnvironment: Codable, Equatable {
+        let name: String
+        let isDefault: Bool
+        let color: String
+        let variables: [Variable]
     }
 
     /// Codable representation of an APIRequest.
@@ -65,9 +77,21 @@ enum ExportImportService {
                 )
             }
 
+        let environments = ([folder.defaultEnvironment].compactMap { $0 } + folder.overrideEnvironments).map { environment in
+            ExportableEnvironment(
+                name: environment.name, isDefault: environment.isDefault, color: environment.colorName,
+                variables: environment.variables.map { variable in
+                    var copy = variable
+                    if copy.isSecret { copy.value = "" }
+                    return copy
+                })
+        }
+
         let exportableFolder = ExportableFolder(
             name: folder.name,
-            requests: requests
+            requests: requests,
+            environments: environments,
+            selectedEnvironment: folder.selectedEnvironment?.name
         )
 
         let container = ExportContainer(
@@ -129,6 +153,18 @@ enum ExportImportService {
             sortOrder: existingFolderCount
         )
         context.insert(folder)
+
+        // Environments: Default's variables, then the others in order; files from before environments get an empty Default.
+        let defaultEnvironment = folder.ensureDefaultEnvironment()
+        for exported in container.folder.environments ?? [] {
+            if exported.isDefault {
+                defaultEnvironment.variables = exported.variables
+            } else {
+                let environment = folder.addEnvironment(
+                    named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: exported.variables)
+                if exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
+            }
+        }
 
         // Create all requests
         for (index, exportedRequest) in container.folder.requests.enumerated() {

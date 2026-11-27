@@ -6,6 +6,7 @@ enum CLIHelp {
     static let nouns: [(String, String)] = [
         ("collection", "List, show, create, rename and delete collections"),
         ("request", "List, show, create, change, delete and send saved requests"),
+        ("environment", "List, show, create, change, delete and choose a collection's environments"),
         ("history", "List, show, add, change and delete History entries"),
         ("tools", "List the MCP tools the app offers"),
         ("call", "Call any MCP tool with raw JSON arguments"),
@@ -57,6 +58,7 @@ enum CLIHelp {
         lines += [
             "", "Examples:", "  postwoman collection list", "  postwoman request create --collection ID --name 'Get user' --url https://api.example.com/users/1",
             "  postwoman request execute --id ID --include", "  postwoman request execute -X POST --url https://httpbin.org/post -H 'Accept: application/json' -d '{\"a\":1}'",
+            "  postwoman environment create --collection ID --name Staging --var baseUrl=https://staging.example.com --select",
             "  postwoman history list --limit 10", "", "Run 'postwoman help <noun>' for its commands, 'postwoman help <noun> <command>' for options.",
             "", "Exit status:"
         ]

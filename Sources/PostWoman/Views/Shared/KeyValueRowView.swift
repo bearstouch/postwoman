@@ -4,6 +4,8 @@ struct KeyValueRowView: View {
     @Binding var pair: KeyValuePair
     var keyPlaceholder: String = "Key"
     var valuePlaceholder: String = "Value"
+    /// When set, a mark after the value says what its `{{variables}}` resolve to.
+    var resolver: VariableResolver?
     var onDelete: () -> Void
 
     var body: some View {
@@ -19,6 +21,10 @@ struct KeyValueRowView: View {
             TextField(valuePlaceholder, text: $pair.value)
                 .textFieldStyle(.themed)
 
+            if let resolver {
+                VariableStatusMark(texts: [pair.key, pair.value], resolver: resolver)
+            }
+
             Button(action: onDelete) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.secondary)
@@ -33,6 +39,7 @@ struct KeyValueEditorView: View {
     @Binding var pairs: [KeyValuePair]
     var keyPlaceholder: String = "Key"
     var valuePlaceholder: String = "Value"
+    var resolver: VariableResolver?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -40,7 +47,8 @@ struct KeyValueEditorView: View {
                 KeyValueRowView(
                     pair: $pair,
                     keyPlaceholder: keyPlaceholder,
-                    valuePlaceholder: valuePlaceholder
+                    valuePlaceholder: valuePlaceholder,
+                    resolver: resolver
                 ) {
                     if let index = pairs.firstIndex(where: { $0.id == pair.id }) {
                         pairs.remove(at: index)
@@ -59,6 +67,27 @@ struct KeyValueEditorView: View {
 
     private func addNewPair() {
         pairs.append(KeyValuePair(key: "", value: ""))
+    }
+}
+
+/// A small mark for a field that uses `{{variables}}`: what they resolve to, or which are not defined.
+/// Shows nothing when the text uses none.
+struct VariableStatusMark: View {
+    let texts: [String]
+    let resolver: VariableResolver
+
+    var body: some View {
+        let tokens = texts.flatMap { resolver.tokens(in: $0) }
+        if !tokens.isEmpty {
+            let missing = texts.flatMap { resolver.missingVariables(in: $0) }
+            Image(systemName: missing.isEmpty ? "curlybraces" : "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(missing.isEmpty ? Theme.info : Theme.warning)
+                .frame(width: 16)
+                .help(VariableDescription.help(for: tokens, resolver: resolver))
+        } else {
+            Color.clear.frame(width: 16, height: 1)
+        }
     }
 }
 

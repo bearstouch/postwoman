@@ -21,17 +21,27 @@ struct CodeTextEditor: NSViewRepresentable {
         Coordinator(text: $text)
     }
 
-    /// Recolors the whole text: plain text color, then JSON token colors when enabled.
+    /// Recolors the whole text: plain text color, then JSON token colors when enabled, then `{{variables}}`.
     static func applyHighlighting(to textView: NSTextView, enabled: Bool) {
         guard let storage = textView.textStorage else { return }
         let fullRange = NSRange(location: 0, length: storage.length)
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: CodePalette.text, range: fullRange)
-        if enabled, storage.length <= highlightLimit {
-            JSONHighlighter.colorize(storage)
+        if storage.length <= highlightLimit {
+            if enabled { JSONHighlighter.colorize(storage) }
+            colorizeVariables(storage)
         }
         storage.endEditing()
         textView.typingAttributes[.foregroundColor] = CodePalette.text
+    }
+
+    /// Tints every `{{variable}}`, so a request body shows what the collection's environment fills in.
+    static func colorizeVariables(_ storage: NSTextStorage) {
+        let text = storage.string
+        guard text.contains("{{") else { return }
+        for (range, _) in VariableResolver.references(in: text) {
+            storage.addAttribute(.foregroundColor, value: CodePalette.variable, range: NSRange(range, in: text))
+        }
     }
 
     func makeNSView(context: Context) -> NSScrollView {

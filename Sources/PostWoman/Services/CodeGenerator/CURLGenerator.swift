@@ -11,7 +11,7 @@ struct CURLGenerator {
     /// - Parameters:
     ///   - request: The API request to convert to cURL
     /// - Returns: A formatted cURL command string with proper line continuation
-    func generate(from request: APIRequest) -> String {
+    func generate(from request: some RequestFields) -> String {
         var parts: [String] = ["curl"]
 
         // Add HTTP method if not GET (cURL defaults to GET)

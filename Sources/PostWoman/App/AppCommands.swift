@@ -57,6 +57,31 @@ struct AppCommands: Commands {
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 
+        // Environment menu: the current collection's environments
+        CommandMenu("Environment") {
+            Button("Use Default Only") {
+                NotificationCenter.default.post(name: .selectEnvironment, object: nil, userInfo: ["index": 0])
+            }
+            .keyboardShortcut("0", modifiers: .control)
+
+            ForEach(1..<10) { index in
+                Button("Use Environment \(index)") {
+                    NotificationCenter.default.post(name: .selectEnvironment, object: nil, userInfo: ["index": index])
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .control)
+            }
+
+            Divider()
+
+            Button("New Environment…") {
+                NotificationCenter.default.post(name: .newEnvironment, object: nil)
+            }
+
+            Button("Manage Environments…") {
+                NotificationCenter.default.post(name: .manageEnvironments, object: nil)
+            }
+            .keyboardShortcut("e", modifiers: .command)
+        }
     }
 }
 

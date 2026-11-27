@@ -20,7 +20,7 @@ final class CLIContractTests: XCTestCase {
         let input = CLIInput(readFile: { _ in Data("body".utf8) }, readStdin: { Data() })
         let samples: [String: String] = [
             "method": "GET", "body-type": "json", "auth": "bearer", "basic": "u:p", "header": "A: b", "response-header": "A: b", "query": "a=b",
-            "time-ms": "1", "timestamp": "2026-11-27T10:00:00Z"
+            "time-ms": "1", "timestamp": "2026-11-27T10:00:00Z", "var": "baseUrl=https://example.com", "secret": "token=abc", "color": "green"
         ]
         for command in CLICommands.all {
             guard let toolName = command.tool, let tool = MCPTools.byName[toolName] else { continue }
@@ -69,8 +69,7 @@ final class CLIEndToEndTests: XCTestCase {
     private let token = RemoteAgentToken.generate()
 
     override func setUp() async throws {
-        container = try ModelContainer(
-            for: Folder.self, APIRequest.self, RequestHistory.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let handler = MCPToolHandler(container: container)
         server = MCPServer(serverVersion: "test") { name, arguments in await handler.call(name, arguments) }
         let probe = MCPListener { _ in .empty(204) }

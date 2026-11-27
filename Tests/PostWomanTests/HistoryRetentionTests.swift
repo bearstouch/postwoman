@@ -8,9 +8,7 @@ final class HistoryRetentionTests: XCTestCase {
     private var container: ModelContainer!
 
     override func setUp() async throws {
-        container = try ModelContainer(
-            for: Folder.self, APIRequest.self, RequestHistory.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
     override func tearDown() async throws {

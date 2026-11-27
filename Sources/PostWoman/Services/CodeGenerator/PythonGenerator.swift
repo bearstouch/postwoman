@@ -11,7 +11,7 @@ struct PythonGenerator {
     /// - Parameters:
     ///   - request: The API request to convert to Python code
     /// - Returns: A complete Python script as a string
-    func generate(from request: APIRequest) -> String {
+    func generate(from request: some RequestFields) -> String {
         var code = """
             import requests
 

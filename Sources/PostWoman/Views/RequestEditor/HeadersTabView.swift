@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HeadersTabView: View {
     @Binding var headers: [KeyValuePair]
+    var resolver: VariableResolver?
 
     private let commonHeaders = [
         "Content-Type",
@@ -39,7 +40,8 @@ struct HeadersTabView: View {
                 KeyValueEditorView(
                     pairs: $headers,
                     keyPlaceholder: "Header name",
-                    valuePlaceholder: "Value"
+                    valuePlaceholder: "Value",
+                    resolver: resolver
                 )
             }
         }

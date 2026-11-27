@@ -56,7 +56,7 @@ struct Flag: Sendable {
 
 /// How a command's result is printed (without `--json`).
 enum Rendering: Sendable {
-    case json, collections, requests, history, deleted(String), execute, tools
+    case json, collections, requests, environments, history, deleted(String), execute, tools
 }
 
 struct Command: Sendable {
@@ -108,6 +108,34 @@ enum CLICommands {
         if separator == ":" { value = value.trimmingCharacters(in: .whitespaces) }
         return .object(["key": .string(key), "value": .string(value)])
     }
+
+    /// `--var NAME=VALUE` / `--secret NAME=VALUE`: a variable for an environment.
+    private static func variable(_ name: String, secret: Bool, _ help: String) -> Flag {
+        Flag(name: name, value: "NAME=VALUE", help: help, repeatable: true) { args, value, _ throws(CLIFailure) in
+            guard let index = value.firstIndex(of: "="), index != value.startIndex else { throw .arguments("--\(name) must look like NAME=VALUE.") }
+            var items = args.root["variables"]?.array ?? []
+            items.append(
+                .object([
+                    "key": .string(value[..<index].trimmingCharacters(in: .whitespaces)), "value": .string(String(value[value.index(after: index)...])),
+                    "secret": .bool(secret)
+                ]))
+            args.root["variables"] = .array(items)
+        }
+    }
+
+    static let environmentColors = ["green", "orange", "red", "blue", "pink", "gray"]
+
+    private static func color() -> Flag {
+        Flag(name: "color", value: "COLOR", help: "green, orange, red, blue, pink or gray.") { args, value, _ throws(CLIFailure) in
+            guard environmentColors.contains(value) else { throw .arguments("--color must be one of \(environmentColors.joined(separator: ", ")).") }
+            args.root["color"] = .string(value)
+        }
+    }
+
+    private static let variableFlags: [Flag] = [
+        variable("var", secret: false, "A variable, used in requests as {{NAME}}; repeat for more. Replaces every saved variable."),
+        variable("secret", secret: true, "A secret variable (write-only, masked, kept out of History); repeat for more.")
+    ]
 
     // MARK: Shared flag sets
 
@@ -179,7 +207,7 @@ enum CLICommands {
 
     // MARK: Table
 
-    static let all: [Command] = collectionCommands + requestCommands + historyCommands + otherCommands
+    static let all: [Command] = collectionCommands + requestCommands + environmentCommands + historyCommands + otherCommands
 
     private static let collectionCommands: [Command] = [
         Command(noun: "collection", verb: "list", tool: "collection_list", summary: "List collections with their IDs and request counts.", usage: [""], flags: [], rendering: .collections),
@@ -200,6 +228,8 @@ enum CLICommands {
     private static let executeFlags: [Flag] =
         [
             id(help: "Saved request to send."), toggle("no-history", "recordHistory", false, "Don't record it in History."), maxBody,
+            string("env", "environmentId", "ID|default", "Resolve {{variables}} with this environment of the collection (default: the one it uses)."),
+            id("collection", "collectionId", "For --url: the collection whose environments resolve its {{variables}}."),
             option("include", short: "i", "Print the status line and headers before the body."),
             option("fail", short: "f", "Exit with status 22 when the response status is 400 or more.")
         ] + requestFields
@@ -228,6 +258,32 @@ enum CLICommands {
             summary: "Send a saved request (--id) or an ad-hoc one (--url) and print the response body; it is recorded in History.",
             usage: ["--id ID [output options]", "--url URL [request fields] [output options]"],
             flags: executeFlags, rendering: .execute)
+    ]
+
+    private static let environmentCommands: [Command] = [
+        Command(
+            noun: "environment", verb: "list", tool: "environment_list", summary: "List a collection's environments, Default first.", usage: ["--collection ID"],
+            flags: [id("collection", "collectionId", "Collection ID.")], rendering: .environments),
+        Command(
+            noun: "environment", verb: "get", tool: "environment_get", summary: "Show an environment and its variables (secret values hidden).", usage: ["--id ID"],
+            flags: [id(help: "Environment ID.")]),
+        Command(
+            noun: "environment", verb: "create", tool: "environment_create", summary: "Add an environment that overrides the collection's Default.",
+            usage: ["--collection ID --name NAME [--var NAME=VALUE …] [--secret NAME=VALUE …] [--color COLOR] [--select]"],
+            flags: [id("collection", "collectionId", "Collection ID."), string("name", "name", "NAME", "Environment name, such as Staging."), color()] + variableFlags + [
+                toggle("select", "select", true, "Make the collection's requests use it.")
+            ]),
+        Command(
+            noun: "environment", verb: "update", tool: "environment_update", summary: "Change an environment; --var/--secret replace all its variables.",
+            usage: ["--id ID [--name NAME] [--color COLOR] [--var NAME=VALUE …] [--secret NAME=VALUE …]"],
+            flags: [id(help: "Environment ID."), string("name", "name", "NAME", "New name (not for Default)."), color()] + variableFlags),
+        Command(
+            noun: "environment", verb: "delete", tool: "environment_delete", summary: "Delete an environment (not Default).", usage: ["--id ID"],
+            flags: [id(help: "Environment ID.")], rendering: .deleted("environment")),
+        Command(
+            noun: "environment", verb: "select", tool: "environment_select", summary: "Choose the environment a collection's requests use.",
+            usage: ["--collection ID [--id ID|default]"],
+            flags: [id("collection", "collectionId", "Collection ID."), string("id", "environmentId", "ID|default", "Environment ID, or default (the default) for Default only.")])
     ]
 
     private static let historyCreateFlags: [Flag] =

@@ -26,6 +26,14 @@ final class Folder {
     @Relationship(deleteRule: .cascade, inverse: \APIRequest.folder)
     var requests: [APIRequest]?
 
+    /// The collection's environments: its Default one and those that override it.
+    /// Deleting this folder deletes them too.
+    @Relationship(deleteRule: .cascade, inverse: \CollectionEnvironment.folder)
+    var environments: [CollectionEnvironment]?
+
+    /// The environment requests resolve `{{variables}}` with, on top of Default. Nil means Default only.
+    var selectedEnvironmentID: UUID?
+
     /// Creates a new folder with the specified name.
     /// - Parameters:
     ///   - name: The display name for the folder
@@ -37,5 +45,6 @@ final class Folder {
         self.updatedAt = Date()
         self.sortOrder = sortOrder
         self.requests = []
+        self.environments = []
     }
 }

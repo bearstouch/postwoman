@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 extension Notification.Name {
-    /// Posted on the main actor just before an agent deletes collections, requests or history entries.
+    /// Posted on the main actor just before an agent deletes collections, requests, environments or history entries.
     /// `userInfo["ids"]` is the `Set<UUID>` of every model about to go, so views drop selections of them.
     static let remoteAgentWillDelete = Notification.Name("PostWoman.remoteAgentWillDelete")
 }
@@ -53,6 +53,7 @@ final class MCPToolHandler {
         case "collection_create":
             let folder = Folder(name: try args.nonEmptyString("name")!, sortOrder: try args.int("sortOrder") ?? folders().count)
             context.insert(folder)
+            folder.ensureDefaultEnvironment()
             return Self.summary(folder)
         case "collection_update":
             let folder = try folder(args.uuid("id")!)
@@ -63,7 +64,7 @@ final class MCPToolHandler {
         case "collection_delete":
             let folder = try folder(args.uuid("id")!)
             let requests = folder.requests ?? []
-            announceDeletion([folder.id] + requests.map(\.id))
+            announceDeletion([folder.id] + requests.map(\.id) + (folder.environments ?? []).map(\.id))
             let result: JSONValue = .object(["deleted": .string(folder.id.uuidString), "deletedRequests": .number(Double(requests.count))])
             context.delete(folder)
             return result
@@ -97,6 +98,48 @@ final class MCPToolHandler {
             return .object(["deleted": .string(id.uuidString)])
         case "request_execute":
             return try await execute(args)
+        case "environment_list":
+            let folder = try folder(args.uuid("collectionId")!)
+            folder.ensureDefaultEnvironment()
+            let environments = [folder.defaultEnvironment].compactMap { $0 } + folder.overrideEnvironments
+            return .object([
+                "collectionId": .string(folder.id.uuidString), "selectedEnvironmentId": .from(folder.selectedEnvironment?.id.uuidString),
+                "environments": .array(environments.map { Self.json($0) })
+            ])
+        case "environment_get":
+            return Self.json(try environment(args.uuid("id")!))
+        case "environment_create":
+            let folder = try folder(args.uuid("collectionId")!)
+            let color = try args.environmentColor() ?? .green
+            let environment = folder.addEnvironment(named: try args.nonEmptyString("name")!, color: color)
+            if let variables = try args.variables() { environment.variables = Self.merge(variables, into: []) }
+            if try args.bool("select") == true { folder.selectedEnvironment = environment }
+            return Self.json(environment)
+        case "environment_update":
+            let environment = try environment(args.uuid("id")!)
+            if let name = try args.nonEmptyString("name") { environment.name = name }
+            if let color = try args.environmentColor() { environment.color = color }
+            if let variables = try args.variables() { environment.variables = Self.merge(variables, into: environment.variables) }
+            environment.updatedAt = Date()
+            return Self.json(environment)
+        case "environment_delete":
+            let environment = try environment(args.uuid("id")!)
+            guard !environment.isDefault else {
+                throw MCPToolError(code: "NOT_ALLOWED", message: "A collection's Default environment can't be deleted.")
+            }
+            if let folder = environment.folder, folder.selectedEnvironmentID == environment.id { folder.selectedEnvironmentID = nil }
+            announceDeletion([environment.id])
+            let id = environment.id
+            context.delete(environment)
+            return .object(["deleted": .string(id.uuidString)])
+        case "environment_select":
+            let folder = try folder(args.uuid("collectionId")!)
+            folder.ensureDefaultEnvironment()
+            folder.selectedEnvironment = try chosenEnvironment(args, in: folder)
+            return .object([
+                "collectionId": .string(folder.id.uuidString), "selectedEnvironmentId": .from(folder.selectedEnvironment?.id.uuidString),
+                "environment": .string(folder.activeEnvironmentName)
+            ])
         case "history_list":
             return try historyList(args)
         case "history_get":
@@ -147,17 +190,48 @@ final class MCPToolHandler {
         }
         guard !request.url.isEmpty else { throw MCPToolError.invalidParams("The request has no URL.", field: "url") }
 
-        let history = RequestHistory(request: request)
+        // The collection's environment fills in {{variables}}: the saved request's own collection, or collectionId for an ad-hoc one.
+        let collection: Folder?
+        if try args.object("request") != nil {
+            collection = try args.uuid("collectionId").map(folder)
+        } else {
+            if try args.uuid("collectionId") != nil {
+                throw MCPToolError.invalidParams("A saved request resolves with its own collection; collectionId is for ad-hoc requests.", field: "collectionId")
+            }
+            collection = request.folder
+        }
+        let resolver: VariableResolver
+        var environmentName: String?
+        if let collection {
+            collection.ensureDefaultEnvironment()
+            let environment = try args.string("environmentId") == nil ? collection.selectedEnvironment : try chosenEnvironment(args, in: collection)
+            resolver = collection.resolver(with: environment)
+            environmentName = environment?.name ?? collection.defaultEnvironmentName
+        } else {
+            if let choice = try args.string("environmentId"), choice != "default" {
+                throw MCPToolError.invalidParams("The request is in no collection, so it has no environments. Pass collectionId.", field: "environmentId")
+            }
+            resolver = .empty
+        }
+        let template = RequestSnapshot(request)
+        let sent = template.resolved(with: resolver)
+        let recorded = template.resolved(with: resolver, redactSecrets: true)
+        let unresolved = template.missingVariables(with: resolver)
+
+        let history = RequestHistory(request: request, sent: recorded, environmentName: environmentName)
         if try args.object("request") != nil { history.savedRequestID = nil }
         let record = try args.bool("recordHistory") ?? true
         do {
-            let response = try await client.execute(request: request)
+            let response = try await client.execute(request: sent)
             history.record(response)
             if record {
                 context.insert(history)
                 HistoryRetention.trim(context)
             }
-            var result: [String: JSONValue] = ["response": Self.json(response, maxBodyBytes: maxBody)]
+            var result: [String: JSONValue] = [
+                "response": Self.json(response, maxBodyBytes: maxBody), "resolvedUrl": .string(recorded.url),
+                "environment": .from(environmentName), "unresolvedVariables": .array(unresolved.map(JSONValue.string))
+            ]
             if record { result["historyId"] = .string(history.id.uuidString) }
             return .object(result)
         } catch {
@@ -213,7 +287,36 @@ final class MCPToolHandler {
         if let first = try folders().first { return first }
         let folder = Folder(name: "Default Collection")
         context.insert(folder)
+        folder.ensureDefaultEnvironment()
         return folder
+    }
+
+    private func environment(_ id: UUID) throws -> CollectionEnvironment {
+        guard let environment = try context.fetch(FetchDescriptor<CollectionEnvironment>(predicate: #Predicate { $0.id == id })).first else {
+            throw MCPToolError.notFound("environment", id)
+        }
+        return environment
+    }
+
+    /// `environmentId`: one of the collection's environments, or "default" (or nothing) for Default only, which is nil.
+    private func chosenEnvironment(_ args: Arguments, in folder: Folder) throws -> CollectionEnvironment? {
+        guard let choice = try args.string("environmentId"), choice.lowercased() != "default" else { return nil }
+        guard let id = UUID(uuidString: choice) else { throw MCPToolError.invalidParams("environmentId must be an environment ID or \"default\".", field: "environmentId") }
+        guard let environment = (folder.environments ?? []).first(where: { $0.id == id }) else {
+            throw MCPToolError(
+                code: "NOT_FOUND", message: "\(folder.name) has no environment with the ID \(choice).", details: .object(["id": .string(choice)]))
+        }
+        return environment.isDefault ? nil : environment
+    }
+
+    /// The variables an agent passed, keeping the saved value of a secret it sent without one (secrets are write-only).
+    private static func merge(_ incoming: [Arguments.VariableInput], into existing: [Variable]) -> [Variable] {
+        incoming.map { input in
+            let saved = existing.first { $0.key == input.key }
+            let isSecret = input.isSecret ?? saved?.isSecret ?? false
+            let value = input.value ?? (isSecret ? saved?.value : nil) ?? ""
+            return Variable(key: input.key, value: value, isEnabled: input.isEnabled, isSecret: isSecret)
+        }
     }
 
     private func announceDeletion(_ ids: [UUID]) {
@@ -284,9 +387,30 @@ final class MCPToolHandler {
     // MARK: - Reading fields
 
     private static func summary(_ folder: Folder) -> JSONValue {
-        .object([
+        let environments = [folder.defaultEnvironment].compactMap { $0 } + folder.overrideEnvironments
+        return .object([
             "id": .string(folder.id.uuidString), "name": .string(folder.name), "sortOrder": .number(Double(folder.sortOrder)),
-            "requestCount": .number(Double(folder.requests?.count ?? 0)), "createdAt": .from(folder.createdAt), "updatedAt": .from(folder.updatedAt)
+            "requestCount": .number(Double(folder.requests?.count ?? 0)), "createdAt": .from(folder.createdAt), "updatedAt": .from(folder.updatedAt),
+            "environments": .array(
+                environments.map { .object(["id": .string($0.id.uuidString), "name": .string($0.name), "isDefault": .bool($0.isDefault)]) }),
+            "selectedEnvironmentId": .from(folder.selectedEnvironment?.id.uuidString)
+        ])
+    }
+
+    /// An environment and its variables. Secret values are write-only: `value` is null and `valueSet` says whether one is saved.
+    static func json(_ environment: CollectionEnvironment) -> JSONValue {
+        let inUse = environment.isDefault ? true : environment.folder?.selectedEnvironmentID == environment.id
+        return .object([
+            "id": .string(environment.id.uuidString), "name": .string(environment.name), "color": .string(environment.color.rawValue),
+            "isDefault": .bool(environment.isDefault), "inUse": .bool(inUse), "collectionId": .from(environment.folder?.id.uuidString),
+            "variables": .array(
+                environment.variables.map { variable in
+                    .object([
+                        "key": .string(variable.key), "value": variable.isSecret ? .null : .string(variable.value), "valueSet": .bool(!variable.value.isEmpty),
+                        "enabled": .bool(variable.isEnabled), "secret": .bool(variable.isSecret)
+                    ])
+                }),
+            "updatedAt": .from(environment.updatedAt)
         ])
     }
 
@@ -463,6 +587,36 @@ struct Arguments {
         guard let text = try string("type") else { return nil }
         guard let type = MCPAuthType(rawValue: text) else { throw invalid("type", "one of \(MCPTools.authTypes.joined(separator: ", "))") }
         return type.authenticationType
+    }
+
+    func environmentColor() throws -> EnvironmentColor? {
+        guard let text = try string("color") else { return nil }
+        guard let color = EnvironmentColor(rawValue: text) else { throw invalid("color", "one of \(MCPTools.environmentColors.joined(separator: ", "))") }
+        return color
+    }
+
+    /// A variable as an agent passed it; `value` and `isSecret` are nil when not given.
+    struct VariableInput {
+        let key: String
+        let value: String?
+        let isEnabled: Bool
+        let isSecret: Bool?
+    }
+
+    func variables() throws -> [VariableInput]? {
+        guard let value = value("variables") else { return nil }
+        guard case .array(let items) = value else { throw invalid("variables", "an array of {key, value, enabled, secret}") }
+        var seen: Set<String> = []
+        return try items.enumerated().map { index, item in
+            let field = "\(path)variables[\(index)]"
+            guard case .object(let object) = item else { throw invalid("variables[\(index)]", "an object") }
+            let variable = try Arguments(object, allowed: ["key", "value", "enabled", "secret"], path: "\(field).")
+            guard let key = try variable.string("key")?.trimmingCharacters(in: .whitespaces), !key.isEmpty else {
+                throw MCPToolError.invalidParams("\(field).key must be a non-empty string.", field: "\(field).key")
+            }
+            guard seen.insert(key).inserted else { throw MCPToolError.invalidParams("\(key) is in variables twice.", field: "\(field).key") }
+            return VariableInput(key: key, value: try variable.string("value"), isEnabled: try variable.bool("enabled") ?? true, isSecret: try variable.bool("secret"))
+        }
     }
 
     /// A nested object, checked against the names its schema allows.

@@ -70,6 +70,10 @@ final class RequestHistory {
     /// Used to link history entries back to their originating saved request.
     var savedRequestID: UUID?
 
+    /// The collection environment its `{{variables}}` were resolved with ("Default" when only Default applied).
+    /// Nil for entries recorded without one.
+    var environmentName: String?
+
     /// Creates a new request history entry for a request about to be executed.
     /// Response fields are populated after the request completes.
     /// - Parameters:
@@ -92,22 +96,28 @@ final class RequestHistory {
         self.wasSuccessful = false
     }
 
-    /// Creates a history entry holding a snapshot of `request` as it is about to be sent.
-    convenience init(request: APIRequest) {
+    /// Creates a history entry for `request` as it is about to be sent.
+    /// - Parameters:
+    ///   - sent: What is sent: the request resolved with its environment, secrets left as `{{name}}`.
+    ///     Defaults to the request as it is.
+    ///   - environmentName: The environment it was resolved with.
+    convenience init(request: APIRequest, sent: RequestSnapshot? = nil, environmentName: String? = nil) {
+        let sent = sent ?? RequestSnapshot(request)
         self.init(
-            url: request.url,
-            method: request.method,
-            requestHeaders: request.headers,
-            requestBody: request.bodyContent.isEmpty ? nil : request.bodyContent
+            url: sent.url,
+            method: sent.method,
+            requestHeaders: sent.headers,
+            requestBody: sent.bodyContent.isEmpty ? nil : sent.bodyContent
         )
         requestName = request.name
-        queryParams = request.queryParams
-        bodyType = request.bodyType
-        authenticationType = request.authenticationType
-        authBearerToken = request.authBearerToken
-        authBasicUsername = request.authBasicUsername
-        authBasicPassword = request.authBasicPassword
+        queryParams = sent.queryParams
+        bodyType = sent.bodyType
+        authenticationType = sent.authenticationType
+        authBearerToken = sent.authBearerToken
+        authBasicUsername = sent.authBasicUsername
+        authBasicPassword = sent.authBasicPassword
         savedRequestID = request.id
+        self.environmentName = environmentName
     }
 
     /// Records the response the request got.

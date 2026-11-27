@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ParamsTabView: View {
     @Binding var params: [KeyValuePair]
+    var resolver: VariableResolver?
 
     var body: some View {
         ScrollView {
@@ -21,7 +22,8 @@ struct ParamsTabView: View {
                 KeyValueEditorView(
                     pairs: $params,
                     keyPlaceholder: "Parameter name",
-                    valuePlaceholder: "Value"
+                    valuePlaceholder: "Value",
+                    resolver: resolver
                 )
             }
         }

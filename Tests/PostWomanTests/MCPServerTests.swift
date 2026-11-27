@@ -87,8 +87,7 @@ final class MCPToolHandlerTests: XCTestCase {
     private var handler: MCPToolHandler!
 
     override func setUp() async throws {
-        container = try ModelContainer(
-            for: Folder.self, APIRequest.self, RequestHistory.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         handler = MCPToolHandler(container: container)
     }
 
@@ -111,6 +110,11 @@ final class MCPToolHandlerTests: XCTestCase {
     }
 
     private func id(_ value: JSONValue) -> JSONValue { value["id"] ?? .null }
+
+    private func items(_ value: JSONValue?) -> [JSONValue] {
+        if case .array(let items)? = value { return items }
+        return []
+    }
 
     func testEveryToolHasAClosedSchemaAndAHandler() async {
         XCTAssertEqual(Set(MCPTools.all.map(\.name)).count, MCPTools.all.count)
@@ -138,7 +142,8 @@ final class MCPToolHandlerTests: XCTestCase {
 
         _ = try await call("request_create", ["collectionId": id(created), "name": .string("Me"), "url": .string("https://example.com/me")])
         let announced = expectation(forNotification: .remoteAgentWillDelete, object: nil) { note in
-            (note.userInfo?["ids"] as? Set<UUID>)?.count == 2
+            // The collection, its request and its Default environment.
+            (note.userInfo?["ids"] as? Set<UUID>)?.count == 3
         }
         let deleted = try await call("collection_delete", ["id": id(created)])
         XCTAssertEqual(deleted["deletedRequests"], .number(1))
@@ -244,6 +249,114 @@ final class MCPToolHandlerTests: XCTestCase {
         XCTAssertNotNil(failed?.details?["historyId"])
         let both = await failure("request_execute", ["id": id(saved), "request": .object(["url": .string("http://x")])])
         XCTAssertEqual(both?.code, "INVALID_PARAMS")
+    }
+
+    func testManagesACollectionsEnvironmentsWithWriteOnlySecrets() async throws {
+        let collection = try await call("collection_create", ["name": .string("Users API")])
+        let listed = try await call("environment_list", ["collectionId": id(collection)])
+        let environments = items(listed["environments"])
+        XCTAssertEqual(environments.map { $0["name"] ?? .null }, [.string("Default")])
+        let defaultID = id(environments[0])
+
+        _ = try await call(
+            "environment_update",
+            [
+                "id": defaultID,
+                "variables": .array([
+                    .object(["key": .string("baseUrl"), "value": .string("http://localhost")]),
+                    .object(["key": .string("token"), "value": .string("hunter2"), "secret": .bool(true)])
+                ])
+            ])
+        let staging = try await call(
+            "environment_create",
+            [
+                "collectionId": id(collection), "name": .string("Staging"), "color": .string("orange"), "select": .bool(true),
+                "variables": .array([.object(["key": .string("baseUrl"), "value": .string("https://staging")])])
+            ])
+        XCTAssertEqual(staging["inUse"], .bool(true))
+
+        let readBack = try await call("environment_get", ["id": defaultID])
+        XCTAssertFalse(readBack.text.contains("hunter2"), "Secret values are write-only")
+        XCTAssertEqual(items(readBack["variables"]).last?["valueSet"], .bool(true))
+
+        // Passing a secret without its value keeps the saved one.
+        _ = try await call("environment_update", ["id": defaultID, "variables": .array([.object(["key": .string("token")])])])
+        let folder = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<Folder>()).first)
+        XCTAssertEqual(folder.defaultEnvironment?.variables.first?.value, "hunter2")
+        XCTAssertEqual(folder.selectedEnvironment?.name, "Staging")
+
+        let renamed = try await call("environment_update", ["id": defaultID, "name": .string("Base")])
+        XCTAssertEqual(renamed["name"], .string("Base"))
+        XCTAssertEqual(renamed["isDefault"], .bool(true), "A renamed Default is still the default")
+        let deleteDefault = await failure("environment_delete", ["id": defaultID])
+        XCTAssertEqual(deleteDefault?.code, "NOT_ALLOWED")
+        let badChoice = await failure("environment_select", ["collectionId": id(collection), "environmentId": .string(UUID().uuidString)])
+        XCTAssertEqual(badChoice?.code, "NOT_FOUND")
+
+        _ = try await call("environment_delete", ["id": id(staging)])
+        XCTAssertNil(folder.selectedEnvironmentID, "Deleting the environment in use goes back to Default only")
+        let selected = try await call("environment_select", ["collectionId": id(collection), "environmentId": .string("default")])
+        XCTAssertEqual(selected["environment"], .string("Base"))
+    }
+
+    func testExecuteResolvesVariablesWithTheCollectionsEnvironment() async throws {
+        let target = MCPListener { request in
+            let body = JSONValue.object(["path": .string(request.path), "auth": .from(request.header("authorization"))])
+            return .json(200, body.data)
+        }
+        let port = try target.start(address: "127.0.0.1", port: 0)
+        defer { target.stop() }
+
+        let collection = try await call("collection_create", ["name": .string("Users API")])
+        let defaultID = items(try await call("environment_list", ["collectionId": id(collection)])["environments"]).first?["id"]
+        _ = try await call(
+            "environment_update",
+            [
+                "id": try XCTUnwrap(defaultID),
+                "variables": .array([
+                    .object(["key": .string("baseUrl"), "value": .string("http://127.0.0.1:\(port)")]),
+                    .object(["key": .string("token"), "value": .string("default-token"), "secret": .bool(true)])
+                ])
+            ])
+        let other = try await call(
+            "environment_create",
+            [
+                "collectionId": id(collection), "name": .string("Other"), "select": .bool(true),
+                "variables": .array([.object(["key": .string("token"), "value": .string("other-token"), "secret": .bool(true)])])
+            ])
+        let saved = try await call(
+            "request_create",
+            [
+                "collectionId": id(collection), "url": .string("{{baseUrl}}/users/{{userId}}"),
+                "auth": .object(["type": .string("bearer"), "token": .string("{{token}}")])
+            ])
+
+        let result = try await call("request_execute", ["id": id(saved)])
+        XCTAssertEqual(result["environment"], .string("Other"))
+        XCTAssertEqual(result["resolvedUrl"], .string("http://127.0.0.1:\(port)/users/{{userId}}"))
+        XCTAssertEqual(result["unresolvedVariables"], .array([.string("userId")]))
+        let body = try XCTUnwrap(result["response"]?["body"].flatMap { if case .string(let text) = $0 { text } else { nil } })
+        XCTAssertTrue(body.contains("Bearer other-token"), body)
+
+        let withDefault = try await call("request_execute", ["id": id(saved), "environmentId": .string("default")])
+        XCTAssertEqual(withDefault["environment"], .string("Default"))
+        let defaultBody = try XCTUnwrap(withDefault["response"]?["body"].flatMap { if case .string(let text) = $0 { text } else { nil } })
+        XCTAssertTrue(defaultBody.contains("Bearer default-token"), defaultBody)
+
+        let entry = try await call("history_get", ["id": try XCTUnwrap(result["historyId"])])
+        // (The test server echoes the header back in its body; the recorded request must not hold it.)
+        XCTAssertFalse(try XCTUnwrap(entry["request"]).text.contains("other-token"), "History never records a secret's value")
+        let historyID = try XCTUnwrap(result["historyId"].flatMap { if case .string(let text) = $0 { UUID(uuidString: text) } else { nil } })
+        let stored = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<RequestHistory>()).first { $0.id == historyID })
+        XCTAssertEqual(stored.authBearerToken, "{{token}}")
+        XCTAssertEqual(stored.environmentName, "Other")
+
+        let adHoc = try await call(
+            "request_execute",
+            ["request": .object(["url": .string("{{baseUrl}}/ping")]), "collectionId": id(collection), "environmentId": id(other), "recordHistory": .bool(false)])
+        XCTAssertEqual(adHoc["resolvedUrl"], .string("http://127.0.0.1:\(port)/ping"))
+        let noCollection = await failure("request_execute", ["request": .object(["url": .string("http://x")]), "environmentId": id(other)])
+        XCTAssertEqual(noCollection?.code, "INVALID_PARAMS")
     }
 
     func testTruncatesOnCharacterBoundaries() {
@@ -373,8 +486,7 @@ final class MCPEndpointTests: XCTestCase {
 @MainActor
 final class MCPServerEndToEndTests: XCTestCase {
     func testAnAgentCreatesAndSendsARequestOverHTTP() async throws {
-        let container = try ModelContainer(
-            for: Folder.self, APIRequest.self, RequestHistory.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let handler = MCPToolHandler(container: container)
         let token = RemoteAgentToken.generate()
         let server = MCPServer(serverVersion: "test") { name, arguments in await handler.call(name, arguments) }

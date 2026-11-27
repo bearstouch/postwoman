@@ -25,6 +25,17 @@ struct FolderRowView: View {
 
             Spacer()
 
+            if let environment = folder.selectedEnvironment {
+                HStack(spacing: 4) {
+                    Circle().fill(environment.color.swatch).frame(width: 6, height: 6)
+                    Text(environment.name)
+                        .lineLimit(1)
+                }
+                .font(.caption)
+                .foregroundStyle(environment.color.swatch)
+                .help("Requests in \(folder.name) use the \(environment.name) environment")
+            }
+
             if isHovered || isRenaming {
                 Menu {
                     Button(action: { isRenaming = true }) {
@@ -33,6 +44,7 @@ struct FolderRowView: View {
                     Button(action: exportFolder) {
                         Label("Export Collection...", systemImage: "square.and.arrow.up")
                     }
+                    environmentItems
                     Divider()
                     Button(role: .destructive, action: deleteFolder) {
                         Label("Delete Folder", systemImage: "trash")
@@ -63,10 +75,30 @@ struct FolderRowView: View {
             Button(action: exportFolder) {
                 Label("Export Collection...", systemImage: "square.and.arrow.up")
             }
+            environmentItems
             Divider()
             Button(role: .destructive, action: deleteFolder) {
                 Label("Delete Folder", systemImage: "trash")
             }
+        }
+    }
+
+    /// "Use Environment" and "Environments…" for this collection.
+    @ViewBuilder
+    private var environmentItems: some View {
+        Divider()
+        Picker(selection: Binding(get: { folder.selectedEnvironment?.id }, set: { folder.selectedEnvironmentID = $0 })) {
+            Text("\(folder.defaultEnvironmentName) Only").tag(UUID?.none)
+            ForEach(folder.overrideEnvironments, id: \.id) { environment in
+                Text(environment.name).tag(Optional(environment.id))
+            }
+        } label: {
+            Label("Use Environment", systemImage: "square.stack.3d.up")
+        }
+        Button {
+            NotificationCenter.default.post(name: .manageEnvironments, object: nil, userInfo: ["folderID": folder.id])
+        } label: {
+            Label("Environments…", systemImage: "slider.horizontal.3")
         }
     }
 

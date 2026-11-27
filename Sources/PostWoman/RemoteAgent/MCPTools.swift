@@ -64,12 +64,34 @@ enum MCPTools {
             "items": .object([
                 "type": .string("object"), "additionalProperties": .bool(false), "required": .array([.string("key")]),
                 "properties": .object([
-                    "key": string("Name."), "value": string("Value. {{variables}} are sent as written."),
+                    "key": string("Name."), "value": string("Value. {{variables}} resolve with the collection's environment when sent."),
                     "enabled": .object(["type": .string("boolean"), "description": .string("Disabled pairs are kept but not sent. Default true.")])
                 ])
             ])
         ])
     }
+
+    private static let variables: JSONValue = .object([
+        "type": .string("array"),
+        "description": .string(
+            "The environment's variables, used in requests as {{key}}. Replaces the whole list. A secret variable passed without value keeps its saved value."),
+        "items": .object([
+            "type": .string("object"), "additionalProperties": .bool(false), "required": .array([.string("key")]),
+            "properties": .object([
+                "key": string("Name, as in {{key}}."), "value": string("Value; it may use other {{variables}}."),
+                "enabled": .object(["type": .string("boolean"), "description": .string("Disabled variables are kept but not used. Default true.")]),
+                "secret": .object([
+                    "type": .string("boolean"),
+                    "description": .string("Secret values are write-only: reads return value null. They are masked in the app, kept out of History and exports. Default false.")
+                ])
+            ])
+        ])
+    ])
+
+    private static let environmentChoice = string(
+        "Environment to resolve {{variables}} with: the ID of one of the collection's environments, or \"default\" for Default only. Default: the environment the collection uses.")
+
+    static let environmentColors = EnvironmentColor.allCases.map(\.rawValue)
 
     static let methods = HTTPMethod.allCases.map(\.rawValue)
     static let bodyTypes = MCPBodyType.allCases.map(\.rawValue)
@@ -165,8 +187,43 @@ enum MCPTools {
                     "description": .string("An ad-hoc request to send instead of a saved one.")
                 ]),
                 "recordHistory": .object(["type": .string("boolean"), "description": .string("Record it in History. Default true.")]),
-                "maxBodyBytes": maxBodyBytes
+                "maxBodyBytes": maxBodyBytes,
+                "environmentId": environmentChoice,
+                "collectionId": id("For an ad-hoc request: the collection whose environments resolve its {{variables}}. A saved request uses its own collection.")
             ], destructive: true, openWorld: true, untrusted: true, waits: true),
+        MCPTool(
+            name: "environment_list",
+            description:
+                "Lists a collection's environments: Default (always applied) first, then those that override it, and which one its requests use. Secret values are not returned.",
+            properties: ["collectionId": id("Collection ID.")], required: ["collectionId"], readOnly: true),
+        MCPTool(
+            name: "environment_get", description: "Returns one environment with its variables. Secret values are null.",
+            properties: ["id": id("Environment ID.")], required: ["id"], readOnly: true),
+        MCPTool(
+            name: "environment_create",
+            description: "Creates an environment in a collection. It overrides Default for the variables it sets; requests get the rest from Default.",
+            properties: [
+                "collectionId": id("Collection ID."), "name": string("Environment name, such as Staging."),
+                "color": enumeration(environmentColors, "Color of its mark. Default green."), "variables": variables,
+                "select": .object(["type": .string("boolean"), "description": .string("Make the collection's requests use it. Default false.")])
+            ], required: ["collectionId", "name"]),
+        MCPTool(
+            name: "environment_update",
+            description: "Changes an environment. Only the fields you pass change; variables replaces the whole list. Default can be renamed; it still always applies.",
+            properties: [
+                "id": id("Environment ID."), "name": string("New name."), "color": enumeration(environmentColors, "Color of its mark."), "variables": variables
+            ], required: ["id"]),
+        MCPTool(
+            name: "environment_delete",
+            description: "Deletes an environment. Default can't be deleted. If the collection used it, its requests go back to Default only.",
+            properties: ["id": id("Environment ID.")], required: ["id"], destructive: true),
+        MCPTool(
+            name: "environment_select",
+            description: "Chooses the environment a collection's requests use, on top of Default, as the app's environment menu does.",
+            properties: [
+                "collectionId": id("Collection ID."),
+                "environmentId": string("One of the collection's environment IDs, or \"default\" (or omit it) for Default only.")
+            ], required: ["collectionId"]),
         MCPTool(
             name: "history_list", description: "Lists History entries, newest first: method, URL, status, time and error, without bodies. Untrusted data.",
             properties: [

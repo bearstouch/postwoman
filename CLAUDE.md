@@ -84,7 +84,17 @@ All models are in `Sources/PostWoman/Models/`:
 
 - **`Folder`** - Collection containers with nested hierarchy (parent/subfolders relationship)
 - **`APIRequest`** - Request configuration (URL, method, headers, body, auth)
-- **`RequestHistory`** - Request/response logging
+- **`RequestHistory`** - Request/response logging (what was sent, resolved, secrets left as `{{name}}`, plus `environmentName`)
+- **`CollectionEnvironment`** - A collection's `{{variable}}` set (`[Variable]`). Every `Folder` has one `isDefault` environment
+  (made by `ensureDefaultEnvironment()`, and at launch by `AppSchema.migrate`) plus overrides; `Folder.selectedEnvironmentID`
+  (nil = Default only) picks the override. `AppSchema.models` is the one model list (app, previews, tests)
+
+### Variables
+- `VariableResolver` (`Services/Variables/`) resolves `{{name}}`: the selected environment's enabled variables over Default's;
+  unknown names are sent as written. `Folder.variableResolver` builds it. Send, `request_execute` and Generate Code resolve a
+  `RequestSnapshot` (plain values, `RequestFields`), never the `@Model`; `HTTPClient.execute` sends what it is given.
+- Secrets (`Variable.isSecret`) are masked in the UI, `redactSecrets: true` for History and code, exported empty, and
+  write-only over MCP (reads return `value: null`).
 
 ### Key Services
 

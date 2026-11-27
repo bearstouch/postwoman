@@ -11,7 +11,7 @@ struct SwiftGenerator {
     /// - Parameters:
     ///   - request: The API request to convert to Swift code
     /// - Returns: A complete Swift code snippet as a string
-    func generate(from request: APIRequest) -> String {
+    func generate(from request: some RequestFields) -> String {
         var code = """
             import Foundation
 

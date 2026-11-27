@@ -4,9 +4,37 @@ struct URLBarView: View {
     @Binding var url: String
     @Binding var method: HTTPMethod
     let isLoading: Bool
+    /// What the collection's environment fills in; the bar shows the resolved URL under the field when it uses variables.
+    var resolver: VariableResolver?
     let onSend: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            bar
+            if let resolver, !resolver.tokens(in: url).isEmpty {
+                resolvedURL(resolver)
+            }
+        }
+    }
+
+    /// The URL with each variable's value in the color of where it comes from; the tooltip lists them.
+    private func resolvedURL(_ resolver: VariableResolver) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.turn.down.right")
+                .foregroundStyle(.secondary)
+            Text(VariableDescription.resolvedText(url, resolver: resolver))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+        .font(.system(.caption, design: .monospaced))
+        .padding(.leading, 112)
+        .help(VariableDescription.help(for: resolver.tokens(in: url), resolver: resolver))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Resolved URL")
+    }
+
+    private var bar: some View {
         HStack(spacing: 12) {
             Picker("Method", selection: $method) {
                 ForEach(HTTPMethod.allCases) { method in

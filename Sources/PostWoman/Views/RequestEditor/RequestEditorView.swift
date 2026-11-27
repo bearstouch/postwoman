@@ -10,6 +10,10 @@ struct RequestEditorView: View {
     @State private var isLoading: Bool = false
     @State private var showCodeGenerator: Bool = false
     @State private var isRenaming: Bool = false
+    /// Variables the last send used that the collection's environments don't define.
+    @State private var missingVariables: [String] = []
+    /// The environment the last send resolved with.
+    @State private var sentEnvironmentName: String?
 
     private let httpClient = HTTPClient()
 
@@ -26,6 +30,7 @@ struct RequestEditorView: View {
                         url: $request.url,
                         method: $request.method,
                         isLoading: isLoading,
+                        resolver: resolver,
                         onSend: sendRequest
                     )
                     .padding(.horizontal)
@@ -44,9 +49,15 @@ struct RequestEditorView: View {
             .frame(minHeight: 300)
             .background(Theme.canvas)
 
-            ResponseViewerView(response: response, isLoading: isLoading)
-                .frame(minHeight: 200)
-                .themedSplitDividers()
+            VStack(spacing: 0) {
+                if !missingVariables.isEmpty, !isLoading {
+                    missingVariablesNotice
+                    HairlineDivider()
+                }
+                ResponseViewerView(response: response, isLoading: isLoading)
+            }
+            .frame(minHeight: 200)
+            .themedSplitDividers()
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -62,7 +73,7 @@ struct RequestEditorView: View {
             }
         }
         .sheet(isPresented: $showCodeGenerator) {
-            CodeGeneratorView(request: request)
+            CodeGeneratorView(request: request, resolver: resolver, environmentLabel: request.folder.map { "\($0.name) · \($0.activeEnvironmentName)" })
         }
         .onReceive(NotificationCenter.default.publisher(for: .sendRequest)) { _ in
             sendRequest()
@@ -109,13 +120,51 @@ struct RequestEditorView: View {
         }
     }
 
+    /// What `{{variables}}` resolve to: the collection's Default environment and its selected one.
+    private var resolver: VariableResolver? { request.folder?.variableResolver }
+
+    /// Says which variables the request was sent with as written, because no environment defines them.
+    private var missingVariablesNotice: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.warning)
+            Text(missingVariablesText)
+                .font(.callout)
+                .lineLimit(2)
+            Spacer()
+            if let folder = request.folder {
+                Button("Manage Environments…") {
+                    NotificationCenter.default.post(name: .manageEnvironments, object: nil, userInfo: ["folderID": folder.id])
+                }
+                .buttonStyle(.link)
+            }
+            Button {
+                missingVariables = []
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.borderless)
+            .help("Dismiss")
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Theme.warning.opacity(0.12))
+    }
+
+    private var missingVariablesText: String {
+        let names = missingVariables.map { "{{\($0)}}" }.joined(separator: ", ")
+        let place = request.folder == nil ? "this request has no collection" : "neither \(sentEnvironmentName ?? "the environment") nor \(request.folder?.defaultEnvironmentName ?? "Default") defines it"
+        let count = missingVariables.count == 1 ? "1 variable was" : "\(missingVariables.count) variables were"
+        return "\(count) sent as written, because \(place): \(names)"
+    }
+
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
         case .params:
-            ParamsTabView(params: $request.queryParams)
+            ParamsTabView(params: $request.queryParams, resolver: resolver)
         case .headers:
-            HeadersTabView(headers: $request.headers)
+            HeadersTabView(headers: $request.headers, resolver: resolver)
         case .body:
             BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent)
         case .auth:
@@ -126,13 +175,22 @@ struct RequestEditorView: View {
     private func sendRequest() {
         guard !request.url.isEmpty else { return }
 
+        // Resolve now, with the environment in use when Send was pressed.
+        let resolver = self.resolver ?? .empty
+        let template = RequestSnapshot(request)
+        let sent = template.resolved(with: resolver)
+        let environmentName = request.folder?.activeEnvironmentName
+        missingVariables = template.missingVariables(with: resolver)
+        sentEnvironmentName = environmentName
+
         Task {
             isLoading = true
             defer { isLoading = false }
 
-            let history = RequestHistory(request: request)
+            // History keeps what was sent, with secret variables left as {{name}}.
+            let history = RequestHistory(request: request, sent: template.resolved(with: resolver, redactSecrets: true), environmentName: environmentName)
             do {
-                let result = try await httpClient.execute(request: request)
+                let result = try await httpClient.execute(request: sent)
                 response = result
                 history.record(result)
             } catch {

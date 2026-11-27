@@ -12,6 +12,7 @@ struct PostWomanApp: App {
     /// - Folders: Hierarchical organization of API requests
     /// - APIRequest: Individual HTTP request configurations
     /// - RequestHistory: Logs of executed requests and responses
+    /// - CollectionEnvironment: Each collection's Default and other environments ({{variables}})
     let sharedModelContainer: ModelContainer
 
     /// The MCP server agents use (Settings → Remote Agent). It works on the same main context as the windows.
@@ -20,17 +21,14 @@ struct PostWomanApp: App {
     init() {
         let container = Self.makeModelContainer()
         sharedModelContainer = container
+        AppSchema.migrate(container.mainContext)
         let remoteAgent = RemoteAgentController(container: container)
         remoteAgent.start()
         _remoteAgent = State(initialValue: remoteAgent)
     }
 
     private static func makeModelContainer() -> ModelContainer {
-        let schema = Schema([
-            Folder.self,
-            APIRequest.self,
-            RequestHistory.self
-        ])
+        let schema = Schema(AppSchema.models)
 
         // Configure the model container for persistent storage on disk. Packaged apps are sandboxed and
         // keep the default store in their container; unbundled runs (`swift run`) are not, so they get
