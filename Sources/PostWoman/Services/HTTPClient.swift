@@ -195,17 +195,19 @@ final class HTTPClient {
         return snapshot(httpResponse, timing: delegate.timing)
     }
 
-    /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
     /// The enabled params as an encoded query (`a=1&b=2`), appended to the URL's own query, which is kept as written;
-    /// nil when no param is enabled.
+    /// nil when no param is enabled. Names and values are percent-encoded, `+ & = #` included: servers read a bare `+` as a space.
     static func encodedQuery(_ params: [KeyValuePair]) -> String? {
         let enabled = params.filter { $0.isEnabled && !$0.key.isEmpty }
         guard !enabled.isEmpty else { return nil }
-        var components = URLComponents()
-        components.queryItems = enabled.map { URLQueryItem(name: $0.key, value: $0.value) }
-        return components.percentEncodedQuery
+        func encode(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? text }
+        return enabled.map { encode($0.key) + "=" + encode($0.value) }.joined(separator: "&")
     }
 
+    /// What a query name or value may hold unencoded: `.urlQueryAllowed` without the separators `&` `=` `#` and `+`.
+    private static let queryValueAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
+
+    /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
     private func makeURLRequest(_ request: some RequestFields) throws -> URLRequest {
         // Parse URL and add query parameters
         guard var urlComponents = URLComponents(string: request.url) else {

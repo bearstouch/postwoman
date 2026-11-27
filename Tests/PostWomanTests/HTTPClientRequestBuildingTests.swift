@@ -133,6 +133,20 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
         XCTAssertEqual(sent.url?.absoluteString, "https://api.test/items?page=1&limit=10")
     }
 
+    func testPlusAndQuerySeparatorsInParamsArePercentEncoded() async throws {
+        let request = APIRequest(name: "q", url: "https://api.test/search")
+        request.queryParams = [KeyValuePair(key: "q", value: "a+b"), KeyValuePair(key: "k+&=#", value: "v&=#+ /?")]
+        let sent = try await send(request)
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.test/search?q=a%2Bb&k%2B%26%3D%23=v%26%3D%23%2B%20/?")
+        let items = URLComponents(url: try XCTUnwrap(sent.url), resolvingAgainstBaseURL: false)?.queryItems
+        XCTAssertEqual(items, [URLQueryItem(name: "q", value: "a+b"), URLQueryItem(name: "k+&=#", value: "v&=#+ /?")], "Servers read back what was typed")
+    }
+
+    func testRequestExecuteEncodesAPlusInAParam() async throws {
+        let sent = try await executeThroughMCP(url: "https://api.test/search?page=1", params: [("q", "a+b")])
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.test/search?page=1&q=a%2Bb")
+    }
+
     func testOnlyEnabledHeadersWithKeysAreSent() async throws {
         let request = APIRequest(name: "h", url: "https://api.example.com")
         request.headers = [
