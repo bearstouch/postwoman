@@ -168,8 +168,13 @@ final class PythonGeneratorTests: XCTestCase {
         XCTAssertEqual(call(body("{}", .json)), "response = requests.post(url, json=json_data)")
     }
 
-    func testInvalidJSONFallsBackToATripleQuotedString() {
-        XCTAssertTrue(lines(body("{not json", .json)).contains(#"json_data = """{not json""""#))
+    func testInvalidJSONIsSentAsWrittenWithTheJSONContentType() {
+        let request = body("{not json", .json)
+        XCTAssertTrue(lines(request).contains(#"data = """{not json""""#))
+        XCTAssertTrue(lines(request).contains(#"    "Content-Type": "application/json","#))
+        XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)")
+        request.headers = [KeyValuePair(key: "content-TYPE", value: "application/vnd.api+json")]
+        XCTAssertFalse(code(request).contains(#""Content-Type": "application/json""#), "The request's own Content-Type is kept")
     }
 
     func testOtherBodiesAreTripleQuotedData() {
@@ -258,7 +263,13 @@ final class PythonGeneratorTests: XCTestCase {
     func testInvalidJSONBodyReachesPythonAsWritten() throws {
         let content = #"{"a": """x""" \n \"#
         let captured = try XCTUnwrap(try pythonCall(code(body(content, .json))), "The script should run")
-        XCTAssertEqual(captured["json"] as? String, content)
+        XCTAssertEqual(captured["data"] as? String, content, "Sent as written, not as a JSON string")
+        XCTAssertNil(captured["json"])
+        XCTAssertEqual((captured["headers"] as? [String: String])?["Content-Type"], "application/json")
+        for unparsed in ["[1,]", #"{"n": {{count}}}"#] {
+            let sent = try XCTUnwrap(try pythonCall(code(body(unparsed, .json))), unparsed)
+            XCTAssertEqual(sent["data"] as? String, unparsed, unparsed)
+        }
     }
 
     func testURLParamAndHeaderKeysAreEscaped() throws {

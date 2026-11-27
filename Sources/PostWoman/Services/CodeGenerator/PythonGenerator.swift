@@ -31,6 +31,14 @@ struct PythonGenerator {
         let enabledHeaders = request.headers.filter { $0.isEnabled && !$0.key.isEmpty }
         var hasHeaders = !enabledHeaders.isEmpty
 
+        // A JSON body that doesn't parse can't go as `json=` (requests would send it as a JSON string), so it is sent as
+        // written with `data=`, and the Content-Type the app would send.
+        let hasBody = request.bodyType != .none && !request.bodyContent.isEmpty
+        let jsonLiteral = hasBody && request.bodyType == .json ? PythonLiteral(json: request.bodyContent) : nil
+        let addsJSONContentType =
+            hasBody && request.bodyType == .json && jsonLiteral == nil && !enabledHeaders.contains { $0.key.lowercased() == "content-type" }
+        if addsJSONContentType { hasHeaders = true }
+
         if request.authenticationType == .bearer, let token = request.authBearerToken, !token.isEmpty {
             hasHeaders = true
         }
@@ -39,6 +47,10 @@ struct PythonGenerator {
             code += "headers = {\n"
             for header in enabledHeaders {
                 code += "    \(PythonLiteral.string(header.key)): \(PythonLiteral.string(header.value)),\n"
+            }
+
+            if addsJSONContentType, let mimeType = ContentType.json.mimeType {
+                code += "    \"Content-Type\": \(PythonLiteral.string(mimeType)),\n"
             }
 
             if request.authenticationType == .bearer,
@@ -60,10 +72,10 @@ struct PythonGenerator {
         }
 
         var bodyParam = ""
-        if request.bodyType != .none && !request.bodyContent.isEmpty {
-            if request.bodyType == .json {
+        if hasBody {
+            if let jsonLiteral {
                 code += """
-                    json_data = \(formatPythonDict(request.bodyContent))
+                    json_data = \(jsonLiteral.text)
 
                     """
                 bodyParam = ", json=json_data"
@@ -92,10 +104,6 @@ struct PythonGenerator {
         return code
     }
 
-    /// The JSON body as a Python literal (dict, list, str, number, True/False/None), or a triple-quoted string if it isn't valid JSON.
-    private func formatPythonDict(_ jsonString: String) -> String {
-        PythonLiteral(json: jsonString)?.text ?? PythonLiteral.string(jsonString, block: true)
-    }
 }
 
 /// Python literals for generated scripts. A JSON body is converted by walking its text rather than a parsed `JSONSerialization`
