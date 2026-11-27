@@ -19,6 +19,7 @@ struct ResponseHeadersView: View {
             HStack {
                 TextField("Search headers...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
                     .frame(maxWidth: 300)
 
                 Spacer()
@@ -36,7 +37,8 @@ struct ResponseHeadersView: View {
                 .controlSize(.small)
                 .help("Copy all headers")
             }
-            .padding()
+            .padding(.horizontal, 12)
+            .frame(height: 38)
 
             Divider()
 

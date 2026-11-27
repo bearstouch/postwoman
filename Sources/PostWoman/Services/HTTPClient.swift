@@ -19,6 +19,15 @@ struct HTTPResponse {
     /// Content-Type header value from the response.
     let contentType: String?
 
+    /// Cookies the response set with `Set-Cookie`.
+    var cookies: [ResponseCookie] = []
+
+    /// Where the time went (DNS, connect, TLS, waiting, download), when URLSession reported it.
+    var timing: ResponseTiming?
+
+    /// The body's size in bytes as received; nil when unknown.
+    var bodySize: Int?
+
     /// Human-readable status text (e.g., "OK", "Not Found"). Foundation's localized strings are lowercase and
     /// say "no error" for 200, so common codes use their standard reason phrases.
     var statusText: String {
@@ -151,19 +160,27 @@ final class HTTPClient {
         }
 
         // Execute the request
-        let (data, response) = try await session.data(for: urlRequest)
+        let metrics = MetricsCollector()
+        let (data, response) = try await session.data(for: urlRequest, delegate: metrics)
         let endTime = Date()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw HTTPClientError.invalidResponse
         }
 
+        let headers = parseHeaders(from: httpResponse)
+        let headerFields = Dictionary(headers.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        let timing = metrics.timing
+
         return HTTPResponse(
             statusCode: httpResponse.statusCode,
-            headers: parseHeaders(from: httpResponse),
+            headers: headers,
             body: String(data: data, encoding: .utf8),
-            responseTime: endTime.timeIntervalSince(startTime) * 1000,
-            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type")
+            responseTime: timing?.total ?? endTime.timeIntervalSince(startTime) * 1000,
+            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type"),
+            cookies: ResponseCookie.parse(headerFields: headerFields, url: httpResponse.url ?? url),
+            timing: timing,
+            bodySize: data.count
         )
     }
 

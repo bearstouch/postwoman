@@ -57,6 +57,14 @@ enum Theme {
     static let failure = Color.adaptive(light: .systemRed, dark: NSColor(hex: 0xFF6B6B))
     static let neutral = Color.adaptive(light: .systemGray, dark: NSColor(hex: 0x8F91A3))
 
+    /// Phase colors in the response Timing tab.
+    static let phaseDNS = neutral
+    static let phaseConnect = warning
+    static let phaseTLS = info
+    static let phaseRequest = Color.adaptive(light: .systemTeal, dark: NSColor(hex: 0x5CC8D6))
+    static let phaseWaiting = Color.postWomanPink
+    static let phaseDownload = success
+
     /// The color for an HTTP status code: 2xx green, 3xx orange, 4xx and 5xx red.
     static func status(_ code: Int) -> Color {
         switch code {
@@ -66,4 +74,26 @@ enum Theme {
         default: return neutral
         }
     }
+}
+
+/// AppKit colors for the response body's code view: syntax colors from the PostWoman palette,
+/// darker in light mode so they read on white.
+enum CodePalette {
+    private static func adaptive(light: NSColor, dark: NSColor) -> NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+        }
+    }
+
+    static let key = adaptive(light: NSColor(hex: 0xB0179F), dark: NSColor(hex: 0xFF8CF7))
+    static let string = adaptive(light: NSColor(hex: 0x1F7A3A), dark: NSColor(hex: 0x9CE6A8))
+    static let number = adaptive(light: NSColor(hex: 0xB35500), dark: NSColor(hex: 0xF5A35C))
+    static let literal = adaptive(light: NSColor(hex: 0x2557D6), dark: NSColor(hex: 0x7AA2FF))
+    static let punctuation = adaptive(light: .secondaryLabelColor, dark: NSColor(hex: 0x8F91A3))
+    static let text = NSColor.textColor
+
+    /// The line-number gutter: the same fill as `Theme.field`, a hairline on its right edge.
+    static let gutterBackground = adaptive(light: .textBackgroundColor, dark: NSColor(hex: 0x0B0B0E))
+    static let gutterBorder = adaptive(light: NSColor(white: 0, alpha: 0.08), dark: NSColor(hex: 0x1E1F26))
+    static let lineNumber = adaptive(light: .tertiaryLabelColor, dark: NSColor(hex: 0x5C5E6E))
 }
