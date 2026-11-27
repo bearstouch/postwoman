@@ -142,6 +142,20 @@ final class KeyValueRowViewTests: XCTestCase {
         XCTAssertEqual(model.deletions, 1)
     }
 
+    func testEveryControlInARowIsNamedForVoiceOver() throws {
+        let model = Model()
+        let hosting = ViewHosting.host(
+            KeyValueRowView(pair: .constant(model.pair), keyPlaceholder: "Header", valuePlaceholder: "Content", onDelete: {}), size: CGSize(width: 500, height: 40))
+        defer { ViewHosting.close(hosting) }
+        let checkbox = try XCTUnwrap(hosting.nodes("AXCheckBox").first)
+        XCTAssertEqual(checkbox.label, "Enabled")
+        XCTAssertEqual(checkbox.help, "Only enabled rows are sent.")
+        XCTAssertEqual(hosting.nodes("AXTextField").map(\.label), ["Header", "Content"], "named even once they hold text")
+        let delete = try XCTUnwrap(hosting.nodes("AXButton").first)
+        XCTAssertEqual(delete.label, "Delete", "not the symbol's own name")
+        XCTAssertEqual(delete.help, "Delete this row")
+    }
+
     func testWithoutAResolverThereIsNoVariableMark() {
         let model = Model()
         model.pair.value = "{{host}}"

@@ -10,16 +10,19 @@ struct KeyValueRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Toggle("", isOn: $pair.isEnabled)
+            Toggle("Enabled", isOn: $pair.isEnabled)
                 .toggleStyle(.checkbox)
                 .labelsHidden()
+                .help("Only enabled rows are sent.")
 
             TextField(keyPlaceholder, text: $pair.key)
                 .textFieldStyle(.themed)
                 .frame(minWidth: 100)
+                .accessibilityLabel(keyPlaceholder)
 
             TextField(valuePlaceholder, text: $pair.value)
                 .textFieldStyle(.themed)
+                .accessibilityLabel(valuePlaceholder)
 
             if let resolver {
                 VariableStatusMark(texts: [pair.key, pair.value], resolver: resolver)
@@ -30,6 +33,8 @@ struct KeyValueRowView: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Delete this row")
+            .accessibilityLabel("Delete")
         }
         .opacity(pair.isEnabled ? 1.0 : 0.5)
     }
