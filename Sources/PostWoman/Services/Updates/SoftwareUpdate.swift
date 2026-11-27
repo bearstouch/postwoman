@@ -8,10 +8,10 @@ struct UpdateFeed: Equatable, Sendable {
     let url: URL
     let publicKey: String
 
-    /// Needs an HTTPS `SUFeedURL` (plain HTTP only on loopback, for local testing) and a non-empty `SUPublicEDKey`.
+    /// Needs an HTTPS `SUFeedURL` (plain HTTP only on loopback, for local testing) and an `SUPublicEDKey` that is not blank.
     init?(info: [String: Any]) {
         guard let raw = info["SUFeedURL"] as? String, let url = URL(string: raw), let host = url.host, !host.isEmpty,
-            let key = (info["SUPublicEDKey"] as? String)?.trimmingCharacters(in: .whitespaces), !key.isEmpty
+            let key = (info["SUPublicEDKey"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty
         else { return nil }
         guard url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1"].contains(host)) else { return nil }
         self.url = url

@@ -60,6 +60,16 @@ final class UpdateSettingsTests: XCTestCase {
         XCTAssertEqual(UpdateFeed(info: ["SUFeedURL": "https://example.com/a.xml", "SUPublicEDKey": "  \(key)\t"])?.publicKey, key)
     }
 
+    func testPublicKeyOfOnlyNewlinesIsRefused() {
+        for blank in ["\n", "\r\n", " \n\t ", "\u{2028}"] {
+            XCTAssertNil(UpdateFeed(info: ["SUFeedURL": "https://example.com/a.xml", "SUPublicEDKey": blank]), blank.debugDescription)
+        }
+    }
+
+    func testPublicKeyIsTrimmedOfNewlines() {
+        XCTAssertEqual(UpdateFeed(info: ["SUFeedURL": "https://example.com/a.xml", "SUPublicEDKey": "\n  \(key)\r\n"])?.publicKey, key)
+    }
+
     func testFeedsWithTheSameValuesAreEqual() {
         let info: [String: Any] = ["SUFeedURL": "https://example.com/a.xml", "SUPublicEDKey": key]
         XCTAssertEqual(UpdateFeed(info: info), UpdateFeed(info: info))
