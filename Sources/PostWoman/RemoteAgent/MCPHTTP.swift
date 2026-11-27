@@ -144,6 +144,8 @@ struct MCPHTTPRequestParser: Sendable {
         guard let head = String(data: buffer[start..<end.lowerBound], encoding: .utf8) else { throw .malformed }
         let lines = head.components(separatedBy: "\r\n")
         guard lines.count - 1 <= Self.maximumHeaderCount else { throw .headersTooLarge }
+        // RFC 9112 §2.2: a bare CR or LF is not a line ending here, and inside a field it could smuggle a header.
+        guard !lines.contains(where: { $0.utf8.contains { $0 == 0x0D || $0 == 0x0A } }) else { throw .malformed }
         let parts = lines[0].split(separator: " ", omittingEmptySubsequences: false)
         guard parts.count == 3, !parts[0].isEmpty, parts[0].allSatisfy({ $0.isASCII && $0.isUppercase }), parts[1].hasPrefix("/") else { throw .malformed }
         let version = String(parts[2])

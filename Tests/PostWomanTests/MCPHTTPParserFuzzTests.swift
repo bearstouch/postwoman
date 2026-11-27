@@ -157,6 +157,13 @@ final class MCPHTTPParserBoundaryTests: XCTestCase {
         XCTAssertEqual(status(head(["Hóst: localhost"])), 400, "Header names are ASCII")
     }
 
+    func testBareCROrLFInsideAHeaderLineIsMalformed() {
+        for line in ["X: a\nb", "X: a\rb", "X: a\r", "X: \nb", "X\nY: v", "X\rY: v", "Host: localhost\nX-Injected: 1"] {
+            XCTAssertEqual(status(head(["Host: localhost", line])), 400, line.debugDescription)
+        }
+        XCTAssertEqual(try parse(head(["Host: localhost", "X: a b"])).get().first?.header("X"), "a b", "Other whitespace is kept")
+    }
+
     func testHostCannotBeRepeatedInAnyCase() {
         XCTAssertEqual(status(head(["Host: localhost", "HOST: localhost"])), 400)
     }
