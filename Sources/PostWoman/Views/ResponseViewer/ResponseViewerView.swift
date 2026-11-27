@@ -164,6 +164,7 @@ struct ResponseViewerView: View {
         .buttonStyle(.plain)
         .help(tab.rawValue)
         .accessibilityLabel(tab.accessibilityLabel(count: count))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

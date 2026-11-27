@@ -293,6 +293,15 @@ final class ResponseViewerViewTests: XCTestCase {
         XCTAssertFalse(ViewHosting.text(in: hosting).contains("View mode"))
     }
 
+    func testTheShownTabIsExposedAsSelected() {
+        let hosting = ViewHosting.host(ResponseViewerView(response: Fixture.json, isLoading: false), size: wide)
+        defer { ViewHosting.close(hosting) }
+        func selected() -> [String] { ViewHosting.elements(in: hosting).filter { $0.role == .button && $0.isSelected == true }.map(\.label) }
+        XCTAssertEqual(selected(), ["Body"], "Not only by the pink underline.")
+        AX.press("Headers, 3", in: hosting)
+        XCTAssertEqual(selected(), ["Headers, 3"])
+    }
+
     func testAPlainResponseAfterAStreamFallsBackFromEventsToBody() {
         let feed = Feed(Fixture.stream(.completed))
         let hosting = ViewHosting.host(FedView(feed: feed) { ResponseViewerView(response: $0, isLoading: false) }, size: wide)
