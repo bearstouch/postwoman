@@ -3,6 +3,7 @@ import Foundation
 /// Utility enum for JSON formatting, minification, and validation operations.
 /// Provides static methods to work with JSON strings, useful for displaying
 /// API response bodies and validating JSON content in request bodies.
+/// A top-level scalar (`42`, `true`, `null`, `"x"`) is JSON too (RFC 8259), so a body of `true` shows as JSON.
 enum JSONFormatter {
     /// Formats a JSON string with proper indentation and structure.
     /// Converts compact JSON to human-readable format with consistent key ordering.
@@ -15,10 +16,10 @@ enum JSONFormatter {
         }
 
         do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
+            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
             let prettyData = try JSONSerialization.data(
                 withJSONObject: jsonObject,
-                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
             )
             return String(data: prettyData, encoding: .utf8)
         } catch {
@@ -119,10 +120,10 @@ enum JSONFormatter {
         }
 
         do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
+            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
             let minifiedData = try JSONSerialization.data(
                 withJSONObject: jsonObject,
-                options: [.withoutEscapingSlashes]
+                options: [.withoutEscapingSlashes, .fragmentsAllowed]
             )
             return String(data: minifiedData, encoding: .utf8)
         } catch {
@@ -141,7 +142,7 @@ enum JSONFormatter {
         }
 
         do {
-            _ = try JSONSerialization.jsonObject(with: data, options: [])
+            _ = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
             return true
         } catch {
             return false

@@ -124,4 +124,23 @@ final class JSONFormatterEdgeCaseTests: XCTestCase {
         XCTAssertFalse(JSONFormatter.isValid(#"["\ud800"]"#))
         XCTAssertNil(JSONFormatter.prettify(#"["\ud800"]"#))
     }
+    func testTopLevelScalarsAreJSON() {
+        for input in ["42", "-1.5e3", "true", "false", "null", #""x""#, #""Zoë \"q\"""#] {
+            XCTAssertTrue(JSONFormatter.isValid(input), input)
+            XCTAssertEqual(JSONFormatter.prettify(input), input, input)
+            XCTAssertNotNil(JSONFormatter.format(input), input)
+            XCTAssertNotNil(JSONFormatter.minify(input), input)
+        }
+        XCTAssertEqual(JSONFormatter.prettify(" true \n"), "true")
+        XCTAssertEqual(JSONFormatter.format("true"), "true")
+        XCTAssertEqual(JSONFormatter.minify(" 42 "), "42")
+        XCTAssertEqual(JSONFormatter.minify(#""a/b""#), #""a/b""#)
+    }
+
+    func testTopLevelScalarFollowedByMoreIsInvalid() {
+        for input in ["42 43", "true false", #""a" "b""#, "nul", "tru", "1,2"] {
+            XCTAssertFalse(JSONFormatter.isValid(input), input)
+            XCTAssertNil(JSONFormatter.prettify(input), input)
+        }
+    }
 }
