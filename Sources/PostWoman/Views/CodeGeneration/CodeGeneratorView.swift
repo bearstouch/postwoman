@@ -110,6 +110,7 @@ struct CodeGeneratorView: View {
                     .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selectedLanguage == language ? .isSelected : [])
             }
 
             Spacer()

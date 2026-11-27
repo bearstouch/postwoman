@@ -116,6 +116,18 @@ final class CodeGeneratorViewTests: XCTestCase {
         XCTAssertTrue(ViewHosting.text(in: hosting).contains { $0.hasPrefix("curl") && $0.contains("https://example.com") })
     }
 
+    func testTheChosenLanguageIsExposedAsSelectedNotOnlyByColor() throws {
+        let (container, model, folder) = try store()
+        let hosting = ViewHosting.host(
+            CodeGeneratorView(request: model, resolver: folder.variableResolver, environmentLabel: "Users API · Default"),
+            size: CGSize(width: 700, height: 500), container: container)
+        defer { ViewHosting.close(hosting) }
+        func selected() -> [String] { ViewHosting.elements(in: hosting).filter { $0.role == .button && $0.isSelected == true }.map(\.label) }
+        XCTAssertEqual(selected(), ["cURL"])
+        XCTAssertTrue(SheetAccess.press("Python", in: hosting))
+        XCTAssertEqual(selected(), ["Python"])
+    }
+
     func testPickingALanguageShowsItsCode() throws {
         let (container, model, folder) = try store()
         let hosting = ViewHosting.host(
