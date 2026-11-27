@@ -541,6 +541,12 @@ final class RemoteAgentSettingsViewTests: XCTestCase {
         }
     }
 
+    func testThePortFieldIsNamedOnce() {
+        let hosting = fixture.host(RemoteAgentSettingsView())
+        defer { ViewHosting.close(hosting) }
+        XCTAssertEqual(hosting.nodes.first { $0.role == "AXTextField" }?.label, "Port")
+    }
+
     func testTheTokenIsHiddenUntilShownAndHiddenAgain() {
         let hosting = fixture.host(RemoteAgentSettingsView())
         defer { ViewHosting.close(hosting) }

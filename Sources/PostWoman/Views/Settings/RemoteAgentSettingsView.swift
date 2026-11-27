@@ -85,7 +85,6 @@ struct RemoteAgentSettingsView: View {
                     TextField("Port", value: $port, format: .number.grouping(.never))
                         .labelsHidden().multilineTextAlignment(.trailing).frame(maxWidth: 90)
                         .textFieldStyle(.themed)
-                        .accessibilityLabel("Port")
                 } label: {
                     SettingsLabel("Port (1024–65535)", help: RemoteAgentSettingsForm.portHelp(port))
                 }
