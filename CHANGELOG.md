@@ -6,18 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-27
+
 ### Added
+- History keeps the full request as sent (name, params, body type, auth) and the response (content type, timing), records failed requests with their error, and shows an entry in a read-only detail view when you select it. Open as Request restores the entry into the first collection
+- Response Cookies tab, listing the cookies from `Set-Cookie` headers
+- Response Timing tab: a waterfall of DNS, connect, TLS, send, wait and download, plus protocol, TLS version and whether the connection was reused
+- Response body code view with line numbers, JSON syntax colors, line wrapping with hanging indents, the find bar, and Save and Copy buttons
+- Response Headers filter field with a match count, hover copy, and a Copy Name / Value / Header context menu
+- Prettify button for JSON and XML request bodies. JSON keeps its key order, number literals and escapes; invalid bodies are left as they are, and ⌘Z undoes a prettify
+- The request body editor has line numbers, JSON syntax colors as you type, and the find bar
 - Settings → Appearance, in a new Settings window with a sidebar like Trellis's: choose System, Light or Dark; pick a light theme and a dark theme (PostWoman plus ten inspired by Trellis's themes: Modern, GitHub, One, Nord, Tokyo, Rosé Pine, Solarized, Gruvbox, Dracula and Monokai); pick an accent color (pink by default, or the theme's own); and set the code font size
 - Every border, divider and text field outline uses the theme's border color, including the column dividers and the request/response split
 
 ### Fixed
 - Dark mode: the request list and History no longer draw a white background behind white text
+- Typing in the request body no longer turns quotes into smart quotes or `--` into dashes, which made JSON bodies invalid
 - Responses show standard status text ("200 OK" instead of "200 no error")
+- Pretty mode keeps the server's key order instead of sorting keys
 - Short response bodies and generated code start at the top left instead of floating in the middle
 - The History column is titled "History"
+- `scripts/run-app.sh` quits the running dev build before opening the new one, so the new build actually starts
 
 ### Changed
-- A dark appearance in the style of Trellis: near-black panes, hairline borders, softer method and status colors, a framed body editor and a glowing Send button. Light mode keeps the system look
+- The response status, time and size sit in the response tab bar (Body, Headers, Cookies, Timing) instead of a separate status bar
+- Response headers are shown in a left-aligned name column, with comma-separated token lists as wrapping chips and row separators
+- A dark appearance in the style of Trellis: near-black panes, hairline borders, softer method and status colors, a framed body editor and a glowing Send button. Light mode keeps the system look, with white request and response panes
 
 ## [0.9.1] - 2026-10-20
 
