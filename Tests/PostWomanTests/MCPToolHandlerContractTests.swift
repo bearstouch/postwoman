@@ -687,6 +687,25 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(dated["request"]?["method"], .string("DELETE"))
     }
 
+    func testARecordedResponseNeedsItsStatusAsTheSchemaSays() async throws {
+        for tool in ["history_create", "history_update"] {
+            let schema = try XCTUnwrap(MCPTools.byName[tool]?.properties["response"])
+            XCTAssertEqual(schema["required"], .array([.string("status")]), tool)
+        }
+        let fixture = try await fixture()
+        let before = try await everything()
+        let created = await failure("history_create", ["url": .string("https://x"), "response": .object(["body": .string("ok")])])
+        XCTAssertEqual(created?.code, "INVALID_PARAMS")
+        XCTAssertEqual(created?.details?["field"], .string("response.status"))
+        let nullStatus = await failure("history_create", ["url": .string("https://x"), "response": .object(["status": .null])])
+        XCTAssertEqual(nullStatus?.details?["field"], .string("response.status"))
+        let updated = await failure("history_update", ["id": id(fixture.history), "name": .string("Renamed"), "response": .object(["timeMs": .number(5)])])
+        XCTAssertEqual(updated?.code, "INVALID_PARAMS")
+        XCTAssertEqual(updated?.details?["field"], .string("response.status"))
+        let after = try await everything()
+        XCTAssertEqual(after, before, "No entry was added and the existing one kept its name and response")
+    }
+
     // MARK: - request_execute
 
     func testExecuteSendsTheSavedFieldsAndRecordsWhatCameBack() async throws {

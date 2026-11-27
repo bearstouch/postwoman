@@ -397,7 +397,7 @@ final class MCPToolHandler {
             let body = try response.string("body")
             entry.record(
                 HTTPResponse(
-                    statusCode: try response.int("status") ?? 0, headers: try response.pairs("headers") ?? [], body: body,
+                    statusCode: try response.int("status")!, headers: try response.pairs("headers") ?? [], body: body,
                     responseTime: try response.double("timeMs") ?? 0, contentType: try response.string("contentType"), bodySize: body?.utf8.count))
         }
         if let message = try args.string("errorMessage") {
@@ -677,7 +677,11 @@ struct Arguments {
     func object(_ name: String) throws -> Arguments? {
         guard let value = value(name) else { return nil }
         guard case .object(let object) = value else { throw invalid(name, "an object") }
-        return try Arguments(object, allowed: Self.nestedNames[name] ?? [], path: "\(path)\(name).")
+        let nested = try Arguments(object, allowed: Self.nestedNames[name] ?? [], path: "\(path)\(name).")
+        for field in Self.nestedRequired[name] ?? [] where nested.value(field) == nil {
+            throw MCPToolError.invalidParams("\(nested.path)\(field) is required.", field: nested.path + field)
+        }
+        return nested
     }
 
     func pairs(_ name: String) throws -> [KeyValuePair]? {
@@ -697,4 +701,7 @@ struct Arguments {
         "request": Set(MCPTools.requestFields.keys),
         "response": ["status", "headers", "body", "contentType", "timeMs"]
     ]
+
+    /// The nested schemas' `required` lists.
+    private static let nestedRequired: [String: [String]] = ["response": ["status"]]
 }
