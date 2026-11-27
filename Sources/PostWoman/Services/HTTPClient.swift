@@ -196,17 +196,25 @@ final class HTTPClient {
     }
 
     /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
+    /// The enabled params as an encoded query (`a=1&b=2`), appended to the URL's own query, which is kept as written;
+    /// nil when no param is enabled.
+    static func encodedQuery(_ params: [KeyValuePair]) -> String? {
+        let enabled = params.filter { $0.isEnabled && !$0.key.isEmpty }
+        guard !enabled.isEmpty else { return nil }
+        var components = URLComponents()
+        components.queryItems = enabled.map { URLQueryItem(name: $0.key, value: $0.value) }
+        return components.percentEncodedQuery
+    }
+
     private func makeURLRequest(_ request: some RequestFields) throws -> URLRequest {
         // Parse URL and add query parameters
         guard var urlComponents = URLComponents(string: request.url) else {
             throw HTTPClientError.invalidURL
         }
 
-        let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
-        if !enabledParams.isEmpty {
-            urlComponents.queryItems = enabledParams.map {
-                URLQueryItem(name: $0.key, value: $0.value)
-            }
+        if let params = Self.encodedQuery(request.queryParams) {
+            let existing = urlComponents.percentEncodedQuery ?? ""
+            urlComponents.percentEncodedQuery = existing.isEmpty ? params : existing + "&" + params
         }
 
         guard let url = urlComponents.url else {

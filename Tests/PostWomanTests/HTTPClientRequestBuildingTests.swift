@@ -1,5 +1,6 @@
 import Foundation
 import os
+import SwiftData
 import XCTest
 
 @testable import PostWoman
@@ -88,6 +89,48 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
         request.queryParams = [KeyValuePair(key: "off", value: "1", isEnabled: false)]
         let sent = try await send(request)
         XCTAssertEqual(sent.url?.absoluteString, "https://api.example.com/search?fixed=1")
+    }
+
+    func testParamsAreAppendedToTheURLsOwnQuery() async throws {
+        let request = APIRequest(name: "q", url: "https://api.test/items?page=1")
+        request.queryParams = [KeyValuePair(key: "limit", value: "10")]
+        let sent = try await send(request)
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.test/items?page=1&limit=10")
+    }
+
+    func testTheURLsOwnQueryIsKeptAsWritten() async throws {
+        let request = APIRequest(name: "q", url: "https://api.test/items?tag=a+b&x=%2F&flag")
+        request.queryParams = [KeyValuePair(key: "limit", value: "10")]
+        let sent = try await send(request)
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.test/items?tag=a+b&x=%2F&flag&limit=10")
+    }
+
+    func testParamsGoBeforeTheFragmentAndAfterAnEmptyQuery() async throws {
+        let request = APIRequest(name: "q", url: "https://api.test/items#top")
+        request.queryParams = [KeyValuePair(key: "limit", value: "10")]
+        let fragment = try await send(request)
+        XCTAssertEqual(fragment.url?.absoluteString, "https://api.test/items?limit=10#top")
+
+        CapturingURLProtocol.sent.withLock { $0.removeAll() }
+        let empty = APIRequest(name: "q", url: "https://api.test/items?")
+        empty.queryParams = [KeyValuePair(key: "limit", value: "10")]
+        let emptyQuery = try await send(empty)
+        XCTAssertEqual(emptyQuery.url?.absoluteString, "https://api.test/items?limit=10")
+    }
+
+    /// What `request_execute` sends for an ad-hoc request: agents and the CLI share the app's send path.
+    private func executeThroughMCP(url: String, params: [(String, String)]) async throws -> URLRequest {
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let handler = MCPToolHandler(container: container, client: client)
+        let pairs = JSONValue.array(params.map { .object(["key": .string($0.0), "value": .string($0.1)]) })
+        let result = await handler.call("request_execute", ["request": .object(["url": .string(url), "queryParams": pairs]), "recordHistory": .bool(false)])
+        if case .failure(let error) = result { XCTFail("request_execute failed: \(error.code) \(error.message)") }
+        return try XCTUnwrap(CapturingURLProtocol.sent.withLock { $0.last })
+    }
+
+    func testRequestExecuteAppendsParamsToTheURLsOwnQuery() async throws {
+        let sent = try await executeThroughMCP(url: "https://api.test/items?page=1", params: [("limit", "10")])
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.test/items?page=1&limit=10")
     }
 
     func testOnlyEnabledHeadersWithKeysAreSent() async throws {
