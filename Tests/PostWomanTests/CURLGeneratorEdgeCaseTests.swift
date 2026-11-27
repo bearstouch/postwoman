@@ -146,6 +146,25 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["https://api.example.com", "-H", "X-Cmd: $HOME `id` \\ \"q\""])
     }
 
+    func testSingleQuotesInEveryArgumentRoundTripThroughAShell() throws {
+        let request = APIRequest(name: "q", url: "https://api.example.com/it's")
+        request.headers = [KeyValuePair(key: "X-'A'", value: "it's")]
+        request.authenticationType = .bearer
+        request.authBearerToken = "to'ken"
+        XCTAssertEqual(
+            try shellWords(CURLGenerator().generate(from: request)),
+            ["https://api.example.com/it's", "-H", "X-'A': it's", "-H", "Authorization: Bearer to'ken"])
+        XCTAssertEqual(parts(request)[2], #"-H 'X-'\''A'\'': it'\''s'"#)
+    }
+
+    func testBasicCredentialsWithSingleQuotesRoundTripThroughAShell() throws {
+        let request = APIRequest(name: "a", url: "https://h")
+        request.authenticationType = .basic
+        request.authBasicUsername = "o'neil"
+        request.authBasicPassword = "p'a$s `id`"
+        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["https://h", "-u", "o'neil:p'a$s `id`"])
+    }
+
     func testBearerNeedsANonEmptyToken() {
         for token in [nil, ""] as [String?] {
             let request = APIRequest(name: "a", url: "https://h")

@@ -39,24 +39,24 @@ struct CURLGenerator {
             urlWithParams += (request.url.contains("?") ? "&" : "?") + queryString
         }
 
-        parts.append("'\(urlWithParams)'")
+        parts.append(quoted(urlWithParams))
 
         // Add HTTP headers
         for header in request.headers where header.isEnabled && !header.key.isEmpty {
-            parts.append("-H '\(header.key): \(header.value)'")
+            parts.append("-H " + quoted("\(header.key): \(header.value)"))
         }
 
         // Add authentication
         switch request.authenticationType {
         case .bearer:
             if let token = request.authBearerToken, !token.isEmpty {
-                parts.append("-H 'Authorization: Bearer \(token)'")
+                parts.append("-H " + quoted("Authorization: Bearer \(token)"))
             }
         case .basic:
             if let username = request.authBasicUsername,
                 let password = request.authBasicPassword
             {
-                parts.append("-u '\(username):\(password)'")
+                parts.append("-u " + quoted("\(username):\(password)"))
             }
         default:
             break
@@ -64,8 +64,7 @@ struct CURLGenerator {
 
         // Add request body if present
         if request.bodyType != .none && !request.bodyContent.isEmpty {
-            let escapedBody = request.bodyContent.replacingOccurrences(of: "'", with: "'\\''")
-            parts.append("-d '\(escapedBody)'")
+            parts.append("-d " + quoted(request.bodyContent))
 
             // Add Content-Type header if not already specified
             if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil,
@@ -77,5 +76,10 @@ struct CURLGenerator {
 
         // Join parts with line continuation for readability
         return parts.joined(separator: " \\\n  ")
+    }
+
+    /// Wraps `text` in single quotes for a POSIX shell, so nothing in it expands; each `'` is closed, escaped and reopened (`'\''`).
+    private func quoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
