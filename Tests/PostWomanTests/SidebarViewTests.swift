@@ -473,6 +473,16 @@ final class HistoryListViewTests: XCTestCase {
         }
     }
 
+    func testARequestThatGotNoResponseSaysItFailed() throws {
+        let fixture = try SidebarFixture()
+        let host = host(fixture)
+        defer { host.close() }
+        let row = try XCTUnwrap(host.rows.first { $0.allText.contains("https://offline.local/orders/1") })
+        XCTAssertTrue(row.allText.contains("Failed"), "Not only the absence of a status: \(row.allText)")
+        XCTAssertTrue(row.all.contains { $0.help == fixture.offline.errorMessage }, "The error is in its help")
+        XCTAssertEqual(host.rows.filter { $0.allText.contains("Failed") }.count, 1, "Entries with a response show their status instead")
+    }
+
     func testTheSelectedEntryIsExposedAsSelected() throws {
         let fixture = try SidebarFixture()
         let host = host(fixture, selected: fixture.serverError)

@@ -101,6 +101,15 @@ struct HistoryRowView: View {
                         .padding(.vertical, 1)
                         .background(Theme.status(statusCode).opacity(0.15))
                         .cornerRadius(3)
+                } else if let errorMessage = item.errorMessage {
+                    Text("Failed")
+                        .font(.caption)
+                        .foregroundColor(Theme.failure)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Theme.failure.opacity(0.15))
+                        .cornerRadius(3)
+                        .help(errorMessage)
                 }
 
                 Spacer()
