@@ -589,12 +589,15 @@ final class ResponseEventsViewTests: XCTestCase {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let hosting = ViewHosting.host(ResponseEventsView(events: events), size: CGSize(width: 700, height: 400), appearance: appearance)
             defer { ViewHosting.close(hosting) }
-            let text = ViewHosting.text(in: hosting)
-            XCTAssertTrue(text.contains("3 events"))
-            for expected in ["1", "+182 ms", "message_start", #"{"type":"message_start"}"#, "2", "+240 ms", "content_block_delta", "3", "+1.31 s", "[DONE]"] {
-                XCTAssertTrue(text.contains(expected), expected)
-            }
+            XCTAssertTrue(ViewHosting.text(in: hosting).contains("3 events"))
+            XCTAssertEqual(
+                rows(in: hosting), ["1, +182 ms, message_start, {\"type\":\"message_start\"}", "2, +240 ms, content_block_delta, {\"delta\":{\"text\":\"Hello\"}}", "3, +1.31 s, [DONE]"])
         }
+    }
+
+    /// The events listed, one combined label per row as VoiceOver reads it.
+    private func rows(in hosting: NSView) -> [String] {
+        ViewHosting.elements(in: hosting).filter { $0.role == .button && $0.label.contains(", +") }.map(\.label)
     }
 
     func testNoEventsYetSaysItIsWaiting() {
@@ -611,12 +614,34 @@ final class ResponseEventsViewTests: XCTestCase {
         let hosting = ViewHosting.host(ResponseEventsView(events: events), size: CGSize(width: 700, height: 400))
         defer { ViewHosting.close(hosting) }
         AX.type("hello", in: hosting)
-        let text = ViewHosting.text(in: hosting)
-        XCTAssertTrue(text.contains("content_block_delta"))
-        XCTAssertFalse(text.contains("[DONE]"))
-        XCTAssertTrue(text.contains("3 events"), "The count is of all events.")
+        XCTAssertEqual(rows(in: hosting).count, 1)
+        XCTAssertTrue(rows(in: hosting).first?.contains("content_block_delta") == true)
+        XCTAssertTrue(ViewHosting.text(in: hosting).contains("3 events"), "The count is of all events.")
         AX.type("nothing here", in: hosting)
         XCTAssertTrue(ViewHosting.text(in: hosting).contains("No events match \u{201C}nothing here\u{201D}"))
+    }
+
+    func testEventRowsAreButtonsThatOpenTheEventAndShowWhichIsOpen() throws {
+        let hosting = ViewHosting.host(ResponseEventsView(events: events), size: CGSize(width: 700, height: 500))
+        defer { ViewHosting.close(hosting) }
+        let rows = ViewHosting.elements(in: hosting).filter { $0.role == .button && $0.label.contains(", +") }
+        XCTAssertEqual(rows.count, 3, "Each event is one element VoiceOver can press.")
+        let second = try XCTUnwrap(rows.first { $0.label.contains("content_block_delta") })
+        XCTAssertTrue(second.label.hasPrefix("2"), second.label)
+        XCTAssertTrue(second.label.contains("+240 ms"), second.label)
+        XCTAssertNotEqual(second.isSelected, true)
+
+        XCTAssertTrue(AX.press(second.label, in: hosting))
+        let text = ViewHosting.text(in: hosting)
+        XCTAssertTrue(text.contains("Event 2"))
+        XCTAssertEqual(AX.textViews(in: hosting).first?.string, JSONFormatter.prettify(events[1].data), "The data in full, pretty-printed.")
+        XCTAssertEqual(ViewHosting.elements(in: hosting).first { $0.label == second.label }?.isSelected, true, "The open event is selected, not only highlighted.")
+        let detailButtons = ViewHosting.elements(in: hosting).filter { $0.role == .button && ["Copy data", "Close"].contains($0.label) }
+        XCTAssertEqual(detailButtons.map(\.help), ["Copy data", "Close"])
+
+        XCTAssertTrue(AX.press("Close", in: hosting))
+        XCTAssertFalse(ViewHosting.text(in: hosting).contains("Event 2"))
+        XCTAssertNotEqual(ViewHosting.elements(in: hosting).first { $0.label == second.label }?.isSelected, true)
     }
 
     func testClearingTheFilterIsLabelledAndListsEveryEventAgain() {
@@ -626,7 +651,7 @@ final class ResponseEventsViewTests: XCTestCase {
         let clear = ViewHosting.elements(in: hosting).first { $0.role == .button && $0.help == "Clear filter" }
         XCTAssertEqual(clear?.label, "Clear filter")
         XCTAssertTrue(AX.press("Clear filter", in: hosting))
-        XCTAssertTrue(ViewHosting.text(in: hosting).contains("[DONE]"))
+        XCTAssertEqual(rows(in: hosting).count, 3)
     }
 
     func testNewEventsAppearAsTheyArrive() {
@@ -637,7 +662,7 @@ final class ResponseEventsViewTests: XCTestCase {
         feed.value = events
         ViewHosting.settle()
         XCTAssertTrue(ViewHosting.text(in: hosting).contains("3 events"))
-        XCTAssertTrue(ViewHosting.text(in: hosting).contains("[DONE]"))
+        XCTAssertEqual(rows(in: hosting).last, "3, +1.31 s, [DONE]")
     }
 }
 

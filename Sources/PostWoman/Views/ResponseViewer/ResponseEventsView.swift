@@ -116,6 +116,7 @@ struct ResponseEventsView: View {
                         EventRowView(event: event, isSelected: selection == event.id)
                             .id(event.id)
                             .onTapGesture { selection = selection == event.id ? nil : event.id }
+                            .accessibilityAction { selection = selection == event.id ? nil : event.id }
                         Rectangle()
                             .fill(Theme.hairline.opacity(0.6))
                             .frame(height: 1)
@@ -210,6 +211,9 @@ private struct EventRowView: View {
         .background(isSelected ? Theme.selection : (isHovering ? Theme.chip : Color.clear))
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
+        // One element VoiceOver can press to open the event; the open one says it is selected, not only by its background.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
