@@ -8,6 +8,8 @@ struct RequestEditorView: View {
     @State private var selectedTab: RequestTab = .params
     @State private var response: HTTPResponse?
     @State private var isLoading: Bool = false
+    /// The send in flight; cancelling it stops the request (a stream keeps what arrived).
+    @State private var sendTask: Task<Void, Never>?
     @State private var showCodeGenerator: Bool = false
     @State private var isRenaming: Bool = false
     /// Variables the last send used that the collection's environments don't define.
@@ -31,7 +33,8 @@ struct RequestEditorView: View {
                         method: $request.method,
                         isLoading: isLoading,
                         resolver: resolver,
-                        onSend: sendRequest
+                        onSend: sendRequest,
+                        onStop: stopRequest
                     )
                     .padding(.horizontal)
                     .padding(.vertical, 12)
@@ -54,7 +57,8 @@ struct RequestEditorView: View {
                     missingVariablesNotice
                     HairlineDivider()
                 }
-                ResponseViewerView(response: response, isLoading: isLoading)
+                // Once a stream's headers arrive, its response shows while it grows.
+                ResponseViewerView(response: response, isLoading: isLoading && !isStreaming)
             }
             .frame(minHeight: 200)
             .themedSplitDividers()
@@ -86,6 +90,10 @@ struct RequestEditorView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .duplicateRequest)) { _ in
             duplicateRequest()
+        }
+        .onDisappear {
+            // A stream can run forever; don't keep one open for a request nobody is looking at.
+            if isStreaming { stopRequest() }
         }
     }
 
@@ -172,8 +180,15 @@ struct RequestEditorView: View {
         }
     }
 
+    /// Whether a streamed response is arriving.
+    private var isStreaming: Bool { isLoading && response?.stream?.isLive == true }
+
+    private func stopRequest() {
+        sendTask?.cancel()
+    }
+
     private func sendRequest() {
-        guard !request.url.isEmpty else { return }
+        guard !request.url.isEmpty, sendTask == nil else { return }
 
         // Resolve now, with the environment in use when Send was pressed.
         let resolver = self.resolver ?? .empty
@@ -183,14 +198,20 @@ struct RequestEditorView: View {
         missingVariables = template.missingVariables(with: resolver)
         sentEnvironmentName = environmentName
 
-        Task {
-            isLoading = true
-            defer { isLoading = false }
+        response = nil
+        isLoading = true
+        sendTask = Task {
+            defer {
+                isLoading = false
+                sendTask = nil
+            }
 
             // History keeps what was sent, with secret variables left as {{name}}.
             let history = RequestHistory(request: request, sent: template.resolved(with: resolver, redactSecrets: true), environmentName: environmentName)
             do {
-                let result = try await httpClient.execute(request: sent)
+                let result = try await httpClient.execute(request: sent) { partial in
+                    response = partial
+                }
                 response = result
                 history.record(result)
             } catch {

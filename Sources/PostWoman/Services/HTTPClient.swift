@@ -28,6 +28,9 @@ struct HTTPResponse {
     /// The body's size in bytes as received; nil when unknown.
     var bodySize: Int?
 
+    /// For a streamed body (server-sent events, NDJSON): its events, assembled LLM text and how it ended.
+    var stream: StreamInfo?
+
     /// Human-readable status text (e.g., "OK", "Not Found"). Foundation's localized strings are lowercase and
     /// say "no error" for 200, so common codes use their standard reason phrases.
     var statusText: String {
@@ -102,17 +105,98 @@ final class HTTPClient {
         self.session = session
     }
 
+    /// How often `onProgress` hears about a stream, at most.
+    private static let progressInterval: TimeInterval = 0.1
+
     /// Executes an HTTP request and returns the response.
     /// This method handles the complete request lifecycle: URL construction with query parameters,
     /// header application, authentication, body encoding, and response parsing.
     ///
+    /// A streamed response (`text/event-stream`, NDJSON) is parsed into events as it arrives, and `onProgress`
+    /// gets the response so far, about ten times a second. Cancelling the calling task while a stream arrives
+    /// returns what was received, with `stream.end == .stopped`; a connection lost part way returns it with `.failed`.
+    ///
     /// - Parameters:
     ///   - request: The request to send, as it is: `{{variables}}` are sent as written, so resolve them first
+    ///   - onProgress: Called with the partial response of a stream while it arrives
     /// - Returns: HTTPResponse containing the server's response
     /// - Throws: HTTPClientError if the request cannot be completed
-    func execute(request: some RequestFields) async throws -> HTTPResponse {
+    func execute(request: some RequestFields, onProgress: (@MainActor (HTTPResponse) -> Void)? = nil) async throws -> HTTPResponse {
+        let urlRequest = try makeURLRequest(request)
+        let url = urlRequest.url!
         let startTime = Date()
+        func elapsed() -> Double { Date().timeIntervalSince(startTime) * 1000 }
 
+        let delegate = StreamingTaskDelegate()
+        let task = session.dataTask(with: urlRequest)
+        task.delegate = delegate
+        delegate.onTermination { task.cancel() }
+
+        var httpResponse: HTTPURLResponse?
+        var data = Data()
+        var stream: StreamInfo?
+        var parser: StreamEventParser?
+        var assembler = StreamTextAssembler()
+        var lastProgress = Date.distantPast
+
+        func absorb(_ events: [StreamEvent]) {
+            for event in events { assembler.add(event) }
+            stream?.events.append(contentsOf: events)
+            stream?.text = assembler.text
+            stream?.firstTextTime = assembler.firstTextTime
+        }
+        func snapshot(_ response: HTTPURLResponse, timing: ResponseTiming?) -> HTTPResponse {
+            makeResponse(response, data: data, url: url, total: timing?.total ?? elapsed(), timing: timing, stream: stream)
+        }
+
+        do {
+            try await withTaskCancellationHandler {
+                task.resume()
+                for try await event in delegate.events {
+                    switch event {
+                    case .response(let response):
+                        guard let response = response as? HTTPURLResponse else { throw HTTPClientError.invalidResponse }
+                        httpResponse = response
+                        data = Data()
+                        if let kind = StreamKind(contentType: response.value(forHTTPHeaderField: "Content-Type")) {
+                            stream = StreamInfo(kind: kind)
+                            parser = StreamEventParser(kind: kind)
+                            assembler = StreamTextAssembler()
+                            onProgress?(snapshot(response, timing: nil))
+                            lastProgress = Date()
+                        }
+                    case .data(let chunk):
+                        data.append(chunk)
+                        guard let response = httpResponse, stream != nil else { continue }
+                        let time = elapsed()
+                        if stream?.firstByteTime == nil { stream?.firstByteTime = time }
+                        if let events = parser?.feed(chunk, time: time) { absorb(events) }
+                        if Date().timeIntervalSince(lastProgress) >= Self.progressInterval {
+                            onProgress?(snapshot(response, timing: nil))
+                            lastProgress = Date()
+                        }
+                    }
+                }
+                // A cancelled consumer's stream ends without an error.
+                try Task.checkCancellation()
+            } onCancel: {
+                task.cancel()
+            }
+            stream?.end = .completed
+        } catch {
+            // Without the headers, or for a response that isn't a stream, it failed as before.
+            guard httpResponse != nil, stream != nil else { throw error }
+            let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
+            stream?.end = cancelled ? .stopped : .failed(error.localizedDescription)
+        }
+
+        guard let httpResponse else { throw HTTPClientError.invalidResponse }
+        if let events = parser?.finish(time: elapsed()) { absorb(events) }
+        return snapshot(httpResponse, timing: delegate.timing)
+    }
+
+    /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
+    private func makeURLRequest(_ request: some RequestFields) throws -> URLRequest {
         // Parse URL and add query parameters
         guard var urlComponents = URLComponents(string: request.url) else {
             throw HTTPClientError.invalidURL
@@ -129,7 +213,7 @@ final class HTTPClient {
             throw HTTPClientError.invalidURL
         }
 
-        // Configure the URL request
+        // Configure the URL request. The timeout is the longest wait between packets, so long streams are fine.
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.timeoutInterval = 30
@@ -159,29 +243,23 @@ final class HTTPClient {
                 urlRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
             }
         }
+        return urlRequest
+    }
 
-        // Execute the request
-        let metrics = MetricsCollector()
-        let (data, response) = try await session.data(for: urlRequest, delegate: metrics)
-        let endTime = Date()
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw HTTPClientError.invalidResponse
-        }
-
-        let headers = parseHeaders(from: httpResponse)
+    private func makeResponse(_ response: HTTPURLResponse, data: Data, url: URL, total: Double, timing: ResponseTiming?, stream: StreamInfo?) -> HTTPResponse {
+        let headers = parseHeaders(from: response)
         let headerFields = Dictionary(headers.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
-        let timing = metrics.timing
-
         return HTTPResponse(
-            statusCode: httpResponse.statusCode,
+            statusCode: response.statusCode,
             headers: headers,
-            body: String(data: data, encoding: .utf8),
-            responseTime: timing?.total ?? endTime.timeIntervalSince(startTime) * 1000,
-            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type"),
-            cookies: ResponseCookie.parse(headerFields: headerFields, url: httpResponse.url ?? url),
+            // A stream can stop mid-character, so decode it leniently.
+            body: stream == nil ? String(data: data, encoding: .utf8) : String(decoding: data, as: UTF8.self),
+            responseTime: total,
+            contentType: response.value(forHTTPHeaderField: "Content-Type"),
+            cookies: ResponseCookie.parse(headerFields: headerFields, url: response.url ?? url),
             timing: timing,
-            bodySize: data.count
+            bodySize: data.count,
+            stream: stream
         )
     }
 

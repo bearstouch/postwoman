@@ -12,6 +12,10 @@ extension Notification.Name {
 @MainActor
 final class MCPToolHandler {
     static let defaultMaxBodyBytes = 262_144
+    /// A streamed response is stopped after this long, so the agent gets an answer (with what arrived) before its client gives up.
+    static let maxStreamSeconds: Double = 90
+    /// The most stream events a response lists.
+    static let maxStreamEvents = 500
 
     private let container: ModelContainer
     private let client: HTTPClient
@@ -222,7 +226,7 @@ final class MCPToolHandler {
         if try args.object("request") != nil { history.savedRequestID = nil }
         let record = try args.bool("recordHistory") ?? true
         do {
-            let response = try await client.execute(request: sent)
+            let response = try await executeWithDeadline(sent)
             history.record(response)
             if record {
                 context.insert(history)
@@ -244,6 +248,22 @@ final class MCPToolHandler {
             throw MCPToolError(
                 code: "REQUEST_FAILED", message: error.localizedDescription,
                 details: record ? .object(["historyId": .string(history.id.uuidString)]) : nil)
+        }
+    }
+
+    /// Sends `request`, stopping a stream still arriving after `maxStreamSeconds` (it returns what came, `end: stopped`).
+    private func executeWithDeadline(_ request: RequestSnapshot) async throws -> HTTPResponse {
+        let client = self.client
+        let work = Task { @MainActor in try await client.execute(request: request) }
+        let deadline = Task {
+            try await Task.sleep(for: .seconds(Self.maxStreamSeconds))
+            work.cancel()
+        }
+        defer { deadline.cancel() }
+        return try await withTaskCancellationHandler {
+            try await work.value
+        } onCancel: {
+            work.cancel()
         }
     }
 
@@ -476,6 +496,37 @@ final class MCPToolHandler {
         }
         if let timing = response.timing, let data = try? JSONEncoder().encode(timing), let decoded = try? JSONDecoder().decode(JSONValue.self, from: data) {
             value["timing"] = decoded
+        }
+        if let stream = response.stream { value["stream"] = json(stream, maxTextBytes: maxBodyBytes) }
+        return .object(value)
+    }
+
+    /// A streamed response's events (the first `maxStreamEvents`), assembled LLM text and how it ended.
+    static func json(_ stream: StreamInfo, maxTextBytes: Int) -> JSONValue {
+        func ms(_ value: Double?) -> JSONValue { .from(value.map { ($0 * 10).rounded() / 10 }) }
+        var value: [String: JSONValue] = [
+            "kind": .string(stream.kind.rawValue), "eventCount": .number(Double(stream.events.count)),
+            "firstByteMs": ms(stream.firstByteTime), "firstTextMs": ms(stream.firstTextTime),
+            "events": .array(
+                stream.events.prefix(maxStreamEvents).map { event in
+                    .object(["t": ms(event.time), "event": .from(event.event), "data": .string(event.data), "id": .from(event.eventID)])
+                }),
+            "eventsTruncated": .bool(stream.events.count > maxStreamEvents)
+        ]
+        switch stream.end {
+        case .streaming: value["end"] = .string("streaming")
+        case .completed: value["end"] = .string("completed")
+        case .stopped: value["end"] = .string("stopped")
+        case .failed(let message):
+            value["end"] = .string("failed")
+            value["error"] = .string(message)
+        }
+        if let text = stream.text {
+            let (cut, truncated) = truncate(text, to: maxTextBytes)
+            value["text"] = .string(cut)
+            value["textTruncated"] = .bool(truncated)
+        } else {
+            value["text"] = .null
         }
         return .object(value)
     }

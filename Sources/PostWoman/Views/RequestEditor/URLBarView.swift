@@ -7,6 +7,8 @@ struct URLBarView: View {
     /// What the collection's environment fills in; the bar shows the resolved URL under the field when it uses variables.
     var resolver: VariableResolver?
     let onSend: () -> Void
+    /// Stops the request in flight; while it runs, Send becomes Stop.
+    var onStop: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -51,20 +53,34 @@ struct URLBarView: View {
                 .font(.system(.body, design: .monospaced))
                 .onSubmit(onSend)
 
-            Button(action: onSend) {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .frame(width: 50)
-                } else {
-                    Text("Send")
-                        .frame(width: 50)
+            if isLoading, let onStop {
+                Button(action: onStop) {
+                    HStack(spacing: 5) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("Stop")
+                    }
+                    .frame(width: 50)
                 }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(".", modifiers: .command)
+                .help("Stop the request (⌘.)")
+            } else {
+                Button(action: onSend) {
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 50)
+                    } else {
+                        Text("Send")
+                            .frame(width: 50)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .shadow(color: url.isEmpty ? .clear : Theme.accentGlow, radius: 10)
+                .disabled(url.isEmpty || isLoading)
+                .keyboardShortcut(.return, modifiers: .command)
             }
-            .buttonStyle(.borderedProminent)
-            .shadow(color: url.isEmpty ? .clear : Theme.accentGlow, radius: 10)
-            .disabled(url.isEmpty || isLoading)
-            .keyboardShortcut(.return, modifiers: .command)
         }
     }
 }

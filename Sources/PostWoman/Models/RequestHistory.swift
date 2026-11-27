@@ -60,6 +60,9 @@ final class RequestHistory {
     /// The encoded `ResponseTiming` of the response, when URLSession reported one.
     var responseTimingData: Data?
 
+    /// The encoded `StreamInfo` of a streamed response (its events, assembled text and how it ended).
+    var responseStreamData: Data?
+
     /// Error message if the request failed.
     var errorMessage: String?
 
@@ -129,6 +132,7 @@ final class RequestHistory {
         responseTime = response.responseTime
         responseSize = response.bodySize ?? response.body?.utf8.count
         responseTimingData = response.timing.flatMap { try? JSONEncoder().encode($0) }
+        responseStreamData = response.stream.flatMap { try? JSONEncoder().encode($0) }
         wasSuccessful = response.isSuccess
         errorMessage = nil
     }
@@ -156,7 +160,8 @@ final class RequestHistory {
                 ?? headers.first { $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value,
             cookies: URL(string: url).map { ResponseCookie.parse(headerFields: headerFields, url: $0) } ?? [],
             timing: responseTimingData.flatMap { try? JSONDecoder().decode(ResponseTiming.self, from: $0) },
-            bodySize: responseSize
+            bodySize: responseSize,
+            stream: responseStreamData.flatMap { try? JSONDecoder().decode(StreamInfo.self, from: $0) }
         )
     }
 

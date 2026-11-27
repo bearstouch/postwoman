@@ -64,7 +64,10 @@ enum CLIOutput {
             for header in response["headers"]?.array ?? [] { head += "\n\(text(header["key"])): \(text(header["value"]))" }
             environment.stdout(head + "\n")
         }
-        if let body = response["body"]?.string {
+        let stream = response["stream"]
+        if options.contains("text"), let text = stream?["text"]?.string {
+            environment.stdout(text)
+        } else if let body = response["body"]?.string {
             environment.stdout(body)
         } else if let note = response["bodyNote"]?.string {
             environment.stderr(note)
@@ -72,6 +75,10 @@ enum CLIOutput {
         var summary = [statusLine]
         if let time = response["timeMs"]?.number { summary.append("\(Int(time.rounded())) ms") }
         if let size = response["size"]?.number { summary.append(bytes(Int(size))) }
+        if let stream, stream != .null {
+            let count = Int(stream["eventCount"]?.number ?? 0)
+            summary.append("\(count == 1 ? "1 event" : "\(count) events") \(text(stream["end"]))")
+        }
         if let name = result["environment"]?.string { summary.append(name) }
         if let history = result["historyId"]?.string { summary.append("history \(history)") }
         environment.stderr(summary.joined(separator: " · "))
@@ -79,6 +86,8 @@ enum CLIOutput {
         if !unresolved.isEmpty {
             environment.stderr("Sent as written (no environment defines them): " + unresolved.map { "{{\($0)}}" }.joined(separator: ", "))
         }
+        if case .string(let error)? = stream?["error"] { environment.stderr("The stream was interrupted: \(error)") }
+        if options.contains("text"), stream?["text"]?.string == nil { environment.stderr("No LLM text in the response, so the body is shown.") }
         if response["bodyTruncated"] == .bool(true) { environment.stderr("The body was cut; pass a larger --max-body (up to 900000) for more.") }
         return options.contains("fail") && status >= 400 ? failedResponseStatus : 0
     }

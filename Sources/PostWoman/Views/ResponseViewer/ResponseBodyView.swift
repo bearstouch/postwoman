@@ -4,6 +4,10 @@ import UniformTypeIdentifiers
 struct ResponseBodyView: View {
     let responseBody: String?
     let contentType: String?
+    /// The reply a streamed LLM response assembles to; adds the Text view mode.
+    var assembledText: String?
+    /// Keep the end in view as the body grows (a stream arriving).
+    var followsEnd = false
     var emptyMessage = "No response body"
 
     @State private var viewMode: ViewMode = .pretty
@@ -13,8 +17,18 @@ struct ResponseBodyView: View {
     @AppStorage("responseWrapsLines") private var wrapsLines = true
 
     enum ViewMode: String, CaseIterable {
+        case text = "Text"
         case pretty = "Pretty"
         case raw = "Raw"
+    }
+
+    /// Text only when there is assembled text.
+    private var modes: [ViewMode] {
+        ViewMode.allCases.filter { $0 != .text || assembledText != nil }
+    }
+
+    private var mode: ViewMode {
+        modes.contains(viewMode) ? viewMode : .pretty
     }
 
     var body: some View {
@@ -22,12 +36,13 @@ struct ResponseBodyView: View {
             toolbar
             HairlineDivider()
 
-            if let bodyContent = responseBody, !bodyContent.isEmpty {
+            if !displayedBody.isEmpty {
                 ResponseTextView(
-                    text: viewMode == .pretty ? formattedBody : bodyContent,
-                    highlightsJSON: isJSON,
+                    text: displayedBody,
+                    highlightsJSON: isJSON && mode == .pretty,
                     wrapsLines: wrapsLines,
                     findRequest: findRequest,
+                    followsEnd: followsEnd,
                     font: ThemeStore.shared.codeFont,
                     themeRevision: ThemeStore.shared.revision
                 )
@@ -39,15 +54,22 @@ struct ResponseBodyView: View {
                     .background(Theme.field)
             }
         }
-        .onAppear(perform: formatBody)
+        .onAppear {
+            formatBody()
+            if assembledText != nil { viewMode = .text }
+        }
+        .onChange(of: assembledText == nil) { _, isNil in
+            // A reply's text is what one wants to read, so show it once it appears.
+            if !isNil { viewMode = .text }
+        }
         .onChange(of: responseBody) { _, _ in formatBody() }
         .onChange(of: contentType) { _, _ in formatBody() }
     }
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Picker("View mode", selection: $viewMode) {
-                ForEach(ViewMode.allCases, id: \.self) { mode in
+            Picker("View mode", selection: Binding(get: { mode }, set: { viewMode = $0 })) {
+                ForEach(modes, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
@@ -74,23 +96,27 @@ struct ResponseBodyView: View {
             ResponseIconButton(systemImage: "magnifyingglass", help: "Find in body (⌘F)") {
                 findRequest += 1
             }
-            .disabled(responseBody?.isEmpty ?? true)
+            .disabled(displayedBody.isEmpty)
             ResponseIconButton(systemImage: "square.and.arrow.down", help: "Save body to a file") {
                 saveToFile()
             }
-            .disabled(responseBody?.isEmpty ?? true)
+            .disabled(displayedBody.isEmpty)
             ResponseIconButton(systemImage: "doc.on.doc", help: "Copy body") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(displayedBody, forType: .string)
             }
-            .disabled(responseBody?.isEmpty ?? true)
+            .disabled(displayedBody.isEmpty)
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
     }
 
     private var displayedBody: String {
-        viewMode == .pretty ? formattedBody : (responseBody ?? "")
+        switch mode {
+        case .text: return assembledText ?? ""
+        case .pretty: return formattedBody
+        case .raw: return responseBody ?? ""
+        }
     }
 
     /// A short name for the body's media type: "JSON", "HTML", "XML", "Text"; nil when unknown.
@@ -126,7 +152,7 @@ struct ResponseBodyView: View {
     private func saveToFile() {
         let panel = NSSavePanel()
         let fileExtension: String
-        switch contentTypeLabel {
+        switch mode == .text ? "Text" : contentTypeLabel {
         case "JSON": fileExtension = "json"
         case "HTML": fileExtension = "html"
         case "XML": fileExtension = "xml"

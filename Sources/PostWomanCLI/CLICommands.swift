@@ -231,7 +231,8 @@ enum CLICommands {
             string("env", "environmentId", "ID|default", "Resolve {{variables}} with this environment of the collection (default: the one it uses)."),
             id("collection", "collectionId", "For --url: the collection whose environments resolve its {{variables}}."),
             option("include", short: "i", "Print the status line and headers before the body."),
-            option("fail", short: "f", "Exit with status 22 when the response status is 400 or more.")
+            option("fail", short: "f", "Exit with status 22 when the response status is 400 or more."),
+            option("text", "For a streamed LLM reply, print the text its events assemble to instead of the raw stream.")
         ] + requestFields
 
     private static let requestCreateFlags: [Flag] = [id("collection", "collectionId", "Collection to add it to.")] + requestFields

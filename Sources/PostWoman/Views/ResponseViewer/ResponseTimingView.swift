@@ -4,11 +4,17 @@ import SwiftUI
 struct ResponseTimingView: View {
     let totalTime: Double
     let timing: ResponseTiming?
+    /// A streamed response: adds when its first byte, first token and last event arrived.
+    var stream: StreamInfo?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 summary
+
+                if let stream {
+                    streamSummary(stream)
+                }
 
                 if let timing, !timing.phases.isEmpty {
                     waterfall(timing)
@@ -73,6 +79,27 @@ struct ResponseTimingView: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(.secondary)
                         .frame(width: 80, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private func streamSummary(_ stream: StreamInfo) -> some View {
+        let rows: [(String, String)] = [
+            ("Stream", stream.kind.displayName),
+            ("Events", "\(stream.events.count)"),
+            ("First byte", stream.firstByteTime.map(Self.format) ?? "–"),
+            stream.text != nil ? ("First token", stream.firstTextTime.map(Self.format) ?? "–") : nil,
+            ("Last event", stream.events.last.map { Self.format($0.time) } ?? "–")
+        ].compactMap { $0 }
+        return Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
+            ForEach(rows, id: \.0) { label, value in
+                GridRow {
+                    Text(label)
+                        .frame(width: 150, alignment: .leading)
+                    Text(value)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
             }
         }

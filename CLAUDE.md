@@ -117,6 +117,10 @@ Located in `Sources/PostWoman/Services/`:
 - **`HTTPClient`** - `@MainActor` URLSession wrapper for executing requests (it reads SwiftData models, which belong to the main context; never pass `@Model` objects to other actors)
 - **`AuthenticationHandler`** - Applies Bearer/Basic auth to requests
 - **`CodeGenerator/`** - Generates cURL, Swift, Python code from requests
+- **`Streaming/`** - Streamed responses. `HTTPClient.execute(request:onProgress:)` runs a data task with a per-task
+  `StreamingTaskDelegate` (chunks + metrics). For `text/event-stream`/NDJSON (`StreamKind`) it feeds `StreamEventParser`
+  and `StreamTextAssembler` (LLM deltas → `StreamInfo.text`), calls `onProgress` ~10×/s, and on cancellation returns the
+  partial response with `stream.end == .stopped`. `RequestHistory.responseStreamData` keeps the encoded `StreamInfo`
 
 ### View Structure
 

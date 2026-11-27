@@ -14,6 +14,11 @@ struct CURLGenerator {
     func generate(from request: some RequestFields) -> String {
         var parts: [String] = ["curl"]
 
+        // Print a streamed response as it arrives
+        if request.expectsStream {
+            parts.append("-N")
+        }
+
         // Add HTTP method if not GET (cURL defaults to GET)
         if request.method != .get {
             parts.append("-X \(request.method.rawValue)")

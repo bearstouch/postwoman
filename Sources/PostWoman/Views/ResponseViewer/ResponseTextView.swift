@@ -9,6 +9,8 @@ struct ResponseTextView: NSViewRepresentable {
     var wrapsLines: Bool
     /// Increment to open the find bar.
     var findRequest: Int = 0
+    /// When the text changes and the view was scrolled to the end, keep the end in view (a stream arriving).
+    var followsEnd = false
 
     /// The code font (Settings → Appearance → Code text).
     var font: NSFont = .monospacedSystemFont(ofSize: ThemeStore.defaultCodeFontSize, weight: .regular)
@@ -74,12 +76,21 @@ struct ResponseTextView: NSViewRepresentable {
         let fontChanged = coordinator.font != font
         if coordinator.text != text || coordinator.highlightsJSON != highlightsJSON || fontChanged {
             let textChanged = coordinator.text != text
+            // A stream's text only grows; keep the reader's place instead of jumping back to the top.
+            let appended = coordinator.text.map { !$0.isEmpty && text.hasPrefix($0) } ?? false
+            let wasAtEnd = scrollView.contentView.bounds.maxY >= textView.frame.height - 24
             coordinator.text = text
             coordinator.highlightsJSON = highlightsJSON
             coordinator.font = font
             textView.textStorage?.setAttributedString(Self.attributedText(text, highlightsJSON: highlightsJSON, font: font))
             if fontChanged { (scrollView.verticalRulerView as? LineNumberRulerView)?.setTextFont(font) }
-            if textChanged { textView.scroll(.zero) }
+            if textChanged {
+                if followsEnd, wasAtEnd {
+                    textView.scrollToEndOfDocument(nil)
+                } else if !appended {
+                    textView.scroll(.zero)
+                }
+            }
             (scrollView.verticalRulerView as? LineNumberRulerView)?.textDidChange()
         }
 
