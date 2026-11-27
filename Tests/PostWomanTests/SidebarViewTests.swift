@@ -314,6 +314,27 @@ final class FolderRequestsListViewTests: XCTestCase {
         XCTAssertEqual(original.name, "Create Order", "The original is untouched")
     }
 
+    func testDuplicateKeepsTheCredentials() throws {
+        let fixture = try SidebarFixture()
+        let bearer = fixture.listOrders
+        bearer.authenticationType = .bearer
+        bearer.authBearerToken = "{{token}}"
+        let basic = fixture.createOrder
+        basic.authenticationType = .basic
+        basic.authBasicUsername = "admin"
+        basic.authBasicPassword = "hunter22"
+        let oauth = fixture.deleteOrder
+        oauth.authenticationType = .oauth2
+        oauth.authOAuthConfig = OAuthConfig(tokenURL: "https://auth.local/token", clientID: "app")
+        let bearerCopy = SidebarActions.duplicate(bearer, in: fixture.shop, context: fixture.context)
+        XCTAssertEqual(bearerCopy.authenticationType, .bearer)
+        XCTAssertEqual(bearerCopy.authBearerToken, "{{token}}", "A copy that uses Bearer auth needs the token to send")
+        let basicCopy = SidebarActions.duplicate(basic, in: fixture.shop, context: fixture.context)
+        XCTAssertEqual(basicCopy.authBasicUsername, "admin")
+        XCTAssertEqual(basicCopy.authBasicPassword, "hunter22")
+        XCTAssertEqual(SidebarActions.duplicate(oauth, in: fixture.shop, context: fixture.context).authOAuthConfig, oauth.authOAuthConfig)
+    }
+
     func testDeletingTheSelectedRequestClearsTheSelection() throws {
         let fixture = try SidebarFixture()
         XCTAssertNil(SidebarActions.delete(fixture.listOrders, selected: fixture.listOrders, context: fixture.context))

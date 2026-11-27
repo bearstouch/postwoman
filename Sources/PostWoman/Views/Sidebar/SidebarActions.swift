@@ -20,7 +20,7 @@ enum SidebarActions {
         return request
     }
 
-    /// A copy of `request` named "<name> Copy" at the end of `folder`.
+    /// A copy of `request` (with its credentials) named "<name> Copy" at the end of `folder`.
     static func duplicate(_ request: APIRequest, in folder: Folder, context: ModelContext) -> APIRequest {
         let newRequest = APIRequest(name: "\(request.name) Copy", url: request.url, method: request.method, folder: folder)
         newRequest.headers = request.headers
@@ -28,6 +28,10 @@ enum SidebarActions {
         newRequest.bodyType = request.bodyType
         newRequest.bodyContent = request.bodyContent
         newRequest.authenticationType = request.authenticationType
+        newRequest.authBearerToken = request.authBearerToken
+        newRequest.authBasicUsername = request.authBasicUsername
+        newRequest.authBasicPassword = request.authBasicPassword
+        newRequest.authOAuthConfig = request.authOAuthConfig
         newRequest.sortOrder = (folder.requests?.count ?? 0)
         context.insert(newRequest)
         return newRequest
