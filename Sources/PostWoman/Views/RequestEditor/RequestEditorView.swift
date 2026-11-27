@@ -20,7 +20,7 @@ struct RequestEditorView: View {
                     requestHeader
                         .padding()
 
-                    Divider()
+                    HairlineDivider()
 
                     URLBarView(
                         url: $request.url,
@@ -33,11 +33,11 @@ struct RequestEditorView: View {
                 }
                 .background(Theme.bar)
 
-                Divider()
+                HairlineDivider()
 
                 RequestTabView(selectedTab: $selectedTab, request: request)
 
-                Divider()
+                HairlineDivider()
 
                 tabContent
             }
@@ -46,6 +46,7 @@ struct RequestEditorView: View {
 
             ResponseViewerView(response: response, isLoading: isLoading)
                 .frame(minHeight: 200)
+                .themedSplitDividers()
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -81,7 +82,7 @@ struct RequestEditorView: View {
         HStack {
             if isRenaming {
                 TextField("Request Name", text: $request.name)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.themed)
                     .frame(maxWidth: 300)
                     .onSubmit {
                         isRenaming = false

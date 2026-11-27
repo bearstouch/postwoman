@@ -85,6 +85,7 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .overlay(alignment: .top) { HairlineDivider() }
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 300)
         } detail: {
             // Detail column showing request editor or empty state
@@ -95,9 +96,13 @@ struct ContentView: View {
                     EmptyStateView()
                 }
             }
+            .overlay(alignment: .top) { HairlineDivider() }
+            .themedSplitDividers()
             .frame(minWidth: 600, idealWidth: 600)
         }
         .navigationSplitViewStyle(.balanced)
+        // The window draws no titlebar separator; each pane's top hairline (above) takes its place.
+        .background(ThemedWindowChrome())
         .frame(minWidth: 1100, minHeight: 700)
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
             createFolder()

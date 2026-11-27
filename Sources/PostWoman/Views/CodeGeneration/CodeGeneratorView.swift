@@ -29,12 +29,12 @@ struct CodeGeneratorView: View {
             header
                 .padding()
 
-            Divider()
+            HairlineDivider()
 
             languagePicker
                 .padding()
 
-            Divider()
+            HairlineDivider()
 
             codeView
         }
@@ -78,7 +78,7 @@ struct CodeGeneratorView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(selectedLanguage == language ? Color.postWomanPink : Theme.chip)
+                    .background(selectedLanguage == language ? Color.appAccent : Theme.chip)
                     .foregroundColor(selectedLanguage == language ? .white : .primary)
                     .cornerRadius(8)
                 }
@@ -135,7 +135,7 @@ struct CodeGeneratorView: View {
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(Theme.hairline, lineWidth: 1)
         )
         .padding()
     }

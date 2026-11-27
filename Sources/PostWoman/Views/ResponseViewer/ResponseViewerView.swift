@@ -64,7 +64,7 @@ struct ResponseViewerView: View {
             .frame(height: 40)
             .background(Theme.bar)
 
-            Divider()
+            HairlineDivider()
 
             switch selectedTab {
             case .body:
@@ -109,7 +109,7 @@ struct ResponseViewerView: View {
             .frame(maxHeight: .infinity)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(isSelected ? Color.postWomanPink : Color.clear)
+                    .fill(isSelected ? Color.appAccent : Color.clear)
                     .frame(height: 2)
                     .shadow(color: isSelected ? Theme.accentGlow : .clear, radius: 4)
             }

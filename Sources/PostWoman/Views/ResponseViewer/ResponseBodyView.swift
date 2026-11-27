@@ -19,14 +19,16 @@ struct ResponseBodyView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Divider()
+            HairlineDivider()
 
             if let bodyContent = responseBody, !bodyContent.isEmpty {
                 ResponseTextView(
                     text: viewMode == .pretty ? formattedBody : bodyContent,
                     highlightsJSON: isJSON,
                     wrapsLines: wrapsLines,
-                    findRequest: findRequest
+                    findRequest: findRequest,
+                    font: ThemeStore.shared.codeFont,
+                    themeRevision: ThemeStore.shared.revision
                 )
                 .background(Theme.field)
             } else {
@@ -154,7 +156,7 @@ struct ResponseIconButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isOn ? Color.postWomanPink : Color.secondary)
+                .foregroundStyle(isOn ? Color.appAccent : Color.secondary)
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 6)

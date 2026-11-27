@@ -7,7 +7,7 @@ final class LineNumberRulerView: NSRulerView {
     private var lineStarts: [Int] = [0]
     private let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
     /// The text view's font, to center numbers on its lines.
-    private let textFont: NSFont
+    private var textFont: NSFont
 
     init(textView: NSTextView, textFont: NSFont) {
         self.textView = textView
@@ -29,6 +29,12 @@ final class LineNumberRulerView: NSRulerView {
     override var isFlipped: Bool { true }
 
     @objc private func setNeedsRedraw() {
+        needsDisplay = true
+    }
+
+    /// Follows a change of the text view's font (the code font size setting).
+    func setTextFont(_ font: NSFont) {
+        textFont = font
         needsDisplay = true
     }
 

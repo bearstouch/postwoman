@@ -31,7 +31,7 @@ struct ResponseHeadersView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Divider()
+            HairlineDivider()
 
             if headers.isEmpty {
                 placeholder("No response headers")

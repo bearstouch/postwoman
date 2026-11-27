@@ -11,6 +11,8 @@ struct CodeTextEditor: NSViewRepresentable {
     var font: NSFont = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     /// Colors JSON tokens like the response body does.
     var highlightsJSON = false
+    /// `ThemeStore.revision`: a change redraws the text in the new theme colors.
+    var themeRevision = 0
 
     /// Larger texts are left uncolored so typing stays responsive.
     private static let highlightLimit = 200_000
@@ -24,12 +26,12 @@ struct CodeTextEditor: NSViewRepresentable {
         guard let storage = textView.textStorage else { return }
         let fullRange = NSRange(location: 0, length: storage.length)
         storage.beginEditing()
-        storage.addAttribute(.foregroundColor, value: NSColor.textColor, range: fullRange)
+        storage.addAttribute(.foregroundColor, value: CodePalette.text, range: fullRange)
         if enabled, storage.length <= highlightLimit {
             JSONHighlighter.colorize(storage)
         }
         storage.endEditing()
-        textView.typingAttributes[.foregroundColor] = NSColor.textColor
+        textView.typingAttributes[.foregroundColor] = CodePalette.text
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -55,7 +57,7 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.drawsBackground = false
         textView.font = font
-        textView.textColor = .textColor
+        textView.textColor = CodePalette.text
         textView.textContainerInset = NSSize(width: 10, height: 10)
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
@@ -77,6 +79,7 @@ struct CodeTextEditor: NSViewRepresentable {
         scrollView.rulersVisible = true
         (scrollView.verticalRulerView as? LineNumberRulerView)?.textDidChange()
         context.coordinator.highlightsJSON = highlightsJSON
+        context.coordinator.themeRevision = themeRevision
         Self.applyHighlighting(to: textView, enabled: highlightsJSON)
         return scrollView
     }
@@ -88,6 +91,12 @@ struct CodeTextEditor: NSViewRepresentable {
         context.coordinator.highlightsJSON = highlightsJSON
         if textView.font != font {
             textView.font = font
+            (scrollView.verticalRulerView as? LineNumberRulerView)?.setTextFont(font)
+        }
+        if context.coordinator.themeRevision != themeRevision {
+            context.coordinator.themeRevision = themeRevision
+            textView.needsDisplay = true
+            scrollView.verticalRulerView?.needsDisplay = true
         }
         if textView.string != text {
             let selection = textView.selectedRanges
@@ -120,6 +129,7 @@ struct CodeTextEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         var highlightsJSON = false
+        var themeRevision = 0
 
         init(text: Binding<String>) {
             self.text = text

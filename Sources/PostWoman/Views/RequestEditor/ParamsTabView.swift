@@ -16,7 +16,7 @@ struct ParamsTabView: View {
                 }
                 .padding()
 
-                Divider()
+                HairlineDivider()
 
                 KeyValueEditorView(
                     pairs: $params,

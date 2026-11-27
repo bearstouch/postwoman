@@ -19,7 +19,7 @@ struct URLBarView: View {
             .tint(method.color)
 
             TextField("Enter request URL", text: $url)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.themed)
                 .font(.system(.body, design: .monospaced))
                 .onSubmit(onSend)
 

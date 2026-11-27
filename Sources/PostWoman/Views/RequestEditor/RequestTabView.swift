@@ -66,7 +66,7 @@ struct TabButton: View {
                         .font(.caption2)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(isSelected ? Color.postWomanPink : Theme.chip)
+                        .background(isSelected ? Color.appAccent : Theme.chip)
                         .foregroundColor(isSelected ? .white : .primary)
                         .cornerRadius(8)
                 }

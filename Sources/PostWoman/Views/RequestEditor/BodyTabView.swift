@@ -33,7 +33,7 @@ struct BodyTabView: View {
             .padding()
             .background(Theme.bar)
 
-            Divider()
+            HairlineDivider()
 
             if bodyType == .none {
                 VStack {
@@ -46,8 +46,11 @@ struct BodyTabView: View {
             } else if bodyType == .formData || bodyType == .urlEncoded {
                 FormDataEditorView(bodyContent: $bodyContent)
             } else {
-                CodeTextEditor(text: $bodyContent, font: ResponseTextView.font, highlightsJSON: bodyType == .json)
-                    .background(Theme.field)
+                CodeTextEditor(
+                    text: $bodyContent, font: ThemeStore.shared.codeFont, highlightsJSON: bodyType == .json,
+                    themeRevision: ThemeStore.shared.revision
+                )
+                .background(Theme.field)
             }
         }
     }

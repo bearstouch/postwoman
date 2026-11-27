@@ -38,7 +38,7 @@ private struct CookieRowView: View {
                 Text(cookie.name)
                     .font(.system(.body, design: .monospaced))
                     .fontWeight(.medium)
-                    .foregroundColor(.postWomanPink)
+                    .foregroundColor(Color.appAccent)
                 Text(cookie.value)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)

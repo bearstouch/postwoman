@@ -13,11 +13,11 @@ struct KeyValueRowView: View {
                 .labelsHidden()
 
             TextField(keyPlaceholder, text: $pair.key)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.themed)
                 .frame(minWidth: 100)
 
             TextField(valuePlaceholder, text: $pair.value)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.themed)
 
             Button(action: onDelete) {
                 Image(systemName: "xmark.circle.fill")

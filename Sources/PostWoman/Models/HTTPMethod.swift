@@ -19,7 +19,7 @@ enum HTTPMethod: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Color associated with each HTTP method for UI visualization
-    var color: Color {
+    @MainActor var color: Color {
         switch self {
         case .get: return Theme.success  // Safe read operations
         case .post: return Theme.warning  // Resource creation

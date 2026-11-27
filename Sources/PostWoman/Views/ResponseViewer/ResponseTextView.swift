@@ -10,7 +10,10 @@ struct ResponseTextView: NSViewRepresentable {
     /// Increment to open the find bar.
     var findRequest: Int = 0
 
-    static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    /// The code font (Settings → Appearance → Code text).
+    var font: NSFont = .monospacedSystemFont(ofSize: ThemeStore.defaultCodeFontSize, weight: .regular)
+    /// `ThemeStore.revision`: a change redraws the text in the new theme colors.
+    var themeRevision = 0
     /// Bodies larger than this (UTF-16 units) are shown without colors or hanging indents.
     private static let styledLimit = 1_000_000
 
@@ -19,6 +22,8 @@ struct ResponseTextView: NSViewRepresentable {
         var highlightsJSON = false
         var wrapsLines: Bool?
         var findRequest = 0
+        var font: NSFont?
+        var themeRevision = 0
     }
 
     func makeCoordinator() -> Coordinator {
@@ -46,13 +51,14 @@ struct ResponseTextView: NSViewRepresentable {
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         scrollView.documentView = textView
 
-        let ruler = LineNumberRulerView(textView: textView, textFont: Self.font)
+        let ruler = LineNumberRulerView(textView: textView, textFont: font)
         scrollView.verticalRulerView = ruler
         scrollView.hasVerticalRuler = true
         scrollView.rulersVisible = true
 
         // Only later increments open the find bar.
         context.coordinator.findRequest = findRequest
+        context.coordinator.themeRevision = themeRevision
         return scrollView
     }
 
@@ -65,12 +71,22 @@ struct ResponseTextView: NSViewRepresentable {
             Self.applyWrapping(wrapsLines, to: textView, in: scrollView)
         }
 
-        if coordinator.text != text || coordinator.highlightsJSON != highlightsJSON {
+        let fontChanged = coordinator.font != font
+        if coordinator.text != text || coordinator.highlightsJSON != highlightsJSON || fontChanged {
+            let textChanged = coordinator.text != text
             coordinator.text = text
             coordinator.highlightsJSON = highlightsJSON
-            textView.textStorage?.setAttributedString(Self.attributedText(text, highlightsJSON: highlightsJSON))
-            textView.scroll(.zero)
+            coordinator.font = font
+            textView.textStorage?.setAttributedString(Self.attributedText(text, highlightsJSON: highlightsJSON, font: font))
+            if fontChanged { (scrollView.verticalRulerView as? LineNumberRulerView)?.setTextFont(font) }
+            if textChanged { textView.scroll(.zero) }
             (scrollView.verticalRulerView as? LineNumberRulerView)?.textDidChange()
+        }
+
+        if coordinator.themeRevision != themeRevision {
+            coordinator.themeRevision = themeRevision
+            textView.needsDisplay = true
+            scrollView.verticalRulerView?.needsDisplay = true
         }
 
         if coordinator.findRequest != findRequest {
@@ -101,7 +117,7 @@ struct ResponseTextView: NSViewRepresentable {
 
     /// The body as styled text: the code font, JSON colors when asked, and a hanging indent per
     /// line so wrapped lines line up under their own text.
-    static func attributedText(_ text: String, highlightsJSON: Bool) -> NSAttributedString {
+    static func attributedText(_ text: String, highlightsJSON: Bool, font: NSFont) -> NSAttributedString {
         let result = NSMutableAttributedString(string: text, attributes: [.font: font, .foregroundColor: CodePalette.text])
         let length = result.length
         guard length > 0, length <= styledLimit else { return result }
