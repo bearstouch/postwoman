@@ -417,6 +417,12 @@ final class ResponseBodyViewTests: XCTestCase {
         }
     }
 
+    func testAContentTypeWithoutAMediaTypeIsNotLabelledByItsParameters() {
+        XCTAssertNil(ResponseBodyFormat.contentTypeLabel("; charset=utf-8", isJSON: false))
+        XCTAssertEqual(ResponseBodyFormat.contentTypeLabel(";charset=utf-8", isJSON: true), "JSON", "Known only from the body.")
+        XCTAssertEqual(ResponseBodyFormat.fileExtension(mode: .pretty, label: ResponseBodyFormat.contentTypeLabel("; charset=utf-8", isJSON: true)), "json")
+    }
+
     func testSavedFilesGetAnExtensionForWhatIsShown() {
         let cases: [(Mode, String?, String)] = [
             (.pretty, "JSON", "json"), (.raw, "JSON", "json"), (.pretty, "HTML", "html"), (.raw, "XML", "xml"), (.pretty, "Text", "txt"), (.pretty, "CSV", "txt"),

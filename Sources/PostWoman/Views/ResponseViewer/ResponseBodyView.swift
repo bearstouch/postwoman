@@ -172,7 +172,9 @@ enum ResponseBodyFormat {
 
     /// A short name for the body's media type: "JSON", "HTML", "XML", "Text"; nil when unknown.
     static func contentTypeLabel(_ contentType: String?, isJSON: Bool) -> String? {
-        guard let type = contentType?.split(separator: ";").first?.trimmingCharacters(in: .whitespaces).lowercased(), !type.isEmpty else {
+        // Empty pieces are kept, so "; charset=utf-8" has an empty media type rather than "charset=utf-8".
+        let mediaType = contentType?.split(separator: ";", omittingEmptySubsequences: false).first
+        guard let type = mediaType?.trimmingCharacters(in: .whitespaces).lowercased(), !type.isEmpty else {
             return isJSON ? "JSON" : nil
         }
         if type.contains("json") { return "JSON" }
