@@ -24,22 +24,7 @@ struct CURLGenerator {
             parts.append("-X \(request.method.rawValue)")
         }
 
-        // Build URL
-        var urlWithParams = request.url
-
-        // Add query parameters to URL
-        let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
-        if !enabledParams.isEmpty {
-            let queryString = enabledParams.map { param in
-                let key = param.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? param.key
-                let value = param.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? param.value
-                return "\(key)=\(value)"
-            }.joined(separator: "&")
-
-            urlWithParams += (request.url.contains("?") ? "&" : "?") + queryString
-        }
-
-        parts.append(quoted(urlWithParams))
+        parts.append(quoted(urlWithParams(request)))
 
         // Add HTTP headers
         for header in request.headers where header.isEnabled && !header.key.isEmpty {
@@ -76,6 +61,21 @@ struct CURLGenerator {
 
         // Join parts with line continuation for readability
         return parts.joined(separator: " \\\n  ")
+    }
+
+    /// Characters a query name or value keeps as written: `.urlQueryAllowed` without the separators `&`, `=`, `+` and `#`,
+    /// so `a&b=c` stays one value and `a+b` is not read as `a b`.
+    private static let queryComponentAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
+
+    /// The URL as written, with the enabled params appended to its query (`&`, or `?` when it has none) and before any `#fragment`.
+    private func urlWithParams(_ request: some RequestFields) -> String {
+        let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
+        guard !enabledParams.isEmpty else { return request.url }
+        let encode = { (text: String) in text.addingPercentEncoding(withAllowedCharacters: Self.queryComponentAllowed) ?? text }
+        let query = enabledParams.map { "\(encode($0.key))=\(encode($0.value))" }.joined(separator: "&")
+        let fragmentStart = request.url.firstIndex(of: "#") ?? request.url.endIndex
+        let base = request.url[..<fragmentStart]
+        return base + (base.contains("?") ? "&" : "?") + query + request.url[fragmentStart...]
     }
 
     /// Wraps `text` in single quotes for a POSIX shell, so nothing in it expands; each `'` is closed, escaped and reopened (`'\''`).

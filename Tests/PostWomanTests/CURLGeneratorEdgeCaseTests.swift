@@ -96,6 +96,36 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testQuerySeparatorsInParamNamesAndValuesAreEncodedSoEachParamStaysOne() {
+        let cases: [(KeyValuePair, String)] = [
+            (KeyValuePair(key: "q", value: "a&b=c"), "q=a%26b%3Dc"),
+            (KeyValuePair(key: "sum", value: "a+b"), "sum=a%2Bb"),
+            (KeyValuePair(key: "a=b&c", value: "1"), "a%3Db%26c=1"),
+            (KeyValuePair(key: "k+#", value: "#x"), "k%2B%23=%23x")
+        ]
+        for (param, expected) in cases {
+            let request = APIRequest(name: "q", url: "https://h")
+            request.queryParams = [param]
+            XCTAssertEqual(parts(request)[1], "'https://h?\(expected)'", param.key)
+            let query = URLComponents(string: "https://h?\(expected)")?.queryItems
+            XCTAssertEqual(query, [URLQueryItem(name: param.key, value: param.value)], "A server reads back exactly one param: \(param.key)")
+        }
+    }
+
+    func testParamsGoBeforeTheURLsFragmentAndTheExistingQueryIsKeptAsWritten() {
+        let cases = [
+            ("https://h/p#top", "https://h/p?a=1#top"),
+            ("https://h/p?x=a+b&y#top", "https://h/p?x=a+b&y&a=1#top"),
+            ("https://h/p#frag?not=query", "https://h/p?a=1#frag?not=query"),
+            ("https://h/p?x=%20", "https://h/p?x=%20&a=1")
+        ]
+        for (url, expected) in cases {
+            let request = APIRequest(name: "q", url: url)
+            request.queryParams = [KeyValuePair(key: "a", value: "1")]
+            XCTAssertEqual(parts(request)[1], "'\(expected)'", url)
+        }
+    }
+
     func testBodyIsLeftOutForTheNoneTypeOrEmptyContent() {
         XCTAssertEqual(parts(post("ignored", type: .none)), ["curl", "-X POST", "'https://api.example.com/items'"])
         XCTAssertEqual(parts(post("", type: .json)), ["curl", "-X POST", "'https://api.example.com/items'"], "No -d and no Content-Type for an empty body")
