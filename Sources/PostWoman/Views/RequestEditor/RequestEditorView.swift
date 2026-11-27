@@ -130,12 +130,16 @@ struct RequestEditorView: View {
             isLoading = true
             defer { isLoading = false }
 
+            let history = RequestHistory(request: request)
             do {
-                response = try await httpClient.execute(request: request)
-                saveToHistory()
+                let result = try await httpClient.execute(request: request)
+                response = result
+                history.record(result)
             } catch {
                 response = HTTPResponse.error(error)
+                history.record(error)
             }
+            modelContext.insert(history)
         }
     }
 
@@ -162,23 +166,5 @@ struct RequestEditorView: View {
         duplicate.authOAuthConfig = request.authOAuthConfig
 
         modelContext.insert(duplicate)
-    }
-
-    private func saveToHistory() {
-        let history = RequestHistory(
-            url: request.url,
-            method: request.method,
-            requestHeaders: request.headers,
-            requestBody: request.bodyContent.isEmpty ? nil : request.bodyContent
-        )
-        history.statusCode = response?.statusCode
-        history.responseHeaders = response?.headers
-        history.responseBody = response?.body
-        history.responseTime = response?.responseTime
-        history.responseSize = response?.body?.data(using: .utf8)?.count
-        history.wasSuccessful = response?.isSuccess ?? false
-        history.savedRequestID = request.id
-
-        modelContext.insert(history)
     }
 }

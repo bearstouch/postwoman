@@ -6,10 +6,10 @@ import os
 ///
 /// Times are milliseconds from the start of the task. With redirects, the phases describe the last
 /// transaction, so the time spent on earlier hops shows as the offset of the first phase.
-struct ResponseTiming: Equatable, Sendable {
+struct ResponseTiming: Equatable, Sendable, Codable {
     /// One step of the request: DNS lookup, connect, TLS, sending, waiting or downloading.
-    struct Phase: Equatable, Sendable, Identifiable {
-        enum Kind: String, CaseIterable, Sendable {
+    struct Phase: Equatable, Sendable, Identifiable, Codable {
+        enum Kind: String, CaseIterable, Sendable, Codable {
             case dns = "DNS lookup"
             case connect = "TCP connect"
             case tls = "TLS handshake"

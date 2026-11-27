@@ -1,9 +1,9 @@
-import SwiftData
 import Foundation
+import SwiftData
 
 /// A historical record of an executed API request and its response.
-/// Stores complete request/response data for debugging, auditing, and reuse.
-/// Used to populate the History view and provide request replay functionality.
+/// Stores a snapshot of the request as it was sent and the response it got, so the History view
+/// can show both and the request can be restored into a new one.
 @Model
 final class RequestHistory {
     /// Unique identifier for this history entry.
@@ -12,7 +12,7 @@ final class RequestHistory {
     /// When the request was executed.
     var timestamp: Date
 
-    /// The URL that was requested.
+    /// The URL that was requested, without the query parameters in `queryParams`.
     var url: String
 
     /// The HTTP method used for the request.
@@ -24,6 +24,21 @@ final class RequestHistory {
     /// The request body content, if any.
     var requestBody: String?
 
+    /// The name of the saved request this was sent from. Nil in older entries.
+    var requestName: String?
+
+    /// Query parameters sent with the request.
+    var queryParams: [KeyValuePair]?
+
+    /// The content type of the request body.
+    var bodyType: ContentType?
+
+    /// The authentication the request used, and its credentials.
+    var authenticationType: AuthenticationType?
+    var authBearerToken: String?
+    var authBasicUsername: String?
+    var authBasicPassword: String?
+
     /// HTTP status code from the response (e.g., 200, 404, 500).
     var statusCode: Int?
 
@@ -33,11 +48,17 @@ final class RequestHistory {
     /// The response body content.
     var responseBody: String?
 
-    /// Time taken to receive the response in seconds.
+    /// The response's `Content-Type` header.
+    var responseContentType: String?
+
+    /// Time taken to receive the response, in milliseconds.
     var responseTime: Double?
 
     /// Size of the response body in bytes.
     var responseSize: Int?
+
+    /// The encoded `ResponseTiming` of the response, when URLSession reported one.
+    var responseTimingData: Data?
 
     /// Error message if the request failed.
     var errorMessage: String?
@@ -69,5 +90,79 @@ final class RequestHistory {
         self.requestHeaders = requestHeaders
         self.requestBody = requestBody
         self.wasSuccessful = false
+    }
+
+    /// Creates a history entry holding a snapshot of `request` as it is about to be sent.
+    convenience init(request: APIRequest) {
+        self.init(
+            url: request.url,
+            method: request.method,
+            requestHeaders: request.headers,
+            requestBody: request.bodyContent.isEmpty ? nil : request.bodyContent
+        )
+        requestName = request.name
+        queryParams = request.queryParams
+        bodyType = request.bodyType
+        authenticationType = request.authenticationType
+        authBearerToken = request.authBearerToken
+        authBasicUsername = request.authBasicUsername
+        authBasicPassword = request.authBasicPassword
+        savedRequestID = request.id
+    }
+
+    /// Records the response the request got.
+    func record(_ response: HTTPResponse) {
+        statusCode = response.statusCode
+        responseHeaders = response.headers
+        responseBody = response.body
+        responseContentType = response.contentType
+        responseTime = response.responseTime
+        responseSize = response.bodySize ?? response.body?.utf8.count
+        responseTimingData = response.timing.flatMap { try? JSONEncoder().encode($0) }
+        wasSuccessful = response.isSuccess
+        errorMessage = nil
+    }
+
+    /// Records that the request failed without a response.
+    func record(_ error: Error) {
+        errorMessage = error.localizedDescription
+        wasSuccessful = false
+    }
+
+    /// The recorded response, as the response viewer shows it; an error response when the request failed.
+    var response: HTTPResponse? {
+        if let errorMessage, statusCode == nil {
+            return HTTPResponse(statusCode: 0, headers: [], body: "Error: \(errorMessage)", responseTime: 0, contentType: nil)
+        }
+        guard let statusCode else { return nil }
+        let headers = responseHeaders ?? []
+        let headerFields = Dictionary(headers.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        return HTTPResponse(
+            statusCode: statusCode,
+            headers: headers,
+            body: responseBody,
+            responseTime: responseTime ?? 0,
+            contentType: responseContentType
+                ?? headers.first { $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value,
+            cookies: URL(string: url).map { ResponseCookie.parse(headerFields: headerFields, url: $0) } ?? [],
+            timing: responseTimingData.flatMap { try? JSONDecoder().decode(ResponseTiming.self, from: $0) },
+            bodySize: responseSize
+        )
+    }
+
+    /// A new, unsaved request with this entry's request configuration.
+    func makeRequest(folder: Folder? = nil) -> APIRequest {
+        let request = APIRequest(name: requestName ?? url, url: url, method: method, folder: folder)
+        request.headers = requestHeaders
+        request.queryParams = queryParams ?? []
+        if let requestBody {
+            request.bodyContent = requestBody
+            request.bodyType = bodyType ?? .json
+        }
+        request.authenticationType = authenticationType ?? .none
+        request.authBearerToken = authBearerToken
+        request.authBasicUsername = authBasicUsername
+        request.authBasicPassword = authBasicPassword
+        return request
     }
 }

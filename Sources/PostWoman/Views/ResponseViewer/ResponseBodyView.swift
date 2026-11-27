@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ResponseBodyView: View {
     let responseBody: String?
     let contentType: String?
+    var emptyMessage = "No response body"
 
     @State private var viewMode: ViewMode = .pretty
     @State private var formattedBody: String = ""
@@ -32,7 +33,7 @@ struct ResponseBodyView: View {
                 )
                 .background(Theme.field)
             } else {
-                Text("No response body")
+                Text(emptyMessage)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Theme.field)
