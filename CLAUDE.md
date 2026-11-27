@@ -96,7 +96,7 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
 
 All models are in `Sources/PostWoman/Models/`:
 
-- **`Folder`** - Collection containers with nested hierarchy (parent/subfolders relationship)
+- **`Folder`** - A collection: a flat list of requests and its environments (no nested folders)
 - **`APIRequest`** - Request configuration (URL, method, headers, body, auth)
 - **`RequestHistory`** - Request/response logging (what was sent, resolved, secrets left as `{{name}}`, plus `environmentName`)
 - **`CollectionEnvironment`** - A collection's `{{variable}}` set (`[Variable]`). Every `Folder` has one `isDefault` environment
@@ -145,7 +145,7 @@ Menu commands use `NotificationCenter` to communicate with views:
 - `.generateCode`
 
 ### SwiftData Relationships
-- `Folder` has cascade delete rules for both `subfolders` and `requests`
+- `Folder` has cascade delete rules for its `requests` and `environments`
 
 ## Code style
 
@@ -174,6 +174,9 @@ Menu commands use `NotificationCenter` to communicate with views:
   - Network: a `URLProtocol` stub in an ephemeral `URLSessionConfiguration` passed to `HTTPClient(session:)`
     (`StreamingStubProtocol`), or an `MCPListener` on `127.0.0.1:0` as a real target server.
   - CLI: fake `CLIEnvironment` (no real files, sockets or stdout).
+  - UserDefaults: a suite with a unique name (`"Area.\(UUID().uuidString)"`), removed afterwards; never a fixed name, which other runs share.
+- A bug fix comes with a test that fails without it (run it against the old code once). Generated code is checked by running it:
+  cURL through `/bin/sh`, Python with `python3 -I -W error` against a stubbed `requests`, Swift compiled with `swiftc` behind a stub.
 - Contract tests that must keep passing: `MCPServerTests` (every tool dispatched, closed schemas), `CLIContractTests`
   (every MCP tool has a command and valid flags), `AppVersionTests` (versions match the manifest), `ThemeStoreTests` (contrast).
 - Each new parser, generator or service gets unit tests for its edge cases (chunk boundaries, encodings, empty input);

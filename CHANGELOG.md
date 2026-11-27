@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The response tabs (Body, Events, Headers, Cookies, Timing) are icons, with their names as tooltips, so they no longer wrap in a narrow pane
 - A new layered app icon: a paper plane flying off a stack of request cards
 - About PostWoman opens the standard macOS About panel, with credits linking the MIT License and bearstouch
+- Importing a collection file made by a newer PostWoman (or with a format version it doesn't know) is refused with a message saying so, instead of importing part of it
+
+### Fixed
+- Params no longer replace a query already in the URL: `https://api.test/items?page=1` with a `limit` param sends `?page=1&limit=10`
+- `+`, `&`, `=` and `#` in a param's name or value are percent-encoded, so `a+b` is no longer read as `a b` by the server and `a&b=c` stays one value. The app, generated cURL and generated Swift build the same URL
+- Generated cURL works with a `'` in the URL, a header, a token or a password, and spells out `-X GET` when a GET has a body (curl sent it as a POST)
+- Generated Python keeps JSON strings as written (`"nullable"` became `"Noneable"`), keeps key order and numbers, and escapes every string, so bodies, URLs and header names with quotes or backslashes no longer break the script
+- Generated Swift escapes every string, so a JSON body containing `\n` or `\(`, or a URL or param with a quote, compiles and sends the same bytes, and it keeps the URL's own query
+- A response body that is a single JSON value (`true`, `42`, `"ok"`) is shown as JSON, and JSON with a trailing comma (`[1,]`) is no longer treated as valid
+- Timings round before choosing a unit: 9.96 ms reads "10 ms" instead of "10.0 ms", and 999.6 ms reads "1.00 s" instead of "1000 ms"
 
 ## [0.10.0] - 2026-11-27
 
