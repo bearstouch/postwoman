@@ -97,23 +97,36 @@ enum MCPTools {
     static let bodyTypes = MCPBodyType.allCases.map(\.rawValue)
     static let authTypes = MCPAuthType.allCases.map(\.rawValue)
 
-    private static let auth: JSONValue = .object([
+    private static let oauth2: JSONValue = .object([
         "type": .string("object"), "additionalProperties": .bool(false),
-        "description": .string("Authentication. Credentials are write-only: reads report tokenSet/passwordSet/clientSecretSet, never the value. Omitted credentials keep their saved value."),
         "properties": .object([
-            "type": enumeration(authTypes, "none, bearer (Authorization: Bearer token), basic (username and password) or oauth2 (saved configuration)."),
-            "token": string("Bearer token."), "username": string("Basic auth username."), "password": string("Basic auth password."),
-            "oauth2": .object([
-                "type": .string("object"), "additionalProperties": .bool(false),
-                "properties": .object([
-                    "authorizationURL": string("Authorization endpoint."), "tokenURL": string("Token endpoint."), "clientID": string("Client ID."),
-                    "clientSecret": string("Client secret (write-only)."), "scope": string("Space-separated scopes."), "redirectURI": string("Redirect URI.")
-                ])
-            ])
+            "authorizationURL": string("Authorization endpoint."), "tokenURL": string("Token endpoint."), "clientID": string("Client ID."),
+            "clientSecret": string("Client secret (write-only)."), "scope": string("Space-separated scopes."), "redirectURI": string("Redirect URI.")
         ])
     ])
 
-    /// The fields of a request, shared by request_create, request_update, request_execute and history_create.
+    /// Authentication. History keeps no OAuth configuration, so its entries take no `oauth2` (only the type).
+    private static func auth(oauth2 withOAuth: Bool) -> JSONValue {
+        var properties: [String: JSONValue] = [
+            "type": enumeration(authTypes, "none, bearer (Authorization: Bearer token), basic (username and password) or oauth2 (saved configuration)."),
+            "token": string("Bearer token."), "username": string("Basic auth username."), "password": string("Basic auth password.")
+        ]
+        if withOAuth { properties["oauth2"] = oauth2 }
+        let reads = withOAuth ? "tokenSet/passwordSet/clientSecretSet" : "tokenSet/passwordSet"
+        return .object([
+            "type": .string("object"), "additionalProperties": .bool(false),
+            "description": .string("Authentication. Credentials are write-only: reads report \(reads), never the value. Omitted credentials keep their saved value."),
+            "properties": .object(properties)
+        ])
+    }
+
+    /// The names a History entry's auth takes, which `MCPToolHandler` checks history_create/update against.
+    static let historyAuthFields: Set<String> = {
+        guard case .object(let properties)? = auth(oauth2: false)["properties"] else { return [] }
+        return Set(properties.keys)
+    }()
+
+    /// The fields of a request, shared by request_create, request_update and request_execute (History: `historyRequestFields`).
     static let requestFields: [String: JSONValue] = [
         "name": string("Display name."),
         "url": string("Target URL, without the query parameters in queryParams."),
@@ -122,8 +135,11 @@ enum MCPTools {
         "queryParams": pairs("Query parameters, added to the URL when sent. Replaces the whole list."),
         "bodyType": enumeration(bodyTypes, "Body type; it sets Content-Type unless a header does. none sends no body."),
         "body": string("Raw body text."),
-        "auth": auth
+        "auth": auth(oauth2: true)
     ]
+
+    /// The request fields of a History entry: `requestFields` without auth.oauth2.
+    static let historyRequestFields: [String: JSONValue] = requestFields.merging(["auth": auth(oauth2: false)]) { $1 }
 
     private static let maxBodyBytes = integer("Longest response body to return, in UTF-8 bytes; longer bodies are cut and bodyTruncated is true. Default 262144.", minimum: 0, maximum: 900_000)
 
@@ -236,13 +252,13 @@ enum MCPTools {
             properties: ["id": id("History entry ID."), "maxBodyBytes": maxBodyBytes], required: ["id"], readOnly: true, untrusted: true),
         MCPTool(
             name: "history_create", description: "Adds a History entry from a request snapshot (url required) and, optionally, its response or error, without sending anything.",
-            properties: requestFields.merging([
+            properties: historyRequestFields.merging([
                 "requestId": id("The saved request it belongs to."), "response": response, "errorMessage": string("Why the request failed (no response)."),
                 "timestamp": string("When it was sent, ISO 8601. Default now.")
             ]) { $1 }, required: ["url"]),
         MCPTool(
             name: "history_update", description: "Changes a History entry. Only the fields you pass change; response replaces the recorded response.",
-            properties: requestFields.merging([
+            properties: historyRequestFields.merging([
                 "id": id("History entry ID."), "response": response, "errorMessage": string("Why the request failed. An empty string clears it.")
             ]) { $1 }, required: ["id"]),
         MCPTool(name: "history_delete", description: "Deletes one History entry.", properties: ["id": id("History entry ID.")], required: ["id"], destructive: true),

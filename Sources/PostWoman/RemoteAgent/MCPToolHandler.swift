@@ -387,7 +387,8 @@ final class MCPToolHandler {
         if let params = try args.pairs("queryParams") { entry.queryParams = params }
         if let body = try args.string("body") { entry.requestBody = body.isEmpty ? nil : body }
         if let type = try args.bodyType() { entry.bodyType = type }
-        if let auth = try args.object("auth") {
+        // History keeps no OAuth configuration, so auth.oauth2 is an unknown argument here, as in the schema.
+        if let auth = try args.object("auth", allowed: MCPTools.historyAuthFields) {
             if let type = try auth.authType() { entry.authenticationType = type }
             if let token = try auth.string("token") { entry.authBearerToken = token }
             if let username = try auth.string("username") { entry.authBasicUsername = username }
@@ -673,11 +674,11 @@ struct Arguments {
         }
     }
 
-    /// A nested object, checked against the names its schema allows.
-    func object(_ name: String) throws -> Arguments? {
+    /// A nested object, checked against the names its schema allows (`allowed` when a tool narrows them).
+    func object(_ name: String, allowed: Set<String>? = nil) throws -> Arguments? {
         guard let value = value(name) else { return nil }
         guard case .object(let object) = value else { throw invalid(name, "an object") }
-        let nested = try Arguments(object, allowed: Self.nestedNames[name] ?? [], path: "\(path)\(name).")
+        let nested = try Arguments(object, allowed: allowed ?? Self.nestedNames[name] ?? [], path: "\(path)\(name).")
         for field in Self.nestedRequired[name] ?? [] where nested.value(field) == nil {
             throw MCPToolError.invalidParams("\(nested.path)\(field) is required.", field: nested.path + field)
         }

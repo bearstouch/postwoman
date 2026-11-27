@@ -706,6 +706,27 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(after, before, "No entry was added and the existing one kept its name and response")
     }
 
+    func testHistoryRefusesOAuthSettingsItCannotKeep() async throws {
+        for tool in ["history_create", "history_update"] {
+            let auth = try XCTUnwrap(MCPTools.byName[tool]?.properties["auth"]?["properties"])
+            XCTAssertNil(auth["oauth2"], "\(tool) does not offer auth.oauth2: History keeps no OAuth configuration")
+            XCTAssertNotNil(auth["type"], tool)
+        }
+        XCTAssertNotNil(MCPTools.byName["request_create"]?.properties["auth"]?["properties"]?["oauth2"], "Saved requests still take it")
+        let fixture = try await fixture()
+        let before = try await everything()
+        let oauth: JSONValue = .object(["type": .string("oauth2"), "oauth2": .object(["clientID": .string("app")])])
+        let created = await failure("history_create", ["url": .string("https://x"), "auth": oauth])
+        XCTAssertEqual(created?.code, "INVALID_PARAMS")
+        XCTAssertEqual(created?.details?["field"], .string("auth.oauth2"))
+        let updated = await failure("history_update", ["id": id(fixture.history), "name": .string("Renamed"), "auth": oauth])
+        XCTAssertEqual(updated?.details?["field"], .string("auth.oauth2"))
+        let after = try await everything()
+        XCTAssertEqual(after, before)
+        let typeOnly = try await call("history_create", ["url": .string("https://x"), "auth": .object(["type": .string("oauth2")])])
+        XCTAssertEqual(typeOnly["request"]?["auth"]?["type"], .string("oauth2"), "The auth type alone is still recorded")
+    }
+
     // MARK: - request_execute
 
     func testExecuteSendsTheSavedFieldsAndRecordsWhatCameBack() async throws {
