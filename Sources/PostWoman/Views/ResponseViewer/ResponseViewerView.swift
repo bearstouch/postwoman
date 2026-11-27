@@ -261,7 +261,7 @@ enum ResponseSummary {
         let kind = stream.kind.displayName
         switch stream.end {
         case .streaming: return "\(kind), still arriving"
-        case .completed: return "\(kind): \(stream.events.count) events"
+        case .completed: return stream.events.count == 1 ? "\(kind): 1 event" : "\(kind): \(stream.events.count) events"
         case .stopped: return "\(kind), stopped before the server ended it"
         case .failed(let message): return "\(kind), interrupted: \(message)"
         }

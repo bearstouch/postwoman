@@ -196,6 +196,11 @@ final class ResponseViewerViewTests: XCTestCase {
         }
     }
 
+    func testACompletedStreamOfOneEventSaysEventInTheSingular() {
+        XCTAssertEqual(ResponseSummary.streamHelp(StreamInfo(kind: .sse, events: Fixture.events(1), end: .completed)), "Server-sent events: 1 event")
+        XCTAssertEqual(ResponseSummary.streamHelp(StreamInfo(kind: .ndjson, end: .completed)), "NDJSON: 0 events")
+    }
+
     func testStreamBadgeSaysHowTheStreamEnded() {
         let cases: [(StreamEnd, Int, String, String?, String)] = [
             (.streaming, 0, "Streaming · 0 events", nil, "Server-sent events, still arriving"),
