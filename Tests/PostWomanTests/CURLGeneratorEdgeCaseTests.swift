@@ -47,6 +47,23 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testGetWithABodySpellsOutTheMethodSoCurlDoesNotSendAPost() throws {
+        let request = APIRequest(name: "g", url: "https://h", method: .get)
+        request.bodyType = .text
+        request.bodyContent = "x"
+        XCTAssertEqual(parts(request), ["curl", "-X GET", "'https://h'", "-d 'x'", "-H 'Content-Type: text/plain'"])
+        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-X", "GET", "https://h", "-d", "x", "-H", "Content-Type: text/plain"])
+    }
+
+    func testGetWithoutAnEmittedBodyStillOmitsTheMethod() {
+        for (type, content) in [(ContentType.none, "ignored"), (.json, "")] {
+            let request = APIRequest(name: "g", url: "https://h")
+            request.bodyType = type
+            request.bodyContent = content
+            XCTAssertEqual(parts(request), ["curl", "'https://h'"], type.rawValue)
+        }
+    }
+
     func testArgumentsComeInMethodURLHeadersAuthBodyContentTypeOrder() {
         let request = post(#"{"a":1}"#)
         request.headers = [KeyValuePair(key: "Accept", value: "*/*"), KeyValuePair(key: "X-Trace", value: "1")]

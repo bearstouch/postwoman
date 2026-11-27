@@ -19,8 +19,9 @@ struct CURLGenerator {
             parts.append("-N")
         }
 
-        // Add HTTP method if not GET (cURL defaults to GET)
-        if request.method != .get {
+        // cURL defaults to GET, but switches to POST for -d, so a GET with a body is spelled out too
+        let hasBody = request.bodyType != .none && !request.bodyContent.isEmpty
+        if request.method != .get || hasBody {
             parts.append("-X \(request.method.rawValue)")
         }
 
@@ -48,7 +49,7 @@ struct CURLGenerator {
         }
 
         // Add request body if present
-        if request.bodyType != .none && !request.bodyContent.isEmpty {
+        if hasBody {
             parts.append("-d " + quoted(request.bodyContent))
 
             // Add Content-Type header if not already specified
