@@ -147,6 +147,59 @@ Menu commands use `NotificationCenter` to communicate with views:
 ### SwiftData Relationships
 - `Folder` has cascade delete rules for both `subfolders` and `requests`
 
+## Code style
+
+- Match the surrounding code: compact, dense Swift (220 columns, 4-space indent, `.swift-format`); short
+  `guard … else { …; return }` bodies are normal. `///` doc comments say what a type or property is for and *why*;
+  inline comments are sparse.
+- Concurrency: `@MainActor` for views, `HTTPClient` and `MCPToolHandler` (they touch SwiftData models). Pass plain
+  `Sendable` value types (`RequestSnapshot`, `HTTPResponse`, `StreamInfo`) across tasks, never `@Model` objects. Delegates
+  URLSession calls on its own queue are `Sendable`, with state behind `OSAllocatedUnfairLock`.
+- UI: `Theme.*` colors and `Color.appAccent`, never hard-coded colors; `HairlineDivider()`, `.textFieldStyle(.themed)`,
+  `.themedSplitDividers()` (see Themes). Name a view's body text `responseBody`, not `body`.
+- Accessibility in every view: icon-only buttons get `.help` and `.accessibilityLabel`; selected state and status are
+  never shown by color alone.
+- MCP error codes are SCREAMING_SNAKE strings (`INVALID_PARAMS`, `REQUEST_FAILED`); tool output is JSON with camelCase keys.
+  The CLI prints data on stdout and summaries/notes on stderr, like curl.
+- User-facing text is plain and specific ("Sent as written, because…"); no marketing tone.
+
+## Tests
+
+- XCTest in `Tests/PostWomanTests`, one class per area (`CURLGeneratorTests`, `StreamEventParserTests`…), with descriptive
+  test names that state the behavior (`testStoppingAStreamKeepsWhatArrived`). Keep existing names stable.
+- Assert observable behavior and failure safety: what the user, History, an agent or the CLI would see, and that a failure
+  leaves earlier state intact (rollback on tool errors, partial responses kept).
+- Keep tests deterministic and offline:
+  - SwiftData: `ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))`.
+  - Network: a `URLProtocol` stub in an ephemeral `URLSessionConfiguration` passed to `HTTPClient(session:)`
+    (`StreamingStubProtocol`), or an `MCPListener` on `127.0.0.1:0` as a real target server.
+  - CLI: fake `CLIEnvironment` (no real files, sockets or stdout).
+- Contract tests that must keep passing: `MCPServerTests` (every tool dispatched, closed schemas), `CLIContractTests`
+  (every MCP tool has a command and valid flags), `AppVersionTests` (versions match the manifest), `ThemeStoreTests` (contrast).
+- Each new parser, generator or service gets unit tests for its edge cases (chunk boundaries, encodings, empty input);
+  each new MCP field gets an `MCPToolHandler` assertion.
+
+## Change workflow
+
+1. Read the code involved and this file. For larger features, plan first: files to touch, existing helpers to reuse,
+   tests, and how to verify it end to end.
+2. Implement with tests (observable behavior + failure safety). Keep the app, MCP tools and CLI in step: a capability
+   added to the app's send path should reach `request_execute` and `postwoman` too.
+3. Format, lint, build, test, all clean: `swift format -i -r Sources Tests`, `swift format lint --strict -r Sources Tests`
+   (no output), `swift build` (no warnings), `swift test`.
+4. For non-trivial changes, run an independent review (fresh eyes: correctness, races, leaks, data loss, security of the
+   MCP server and secrets, regressions, test gaps). Fix what matters, then format, lint, build and test again.
+5. Check UI changes in the real app (`scripts/run-app.sh`); a local test server (e.g. a small Python `http.server`) stands
+   in for real APIs.
+6. Record what was verified and what wasn't. Update `CHANGELOG.md` (`## [Unreleased]`, or the next version section) for
+   anything user-visible, and this file when architecture or conventions change.
+7. Commit on `develop` with a short imperative subject ("Add environments for each collection, with {{variables}}") and a
+   body explaining what changed for the user; `master` gets it through a pull request. Releases follow "Releases" above.
+
+Honesty rules: say what was actually run and observed. Checks that can't be done here (VoiceOver, notarization, Sparkle
+installs, Intel or older macOS, real third-party APIs) are reported as **not verified**, never as passed. Report blockers
+instead of faking results.
+
 ## File Organization
 
 ```
