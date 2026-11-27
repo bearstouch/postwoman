@@ -39,7 +39,7 @@ struct CodeGeneratorView: View {
             languagePicker
                 .padding()
 
-            if let environmentLabel, resolver != nil {
+            if let environmentLabel, Self.showsVariablesSwitch(environmentLabel: environmentLabel, resolver: resolver) {
                 HairlineDivider()
                 variablesSwitch(environmentLabel)
                     .padding(.horizontal)
@@ -168,15 +168,20 @@ struct CodeGeneratorView: View {
     }
 
     private func generateCode() {
-        var source = RequestSnapshot(request)
+        generatedCode = Self.code(for: RequestSnapshot(request), in: selectedLanguage, resolver: resolver, resolvesVariables: resolvesVariables)
+    }
+
+    /// Whether the "Resolve variables" switch shows: only for a request in a collection, which has an environment.
+    static func showsVariablesSwitch(environmentLabel: String?, resolver: VariableResolver?) -> Bool { environmentLabel != nil && resolver != nil }
+
+    /// `request` as code in `language`; with `resolvesVariables` and a resolver, `{{variables}}` are filled in, secrets kept as `{{name}}`.
+    static func code(for request: RequestSnapshot, in language: CodeLanguage, resolver: VariableResolver?, resolvesVariables: Bool) -> String {
+        var source = request
         if resolvesVariables, let resolver { source = source.resolved(with: resolver, redactSecrets: true) }
-        switch selectedLanguage {
-        case .curl:
-            generatedCode = CURLGenerator().generate(from: source)
-        case .swift:
-            generatedCode = SwiftGenerator().generate(from: source)
-        case .python:
-            generatedCode = PythonGenerator().generate(from: source)
+        switch language {
+        case .curl: return CURLGenerator().generate(from: source)
+        case .swift: return SwiftGenerator().generate(from: source)
+        case .python: return PythonGenerator().generate(from: source)
         }
     }
 

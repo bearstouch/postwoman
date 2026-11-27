@@ -13,10 +13,16 @@ struct URLBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             bar
-            if let resolver, !resolver.tokens(in: url).isEmpty {
+            if let resolver, Self.showsResolvedURL(url, resolver: resolver) {
                 resolvedURL(resolver)
             }
         }
+    }
+
+    /// Whether the resolved URL line shows: only when the URL uses `{{variables}}` and there is an environment to fill them.
+    static func showsResolvedURL(_ url: String, resolver: VariableResolver?) -> Bool {
+        guard let resolver else { return false }
+        return !resolver.tokens(in: url).isEmpty
     }
 
     /// The URL with each variable's value in the color of where it comes from; the tooltip lists them.
@@ -36,6 +42,8 @@ struct URLBarView: View {
         .accessibilityLabel("Resolved URL")
     }
 
+    private var action: URLBarAction { URLBarAction.current(url: url, isLoading: isLoading, canStop: onStop != nil) }
+
     private var bar: some View {
         HStack(spacing: 12) {
             Picker("Method", selection: $method) {
@@ -53,8 +61,9 @@ struct URLBarView: View {
                 .font(.system(.body, design: .monospaced))
                 .onSubmit(onSend)
 
-            if isLoading, let onStop {
-                Button(action: onStop) {
+            switch action {
+            case .stop:
+                Button(action: { onStop?() }) {
                     HStack(spacing: 5) {
                         ProgressView()
                             .controlSize(.mini)
@@ -65,7 +74,7 @@ struct URLBarView: View {
                 .buttonStyle(.bordered)
                 .keyboardShortcut(".", modifiers: .command)
                 .help("Stop the request (⌘.)")
-            } else {
+            case .sending, .send:
                 Button(action: onSend) {
                     if isLoading {
                         ProgressView()
@@ -78,9 +87,31 @@ struct URLBarView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .shadow(color: url.isEmpty ? .clear : Theme.accentGlow, radius: 10)
-                .disabled(url.isEmpty || isLoading)
+                .disabled(!action.isEnabled)
                 .keyboardShortcut(.return, modifiers: .command)
             }
+        }
+    }
+}
+
+/// What the URL bar's trailing button does: Send (enabled once there is a URL), a disabled Send while a request without
+/// a way to stop runs, or Stop.
+enum URLBarAction: Equatable {
+    case send(isEnabled: Bool)
+    case sending
+    case stop
+
+    static func current(url: String, isLoading: Bool, canStop: Bool) -> URLBarAction {
+        if isLoading { return canStop ? .stop : .sending }
+        return .send(isEnabled: !url.isEmpty)
+    }
+
+    /// Whether the button can be pressed.
+    var isEnabled: Bool {
+        switch self {
+        case .send(let isEnabled): isEnabled
+        case .sending: false
+        case .stop: true
         }
     }
 }

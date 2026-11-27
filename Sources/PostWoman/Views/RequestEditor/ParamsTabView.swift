@@ -11,7 +11,7 @@ struct ParamsTabView: View {
                     Text("Query Parameters")
                         .font(.headline)
                     Spacer()
-                    Text("\(params.filter { $0.isEnabled && !$0.key.isEmpty }.count) active")
+                    Text("\(params.activeCount) active")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

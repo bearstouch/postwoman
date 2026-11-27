@@ -53,7 +53,7 @@ struct RequestEditorView: View {
             .background(Theme.canvas)
 
             VStack(spacing: 0) {
-                if !missingVariables.isEmpty, !isLoading {
+                if MissingVariablesNotice.isShown(missing: missingVariables, isLoading: isLoading) {
                     missingVariablesNotice
                     HairlineDivider()
                 }
@@ -160,10 +160,7 @@ struct RequestEditorView: View {
     }
 
     private var missingVariablesText: String {
-        let names = missingVariables.map { "{{\($0)}}" }.joined(separator: ", ")
-        let place = request.folder == nil ? "this request has no collection" : "neither \(sentEnvironmentName ?? "the environment") nor \(request.folder?.defaultEnvironmentName ?? "Default") defines it"
-        let count = missingVariables.count == 1 ? "1 variable was" : "\(missingVariables.count) variables were"
-        return "\(count) sent as written, because \(place): \(names)"
+        MissingVariablesNotice.text(missing: missingVariables, defaultEnvironmentName: request.folder?.defaultEnvironmentName, sentEnvironmentName: sentEnvironmentName)
     }
 
     @ViewBuilder
@@ -188,7 +185,7 @@ struct RequestEditorView: View {
     }
 
     private func sendRequest() {
-        guard !request.url.isEmpty, sendTask == nil else { return }
+        guard Self.canSend(url: request.url, isSending: sendTask != nil) else { return }
 
         // Resolve now, with the environment in use when Send was pressed.
         let resolver = self.resolver ?? .empty
@@ -229,6 +226,14 @@ struct RequestEditorView: View {
     }
 
     private func duplicateRequest() {
+        modelContext.insert(Self.duplicate(of: request))
+    }
+
+    /// Whether Send (button, ⌘↩ or the menu) starts a request: there is a URL and none is in flight.
+    static func canSend(url: String, isSending: Bool) -> Bool { !url.isEmpty && !isSending }
+
+    /// A copy of `request` named "… (Copy)", in the same collection, with its params, headers, body and auth. Not inserted.
+    static func duplicate(of request: APIRequest) -> APIRequest {
         let duplicate = APIRequest(
             name: "\(request.name) (Copy)",
             url: request.url,
@@ -244,7 +249,22 @@ struct RequestEditorView: View {
         duplicate.authBasicUsername = request.authBasicUsername
         duplicate.authBasicPassword = request.authBasicPassword
         duplicate.authOAuthConfig = request.authOAuthConfig
+        return duplicate
+    }
+}
 
-        modelContext.insert(duplicate)
+/// The notice after a send that used `{{variables}}` no environment defines.
+enum MissingVariablesNotice {
+    /// Shown once the send is done, when it had undefined variables.
+    static func isShown(missing: [String], isLoading: Bool) -> Bool { !missing.isEmpty && !isLoading }
+
+    /// "2 variables were sent as written, because neither Staging nor Default defines it: {{a}}, {{b}}".
+    /// `defaultEnvironmentName` is nil when the request has no collection.
+    static func text(missing: [String], defaultEnvironmentName: String?, sentEnvironmentName: String?) -> String {
+        let names = missing.map { "{{\($0)}}" }.joined(separator: ", ")
+        let place =
+            defaultEnvironmentName.map { "neither \(sentEnvironmentName ?? "the environment") nor \($0) defines it" } ?? "this request has no collection"
+        let count = missing.count == 1 ? "1 variable was" : "\(missing.count) variables were"
+        return "\(count) sent as written, because \(place): \(names)"
     }
 }

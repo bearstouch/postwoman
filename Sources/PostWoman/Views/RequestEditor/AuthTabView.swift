@@ -137,45 +137,27 @@ struct AuthTabView: View {
             Group {
                 LabeledTextField(
                     label: "Authorization URL",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.authorizationURL ?? "" },
-                        set: { updateOAuthConfig { $0.authorizationURL = $1 }($0) }
-                    ))
+                    text: oauthBinding(\.authorizationURL))
 
                 LabeledTextField(
                     label: "Token URL",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.tokenURL ?? "" },
-                        set: { updateOAuthConfig { $0.tokenURL = $1 }($0) }
-                    ))
+                    text: oauthBinding(\.tokenURL))
 
                 LabeledTextField(
                     label: "Client ID",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.clientID ?? "" },
-                        set: { updateOAuthConfig { $0.clientID = $1 }($0) }
-                    ))
+                    text: oauthBinding(\.clientID))
 
                 LabeledTextField(
                     label: "Client Secret",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.clientSecret ?? "" },
-                        set: { updateOAuthConfig { $0.clientSecret = $1 }($0) }
-                    ), isSecure: true)
+                    text: oauthBinding(\.clientSecret), isSecure: true)
 
                 LabeledTextField(
                     label: "Scope",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.scope ?? "" },
-                        set: { updateOAuthConfig { $0.scope = $1 }($0) }
-                    ))
+                    text: oauthBinding(\.scope))
 
                 LabeledTextField(
                     label: "Redirect URI",
-                    text: Binding(
-                        get: { request.authOAuthConfig?.redirectURI ?? "" },
-                        set: { updateOAuthConfig { $0.redirectURI = $1 }($0) }
-                    ))
+                    text: oauthBinding(\.redirectURI))
             }
 
             Button("Get New Access Token") {
@@ -186,12 +168,19 @@ struct AuthTabView: View {
         }
     }
 
-    private func updateOAuthConfig(_ update: @escaping (inout OAuthConfig, String) -> Void) -> (String) -> Void {
-        return { newValue in
-            var config = request.authOAuthConfig ?? OAuthConfig()
-            update(&config, newValue)
-            request.authOAuthConfig = config
-        }
+    /// One OAuth field of the request, made on first edit.
+    private func oauthBinding(_ field: WritableKeyPath<OAuthConfig, String>) -> Binding<String> {
+        Binding(
+            get: { request.authOAuthConfig?[keyPath: field] ?? "" },
+            set: { request.authOAuthConfig = Self.oauthConfig(request.authOAuthConfig, setting: field, to: $0) }
+        )
+    }
+
+    /// `config` (or a new, empty one) with `field` set to `value`; the other fields are kept.
+    static func oauthConfig(_ config: OAuthConfig?, setting field: WritableKeyPath<OAuthConfig, String>, to value: String) -> OAuthConfig {
+        var config = config ?? OAuthConfig()
+        config[keyPath: field] = value
+        return config
     }
 }
 
