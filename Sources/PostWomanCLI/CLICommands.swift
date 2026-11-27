@@ -197,7 +197,7 @@ enum CLICommands {
             args.response["contentType"] = .string(value)
         },
         Flag(name: "time-ms", value: "MS", help: "Response time in milliseconds.") { args, value, _ throws(CLIFailure) in
-            guard let number = Double(value), number >= 0 else { throw .arguments("--time-ms must be a number of 0 or more.") }
+            guard let number = Double(value), number.isFinite, number >= 0 else { throw .arguments("--time-ms must be a number of 0 or more.") }
             args.response["timeMs"] = .number(number)
         },
         string("error", "errorMessage", "MESSAGE", "Why the request failed (no response); empty clears it.")

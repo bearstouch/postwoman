@@ -218,7 +218,7 @@ final class MCPClient: Sendable {
         }
         guard let body = try? JSONDecoder().decode(JSONValue.self, from: data) else { throw .transport("PostWoman's answer wasn't JSON.") }
         if let error = body["error"] {
-            let code = error["code"]?.number.map { Int($0) } ?? 0
+            let code = error["code"]?.number.flatMap { Int(exactly: $0) } ?? 0
             throw CLIFailure(code: code == -32602 ? "INVALID_PARAMS" : "PROTOCOL", message: error["message"]?.string ?? "MCP error.", exitStatus: code == -32602 ? 2 : 1)
         }
         return (body["result"] ?? .null, response)
@@ -257,12 +257,12 @@ enum ConnectionResolver {
         guard let path = app.preferencesPath, let plist = try? environment.readFile(path),
             let preferences = try? PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any],
             let data = preferences["remoteAgent.settings"] as? Data, let settings = try? JSONDecoder().decode(JSONValue.self, from: data),
-            let port = settings["port"]?.number
+            let port = settings["port"]?.number.flatMap({ Int(exactly: $0) }), (0...65535).contains(port)
         else { return nil }
         var host = settings["bindAddress"]?.string ?? "127.0.0.1"
         if host == "0.0.0.0" { host = "127.0.0.1" }
         if host == "::" { host = "::1" }
-        return URL(string: "http://\(host.contains(":") ? "[\(host)]" : host):\(Int(port))/mcp")
+        return URL(string: "http://\(host.contains(":") ? "[\(host)]" : host):\(port)/mcp")
     }
 
     static func url(_ text: String) throws(CLIFailure) -> URL {

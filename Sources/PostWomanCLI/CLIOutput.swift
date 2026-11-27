@@ -27,18 +27,18 @@ enum CLIOutput {
             table(["ID", "NAME", "VARIABLES", "IN USE"], rows, empty: "No environments.", environment: environment)
         case .history:
             let rows = (result["entries"]?.array ?? []).map { entry in
-                [text(entry["id"]), when(entry["timestamp"]), text(entry["method"]), entry["status"].flatMap(\.number).map { String(Int($0)) } ?? "error", text(entry["url"])]
+                [text(entry["id"]), when(entry["timestamp"]), text(entry["method"]), entry["status"].flatMap(\.number).map(number) ?? "error", text(entry["url"])]
             }
             table(["ID", "SENT", "METHOD", "STATUS", "URL"], rows, empty: "No history.", environment: environment)
             if let next = result["nextOffset"]?.number, let total = result["total"]?.number {
-                environment.stderr("Showing \(rows.count) of \(Int(total)). Next page: --offset \(Int(next))")
+                environment.stderr("Showing \(rows.count) of \(number(total)). Next page: --offset \(number(next))")
             }
         case .deleted(let kind):
             if case .number(let count)? = result["deleted"] {
                 let noun = count == 1 ? kind : kind.hasSuffix("y") ? String(kind.dropLast()) + "ies" : kind + "s"
-                environment.stdout("Deleted \(Int(count)) \(noun).")
+                environment.stdout("Deleted \(number(count)) \(noun).")
             } else {
-                let extra = result["deletedRequests"]?.number.map { " and its \(Int($0)) request\($0 == 1 ? "" : "s")" } ?? ""
+                let extra = result["deletedRequests"]?.number.map { " and its \(number($0)) request\($0 == 1 ? "" : "s")" } ?? ""
                 environment.stdout("Deleted \(kind) \(text(result["deleted"]))\(extra).")
             }
         case .tools:
@@ -57,8 +57,8 @@ enum CLIOutput {
     /// The body on stdout, like curl; a one-line summary on stderr, so pipes get only the body.
     private static func execute(_ result: JSONValue, options: Set<String>, environment: CLIEnvironment) -> Int32 {
         let response = result["response"] ?? .null
-        let status = Int(response["status"]?.number ?? 0)
-        let statusLine = "\(status) \(text(response["statusText"]))"
+        let status = response["status"]?.number ?? 0
+        let statusLine = "\(number(status)) \(text(response["statusText"]))"
         if options.contains("include") {
             var head = "HTTP \(statusLine)"
             for header in response["headers"]?.array ?? [] { head += "\n\(text(header["key"])): \(text(header["value"]))" }
@@ -73,11 +73,11 @@ enum CLIOutput {
             environment.stderr(note)
         }
         var summary = [statusLine]
-        if let time = response["timeMs"]?.number { summary.append("\(Int(time.rounded())) ms") }
-        if let size = response["size"]?.number { summary.append(bytes(Int(size))) }
+        if let time = response["timeMs"]?.number { summary.append("\(number(time.rounded())) ms") }
+        if let size = response["size"]?.number { summary.append(bytes(size)) }
         if let stream, stream != .null {
-            let count = Int(stream["eventCount"]?.number ?? 0)
-            summary.append("\(count == 1 ? "1 event" : "\(count) events") \(text(stream["end"]))")
+            let count = stream["eventCount"]?.number ?? 0
+            summary.append("\(count == 1 ? "1 event" : "\(number(count)) events") \(text(stream["end"]))")
         }
         if let name = result["environment"]?.string { summary.append(name) }
         if let history = result["historyId"]?.string { summary.append("history \(history)") }
@@ -95,7 +95,7 @@ enum CLIOutput {
     static func text(_ value: JSONValue?) -> String {
         switch value {
         case .string(let text)?: text
-        case .number(let number)?: number.rounded() == number ? String(Int(number)) : String(number)
+        case .number(let value)?: number(value)
         case .bool(let flag)?: String(flag)
         case nil, .null?: "-"
         case let other?: other.compact
@@ -107,8 +107,16 @@ enum CLIOutput {
         return date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
     }
 
-    private static func bytes(_ count: Int) -> String {
-        count < 1024 ? "\(count) B" : ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
+    /// A JSON number as people write it: whole numbers without a fraction, even past `Int.max`; non-finite ones as `inf`/`nan`.
+    static func number(_ value: Double) -> String {
+        if let whole = Int(exactly: value) { return String(whole) }
+        if value.isFinite, value.rounded() == value { return String(format: "%.0f", value) }
+        return String(value)
+    }
+
+    private static func bytes(_ count: Double) -> String {
+        guard let whole = Int64(exactly: count), whole >= 1024 else { return "\(number(count)) B" }
+        return ByteCountFormatter.string(fromByteCount: whole, countStyle: .file)
     }
 
     /// Left-aligned columns; the last one is never padded.

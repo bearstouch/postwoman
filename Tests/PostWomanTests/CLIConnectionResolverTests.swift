@@ -128,7 +128,8 @@ final class CLIConnectionResolverTests: XCTestCase {
         let cases: [(String, String?)] = [
             (#"{"port":9001}"#, "http://127.0.0.1:9001/mcp"), (#"{"port":9001,"bindAddress":"0.0.0.0"}"#, "http://127.0.0.1:9001/mcp"),
             (#"{"port":9001,"bindAddress":"::"}"#, "http://[::1]:9001/mcp"), (#"{"port":9001,"bindAddress":"::1"}"#, "http://[::1]:9001/mcp"),
-            (#"{"port":9001,"bindAddress":"192.168.1.5"}"#, "http://192.168.1.5:9001/mcp"), (#"{"mcpEnabled":true}"#, nil), ("not json", nil)
+            (#"{"port":9001,"bindAddress":"192.168.1.5"}"#, "http://192.168.1.5:9001/mcp"), (#"{"mcpEnabled":true}"#, nil), ("not json", nil),
+            (#"{"port":1e20}"#, nil), (#"{"port":-1}"#, nil), (#"{"port":65536}"#, nil), (#"{"port":9001.5}"#, nil)
         ]
         for (settings, expected) in cases {
             let files = FakeFiles()

@@ -176,6 +176,36 @@ final class CLIRenderingTests: XCTestCase {
         for (value, expected) in cases { XCTAssertEqual(CLIOutput.text(value), expected, "\(String(describing: value))") }
     }
 
+    func testNumbersTooLargeForAnIntPrintAsText() {
+        let cases: [(Double, String)] = [
+            (1e20, "100000000000000000000"), (-1e20, "-100000000000000000000"), (9_223_372_036_854_775_808, "9223372036854775808"), (1e20 + 0.5, "100000000000000000000"),
+            (.infinity, "inf"), (-.infinity, "-inf"), (.nan, "nan"), (-0.0, "0")
+        ]
+        for (number, expected) in cases { XCTAssertEqual(CLIOutput.text(.number(number)), expected, "\(number)") }
+    }
+
+    func testLargeNumbersInResultsPrintInsteadOfCrashing() throws {
+        let page: JSONValue = .object([
+            "entries": .array([.object(["id": .string("H1"), "status": .number(1e20), "url": .string("u")]), .object(["id": .string("H2"), "status": .number(.nan)])]),
+            "total": .number(1e20), "nextOffset": .number(.infinity)
+        ])
+        let history = try render(page, "history", "list")
+        XCTAssertTrue(history.stdout.contains("100000000000000000000"), history.stdout)
+        XCTAssertEqual(history.stderr, "Showing 2 of 100000000000000000000. Next page: --offset inf")
+        XCTAssertEqual(try render(.object(["deleted": .number(1e20)]), "history", "clear").stdout, "Deleted 100000000000000000000 history entries.")
+        XCTAssertEqual(
+            try render(.object(["deleted": .string("C1"), "deletedRequests": .number(1e20)]), "collection", "delete").stdout,
+            "Deleted collection C1 and its 100000000000000000000 requests.")
+        let huge = try execute(
+            ["status": .number(1e20), "statusText": .string("Odd"), "timeMs": .number(1e20), "size": .number(1e20), "stream": .object(["eventCount": .number(1e20), "end": .string("completed")])],
+            options: ["fail"])
+        XCTAssertEqual(huge.stderr, "100000000000000000000 Odd · 100000000000000000000 ms · 100000000000000000000 B · 100000000000000000000 events completed")
+        XCTAssertEqual(huge.status, 22, "A status of 400 or more fails with --fail, however large")
+        let odd = try execute(["status": .number(.nan), "statusText": .string("S"), "timeMs": .number(-.infinity), "size": .number(.nan)], options: ["fail"])
+        XCTAssertEqual(odd.stderr, "nan S · -inf ms · nan B")
+        XCTAssertEqual(odd.status, 0)
+    }
+
     // MARK: request execute
 
     func testExecutePrintsTheBodyOnStdoutAndASummaryOnStderr() throws {

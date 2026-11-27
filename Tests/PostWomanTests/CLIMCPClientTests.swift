@@ -286,7 +286,8 @@ final class CLIMCPClientTests: XCTestCase {
         let cases: [(String, Int32, String)] = [
             (#"{"code":-32602,"message":"Unknown tool: nope"}"#, 2, "postwoman: Unknown tool: nope (INVALID_PARAMS)\nRun 'postwoman help request get' for its options."),
             (#"{"code":-32601,"message":"Method not found"}"#, 1, "postwoman: Method not found (PROTOCOL)"),
-            (#"{"code":-32603}"#, 1, "postwoman: MCP error. (PROTOCOL)"), (#"{}"#, 1, "postwoman: MCP error. (PROTOCOL)")
+            (#"{"code":-32603}"#, 1, "postwoman: MCP error. (PROTOCOL)"), (#"{}"#, 1, "postwoman: MCP error. (PROTOCOL)"),
+            (#"{"code":1e20,"message":"Huge"}"#, 1, "postwoman: Huge (PROTOCOL)"), (#"{"code":-32602.5,"message":"Odd"}"#, 1, "postwoman: Odd (PROTOCOL)")
         ]
         for (error, status, stderr) in cases {
             let app = ScriptedApp()

@@ -274,6 +274,12 @@ final class CLIParsingTests: XCTestCase {
         }
     }
 
+    func testResponseTimeMustBeFinite() {
+        for rejected in ["inf", "infinity", "1e400", "nan"] {
+            XCTAssertEqual(message(["history", "update", "--id", "H", "--time-ms", rejected]), "--time-ms must be a number of 0 or more.", rejected)
+        }
+    }
+
     func testVariablesSplitAtTheFirstEqualsSign() throws {
         let variables = try built(["environment", "create", "--var", " base = https://x.test/?a=b", "--secret", "token=a=b"])["variables"]
         XCTAssertEqual(
