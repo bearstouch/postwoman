@@ -225,10 +225,12 @@ enum ResponseSummary {
     }
 
     static func formatBytes(_ bytes: Int) -> String {
+        // The unit is chosen from the rounded value, so 1,048,575 bytes read "1.0 MB", not "1024.0 KB".
+        let kilobytes = String(format: "%.1f", Double(bytes) / 1024)
         if bytes < 1024 {
             return "\(bytes) B"
-        } else if bytes < 1024 * 1024 {
-            return String(format: "%.1f KB", Double(bytes) / 1024)
+        } else if let value = Double(kilobytes), value < 1024 {
+            return kilobytes + " KB"
         } else {
             return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
         }

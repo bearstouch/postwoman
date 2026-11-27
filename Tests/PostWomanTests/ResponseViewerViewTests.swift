@@ -189,6 +189,13 @@ final class ResponseViewerViewTests: XCTestCase {
         }
     }
 
+    func testTheByteUnitIsChosenAfterRounding() {
+        let cases: [(Int, String)] = [(1_048_575, "1.0 MB"), (1_048_525, "1.0 MB"), (1_048_524, "1023.9 KB"), (1_048_576 * 1024 - 1, "1024.0 MB")]
+        for (bytes, text) in cases {
+            XCTAssertEqual(ResponseSummary.formatBytes(bytes), text, "\(bytes)")
+        }
+    }
+
     func testStreamBadgeSaysHowTheStreamEnded() {
         let cases: [(StreamEnd, Int, String, String?, String)] = [
             (.streaming, 0, "Streaming · 0 events", nil, "Server-sent events, still arriving"),
