@@ -130,6 +130,9 @@ final class CLIHelpTextTests: XCTestCase {
         let width = try XCTUnwrap(CLIHelp.nouns.map(\.0.count).max())
         for (noun, summary) in CLIHelp.nouns { XCTAssertTrue(lines.contains("  \(noun.padding(toLength: width, withPad: " ", startingAt: 0))  \(summary)"), noun) }
         for (option, _) in CLIHelp.globals { XCTAssertTrue(lines.contains { $0.hasPrefix("  \(option) ") }, option) }
+        XCTAssertTrue(
+            lines.contains("  Flags win over environment variables: --agent-token, then --agent-token-file, then POSTWOMAN_TOKEN, then POSTWOMAN_TOKEN_FILE."),
+            "The token precedence is documented")
         XCTAssertTrue(lines.contains("  0   Success"))
         XCTAssertTrue(lines.contains("  22  request execute --fail got a 4xx or 5xx response"))
         XCTAssertEqual(lines.last, "  22  request execute --fail got a 4xx or 5xx response", "Exit statuses end the overview")

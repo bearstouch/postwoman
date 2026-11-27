@@ -230,11 +230,15 @@ enum ConnectionResolver {
     static func candidates(server: String?, token: String?, tokenFile: String?, environment: CLIEnvironment) throws(CLIFailure) -> [Connection] {
         let explicitURL = try (server ?? environment.variable("POSTWOMAN_URL")).map { text throws(CLIFailure) in try url(text) }
         let fallback = try url(MCPClient.defaultURL)
-        var explicitToken = token ?? environment.variable("POSTWOMAN_TOKEN")
-        if explicitToken == nil, let path = tokenFile ?? environment.variable("POSTWOMAN_TOKEN_FILE") {
+        // Any flag beats any environment variable: --agent-token, --agent-token-file, POSTWOMAN_TOKEN, POSTWOMAN_TOKEN_FILE.
+        func read(_ path: String) throws(CLIFailure) -> String {
             guard let data = try? environment.readFile(path) else { throw .arguments("Can't read the token file \(path).") }
-            explicitToken = String(decoding: data, as: UTF8.self)
+            return String(decoding: data, as: UTF8.self)
         }
+        var explicitToken = token
+        if explicitToken == nil, let tokenFile { explicitToken = try read(tokenFile) }
+        if explicitToken == nil { explicitToken = environment.variable("POSTWOMAN_TOKEN") }
+        if explicitToken == nil, let path = environment.variable("POSTWOMAN_TOKEN_FILE") { explicitToken = try read(path) }
         explicitToken = explicitToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let explicitToken, !explicitToken.isEmpty {
             // A token alone: try it at each app's endpoint, so it reaches whichever app it belongs to.

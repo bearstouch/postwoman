@@ -55,6 +55,7 @@ enum CLIHelp {
         let width = nouns.map(\.0.count).max() ?? 0
         lines += nouns.map { "  \($0.0.padding(toLength: width, withPad: " ", startingAt: 0))  \($0.1)" }
         lines += ["", "Global options:"] + table(globals)
+        lines += ["  Flags win over environment variables: --agent-token, then --agent-token-file, then POSTWOMAN_TOKEN, then POSTWOMAN_TOKEN_FILE."]
         lines += [
             "", "Examples:", "  postwoman collection list", "  postwoman request create --collection ID --name 'Get user' --url https://api.example.com/users/1",
             "  postwoman request execute --id ID --include", "  postwoman request execute -X POST --url https://httpbin.org/post -H 'Accept: application/json' -d '{\"a\":1}'",

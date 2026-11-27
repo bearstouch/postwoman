@@ -94,6 +94,21 @@ final class CLIConnectionResolverTests: XCTestCase {
         XCTAssertEqual(try candidates(token: "pwm_flag", tokenFile: "/tmp/missing", files: files), ["\(fallback) pwm_flag"], "A token is never read from a file when given")
     }
 
+    func testAnyTokenFlagBeatsAnyTokenEnvironmentVariable() throws {
+        let files = FakeFiles()
+        files.files["/tmp/token"] = Data("pwm_file\n".utf8)
+        files.files["/tmp/env-token"] = Data("pwm_envfile".utf8)
+        let both = ["POSTWOMAN_TOKEN": "pwm_env", "POSTWOMAN_TOKEN_FILE": "/tmp/env-token"]
+        XCTAssertEqual(try candidates(tokenFile: "/tmp/token", files: files, variables: ["POSTWOMAN_TOKEN": "pwm_env"]), ["\(fallback) pwm_file"])
+        XCTAssertEqual(try candidates(tokenFile: "/tmp/token", files: files, variables: both), ["\(fallback) pwm_file"])
+        XCTAssertEqual(try candidates(token: "pwm_flag", files: files, variables: both), ["\(fallback) pwm_flag"])
+        XCTAssertEqual(try candidates(files: files, variables: both), ["\(fallback) pwm_env"], "Without flags, POSTWOMAN_TOKEN beats POSTWOMAN_TOKEN_FILE")
+        XCTAssertEqual(
+            failure(tokenFile: "/tmp/missing", files: files, variables: ["POSTWOMAN_TOKEN": "pwm_env"]), "Can't read the token file /tmp/missing.",
+            "A token file flag is read even when POSTWOMAN_TOKEN is set")
+        XCTAssertEqual(try candidates(server: "http://flag:2", files: files, variables: ["POSTWOMAN_URL": "http://env:1", "POSTWOMAN_TOKEN": "pwm_env"]), ["http://flag:2/mcp pwm_env"])
+    }
+
     func testAnUnreadableTokenFileIsAnArgumentError() {
         XCTAssertEqual(failure(tokenFile: "/tmp/missing"), "Can't read the token file /tmp/missing.")
         XCTAssertEqual(failure(variables: ["POSTWOMAN_TOKEN_FILE": "/tmp/gone"]), "Can't read the token file /tmp/gone.")
