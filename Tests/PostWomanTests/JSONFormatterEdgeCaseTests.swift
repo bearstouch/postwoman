@@ -143,4 +143,28 @@ final class JSONFormatterEdgeCaseTests: XCTestCase {
             XCTAssertNil(JSONFormatter.prettify(input), input)
         }
     }
+    func testTrailingCommasAreInvalidEverywhere() {
+        let inputs = ["[1,]", #"{"a":1,}"#, "[true , ]", "[[1],]", #"{"a":[1,2,],"b":1}"#, "{\"a\":1,\n}", "[1,\r\n\t]", #"[{"a":{},}]"#]
+        for input in inputs {
+            XCTAssertFalse(JSONFormatter.isValid(input), input)
+            XCTAssertNil(JSONFormatter.format(input), input)
+            XCTAssertNil(JSONFormatter.minify(input), input)
+            XCTAssertNil(JSONFormatter.prettify(input), input)
+        }
+    }
+
+    func testCommasAndBracketsInsideStringsAreNotTrailingCommas() {
+        for input in [#"[",]"]"#, #"{"a,}":",]"}"#, #"["\",]"]"#, #"["\\",1]"#] {
+            XCTAssertTrue(JSONFormatter.isValid(input), input)
+            XCTAssertNotNil(JSONFormatter.prettify(input), input)
+        }
+    }
+
+    func testVeryDeepInputWithATrailingCommaIsRejectedWithoutCrashing() {
+        let depth = 10_000
+        let input = String(repeating: "[", count: depth) + "1," + String(repeating: "]", count: depth)
+        XCTAssertFalse(JSONFormatter.isValid(input))
+        XCTAssertNil(JSONFormatter.prettify(input))
+        _ = JSONFormatter.isValid(String(repeating: "[", count: depth) + String(repeating: "]", count: depth))
+    }
 }
