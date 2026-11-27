@@ -272,7 +272,8 @@ enum ConnectionResolver {
     static func url(_ text: String) throws(CLIFailure) -> URL {
         var text = text
         if !text.contains("://") { text = "http://" + text }
-        guard var components = URLComponents(string: text), let scheme = components.scheme?.lowercased(), scheme == "http" || scheme == "https", components.host != nil
+        guard var components = URLComponents(string: text), let scheme = components.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            components.host?.isEmpty == false
         else { throw .arguments("--server must be a URL such as http://127.0.0.1:7778/mcp.") }
         if components.path.isEmpty || components.path == "/" { components.path = "/mcp" }
         guard let url = components.url else { throw .arguments("--server must be a URL such as http://127.0.0.1:7778/mcp.") }

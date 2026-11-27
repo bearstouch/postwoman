@@ -67,6 +67,28 @@ final class CLIConnectionResolverTests: XCTestCase {
         }
     }
 
+    func testServerURLsMustHaveAHost() {
+        for rejected in ["", "http://", "http:///mcp", "https://", "http://:7778/mcp", "://", "  "] {
+            XCTAssertEqual(failure(server: rejected, token: "pwm_x"), "--server must be a URL such as http://127.0.0.1:7778/mcp.", "'\(rejected)'")
+            XCTAssertEqual(failure(token: "pwm_x", variables: ["POSTWOMAN_URL": rejected]), "--server must be a URL such as http://127.0.0.1:7778/mcp.", "'\(rejected)'")
+        }
+    }
+
+    func testAnEmptyServerExitsWithAnArgumentError() async {
+        let output = CLIOutputBox()
+        let sent = SentFlag()
+        let environment = makeCLIEnvironment(
+            output: output, variables: ["POSTWOMAN_TOKEN": "pwm_x"],
+            send: { _ in
+                sent.set()
+                throw URLError(.cannotConnectToHost)
+            })
+        let status = await CLI.run(["collection", "list", "--server", ""], environment: environment)
+        XCTAssertEqual(status, 2)
+        XCTAssertTrue(output.stderr.hasPrefix("postwoman: --server must be a URL such as http://127.0.0.1:7778/mcp."), output.stderr)
+        XCTAssertFalse(sent.value, "Nothing is sent to http:///mcp")
+    }
+
     func testAnExplicitTokenIsTriedAtEachAppsEndpoint() throws {
         let files = FakeFiles()
         files.files[try XCTUnwrap(apps[0].preferencesPath)] = try plist(#"{"port":9001}"#)
