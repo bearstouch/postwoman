@@ -45,12 +45,8 @@ struct BodyTabView: View {
             } else if bodyType == .formData || bodyType == .urlEncoded {
                 FormDataEditorView(bodyContent: $bodyContent)
             } else {
-                CodeTextEditor(text: $bodyContent)
-                    .padding(8)
+                CodeTextEditor(text: $bodyContent, font: ResponseTextView.font, highlightsJSON: bodyType == .json)
                     .background(Theme.field)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline))
-                    .padding()
             }
         }
     }

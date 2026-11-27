@@ -9,18 +9,46 @@ import SwiftUI
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
     var font: NSFont = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    /// Colors JSON tokens like the response body does.
+    var highlightsJSON = false
+
+    /// Larger texts are left uncolored so typing stays responsive.
+    private static let highlightLimit = 200_000
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
     }
 
+    /// Recolors the whole text: plain text color, then JSON token colors when enabled.
+    static func applyHighlighting(to textView: NSTextView, enabled: Bool) {
+        guard let storage = textView.textStorage else { return }
+        let fullRange = NSRange(location: 0, length: storage.length)
+        storage.beginEditing()
+        storage.addAttribute(.foregroundColor, value: NSColor.textColor, range: fullRange)
+        if enabled, storage.length <= highlightLimit {
+            JSONHighlighter.colorize(storage)
+        }
+        storage.endEditing()
+        textView.typingAttributes[.foregroundColor] = NSColor.textColor
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
+        let scrollView = NSScrollView()
         scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
 
-        guard let textView = scrollView.documentView as? NSTextView else { return scrollView }
+        // TextKit 1, which the line-number gutter reads.
+        let textView = NSTextView(usingTextLayoutManager: false)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+        scrollView.documentView = textView
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.importsGraphics = false
@@ -28,7 +56,9 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.font = font
         textView.textColor = .textColor
-        textView.textContainerInset = NSSize(width: 0, height: 2)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
 
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
@@ -42,12 +72,20 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.smartInsertDeleteEnabled = false
 
         textView.string = text
+        scrollView.verticalRulerView = LineNumberRulerView(textView: textView, textFont: font)
+        scrollView.hasVerticalRuler = true
+        scrollView.rulersVisible = true
+        (scrollView.verticalRulerView as? LineNumberRulerView)?.textDidChange()
+        context.coordinator.highlightsJSON = highlightsJSON
+        Self.applyHighlighting(to: textView, enabled: highlightsJSON)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.text = $text
         guard let textView = scrollView.documentView as? NSTextView else { return }
+        var needsHighlighting = context.coordinator.highlightsJSON != highlightsJSON
+        context.coordinator.highlightsJSON = highlightsJSON
         if textView.font != font {
             textView.font = font
         }
@@ -71,11 +109,17 @@ struct CodeTextEditor: NSViewRepresentable {
                 let location = min(range.location, length)
                 return NSValue(range: NSRange(location: location, length: min(range.length, length - location)))
             }
+            needsHighlighting = true
+            (scrollView.verticalRulerView as? LineNumberRulerView)?.textDidChange()
+        }
+        if needsHighlighting {
+            Self.applyHighlighting(to: textView, enabled: highlightsJSON)
         }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        var highlightsJSON = false
 
         init(text: Binding<String>) {
             self.text = text
@@ -83,6 +127,8 @@ struct CodeTextEditor: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
+            CodeTextEditor.applyHighlighting(to: textView, enabled: highlightsJSON)
+            (textView.enclosingScrollView?.verticalRulerView as? LineNumberRulerView)?.textDidChange()
             text.wrappedValue = textView.string
         }
     }

@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Splits JSON text into tokens for syntax coloring.
 ///
@@ -63,5 +63,22 @@ enum JSONHighlighter {
             }
         }
         return tokens
+    }
+
+    /// Colors the JSON tokens in `text` with `CodePalette`, leaving other attributes alone.
+    static func colorize(_ text: NSMutableAttributedString) {
+        for token in tokens(in: text.string) {
+            text.addAttribute(.foregroundColor, value: color(for: token.kind), range: token.range)
+        }
+    }
+
+    static func color(for kind: Kind) -> NSColor {
+        switch kind {
+        case .key: return CodePalette.key
+        case .string: return CodePalette.string
+        case .number: return CodePalette.number
+        case .literal: return CodePalette.literal
+        case .punctuation: return CodePalette.punctuation
+        }
     }
 }
