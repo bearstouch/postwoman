@@ -245,7 +245,7 @@ final class RequestTabViewTests: XCTestCase {
 
     func testTheSelectedTabIsExposedAsSelectedNotOnlyByColor() throws {
         let (container, _, request) = try EditorHosting.store()
-        try EditorHosting.eachVariant(RequestTabView(selectedTab: .constant(.headers), request: request), sizes: sizes, container: container) { hosting, variant in
+        EditorHosting.eachVariant(RequestTabView(selectedTab: .constant(.headers), request: request), sizes: sizes, container: container) { hosting, variant in
             let tabs = ViewHosting.elements(in: hosting).filter { $0.role == .button }
             XCTAssertEqual(tabs.filter { $0.isSelected == true }.map(\.label), ["Headers, 2"], variant)
         }

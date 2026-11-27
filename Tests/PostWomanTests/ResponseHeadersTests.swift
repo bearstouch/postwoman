@@ -2,6 +2,7 @@ import XCTest
 
 @testable import PostWoman
 
+@MainActor
 final class ResponseHeadersTests: XCTestCase {
     func testTokenListsSplitIntoItems() {
         XCTAssertEqual(
