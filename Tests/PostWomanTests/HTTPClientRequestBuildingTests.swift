@@ -268,4 +268,21 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
         let sent = try await send(APIRequest(name: "t", url: "https://api.example.com"))
         XCTAssertEqual(sent.timeoutInterval, 30)
     }
+    /// The app and its cURL export put params in the same place, encoded the same way, whatever the URL already has.
+    func testTheCURLExportUsesTheURLTheAppSends() async throws {
+        let cases: [(url: String, params: [(String, String)])] = [
+            ("https://api.test/items", [("limit", "10")]), ("https://api.test/items?", [("limit", "10")]),
+            ("https://api.test/items?page=1", [("limit", "10"), ("q", "a+b&c=d#e")]), ("https://api.test/items#top", [("a b", "é")]),
+            ("https://api.test/items?page=1#top", [("x", "1")]), ("https://api.test/items?q=%20", [("k", "")]), ("https://api.test/items?page=1", [])
+        ]
+        for (url, params) in cases {
+            CapturingURLProtocol.sent.withLock { $0.removeAll() }
+            let request = APIRequest(name: "q", url: url)
+            request.queryParams = params.map { KeyValuePair(key: $0.0, value: $0.1) }
+            let sent = try await send(request).url?.absoluteString
+            let command = CURLGenerator().generate(from: request)
+            let quotedURL = command.components(separatedBy: " ").first { $0.hasPrefix("'https://") }?.trimmingCharacters(in: CharacterSet(charactersIn: "'"))
+            XCTAssertEqual(quotedURL, sent, url)
+        }
+    }
 }
