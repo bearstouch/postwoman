@@ -273,6 +273,12 @@ final class EmptyStateViewTests: XCTestCase {
         }
     }
 
+    func testTheDecorativeArrowsAreNotReadOut() {
+        let hosting = ViewHosting.host(EmptyStateView(), size: CGSize(width: 600, height: 400))
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(hosting.nodes("AXImage").isEmpty, "\(hosting.nodes("AXImage"))")
+    }
+
     func testFitsANarrowPane() {
         let hosting = ViewHosting.host(EmptyStateView(), size: CGSize(width: 320, height: 300))
         defer { ViewHosting.close(hosting) }
