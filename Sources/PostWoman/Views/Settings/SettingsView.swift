@@ -43,7 +43,7 @@ struct SettingsView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8).padding(.top, 20).padding(.bottom, 10)
-            ForEach(SettingsSection.allCases.filter { $0 != .updates || updates != nil }) { section in
+            ForEach(SettingsSection.visible(hasUpdates: updates != nil)) { section in
                 let isSelected = selection == section
                 Button {
                     selection = section
@@ -75,9 +75,11 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
+enum SettingsSection: String, CaseIterable, Identifiable {
     case general, appearance, remoteAgent, updates
     var id: Self { self }
+    /// The sidebar's sections: Updates only in builds with an update feed.
+    static func visible(hasUpdates: Bool) -> [Self] { allCases.filter { $0 != .updates || hasUpdates } }
     var title: String {
         switch self {
         case .general: "General"
@@ -185,13 +187,13 @@ struct GeneralSettingsView: View {
                 } label: {
                     SettingsLabel(
                         "Clear history",
-                        help: history.count == 1 ? "1 entry in History." : "\(history.count) entries in History.")
+                        help: Self.historyCountText(history.count))
                 }
             }
         }
         .settingsFormStyle()
         .onChange(of: historyLimit) { _, limit in
-            let clamped = min(max(limit, HistoryRetention.limitRange.lowerBound), HistoryRetention.limitRange.upperBound)
+            let clamped = Self.clampedHistoryLimit(limit)
             if clamped != limit {
                 historyLimit = clamped
             } else {
@@ -204,13 +206,23 @@ struct GeneralSettingsView: View {
             Text("This deletes every entry in History. Saved requests are not affected.")
         }
     }
+
+    static func historyCountText(_ count: Int) -> String { count == 1 ? "1 entry in History." : "\(count) entries in History." }
+
+    /// A typed limit outside `HistoryRetention.limitRange` is put back in range before anything is trimmed.
+    static func clampedHistoryLimit(_ limit: Int) -> Int { min(max(limit, HistoryRetention.limitRange.lowerBound), HistoryRetention.limitRange.upperBound) }
 }
 
 // MARK: - Appearance
 
 /// Mode, light and dark themes, accent and code text size. Changes apply at once.
 struct AppearanceSettingsView: View {
-    @Bindable private var store = ThemeStore.shared
+    @Bindable private var store: ThemeStore
+
+    /// `store` is the shared one in the app; tests pass a private store.
+    init(store: ThemeStore = .shared) { self.store = store }
+
+    static func fontSizeTitle(_ size: Double) -> String { "Font size: \(Int(size)) pt" }
 
     var body: some View {
         Form {
@@ -238,8 +250,7 @@ struct AppearanceSettingsView: View {
             }
             Section("Code text") {
                 Stepper(value: $store.codeFontSize, in: ThemeStore.codeFontSizeRange, step: 1) {
-                    SettingsLabel(
-                        "Font size: \(Int(store.codeFontSize)) pt", help: "The request body, the response body and their line numbers.")
+                    SettingsLabel(Self.fontSizeTitle(store.codeFontSize), help: "The request body, the response body and their line numbers.")
                 }
                 CodeSample(fontSize: store.codeFontSize)
             }
@@ -263,7 +274,10 @@ struct AppearanceModePicker: View {
         .accessibilityLabel("Application appearance")
     }
 
-    private func themeNames(_ mode: AppearanceMode) -> String {
+    private func themeNames(_ mode: AppearanceMode) -> String { Self.themeNames(mode, light: light, dark: dark) }
+
+    /// The themes a mode uses, under its tile and as its accessibility value.
+    static func themeNames(_ mode: AppearanceMode, light: ThemePalette, dark: ThemePalette) -> String {
         switch mode {
         case .system: "\(light.name) · \(dark.name)"
         case .light: light.name

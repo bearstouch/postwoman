@@ -76,15 +76,27 @@ struct VariableStatusMark: View {
     let texts: [String]
     let resolver: VariableResolver
 
-    var body: some View {
+    /// What the mark shows: nil when the texts use no variables.
+    struct Status: Equatable {
+        let hasMissing: Bool
+        let help: String
+        var symbol: String { hasMissing ? "exclamationmark.triangle.fill" : "curlybraces" }
+    }
+
+    static func status(texts: [String], resolver: VariableResolver) -> Status? {
         let tokens = texts.flatMap { resolver.tokens(in: $0) }
-        if !tokens.isEmpty {
-            let missing = texts.flatMap { resolver.missingVariables(in: $0) }
-            Image(systemName: missing.isEmpty ? "curlybraces" : "exclamationmark.triangle.fill")
+        guard !tokens.isEmpty else { return nil }
+        let missing = texts.flatMap { resolver.missingVariables(in: $0) }
+        return Status(hasMissing: !missing.isEmpty, help: VariableDescription.help(for: tokens, resolver: resolver))
+    }
+
+    var body: some View {
+        if let status = Self.status(texts: texts, resolver: resolver) {
+            Image(systemName: status.symbol)
                 .font(.caption)
-                .foregroundStyle(missing.isEmpty ? Theme.info : Theme.warning)
+                .foregroundStyle(status.hasMissing ? Theme.warning : Theme.info)
                 .frame(width: 16)
-                .help(VariableDescription.help(for: tokens, resolver: resolver))
+                .help(status.help)
         } else {
             Color.clear.frame(width: 16, height: 1)
         }

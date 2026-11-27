@@ -27,8 +27,11 @@ struct UpdateSettingsView: View {
         .onAppear { updates.refresh() }
     }
 
-    private var lastCheckText: String {
-        guard let date = updates.lastCheck else { return "Never checked" }
+    private var lastCheckText: String { Self.lastCheckText(updates.lastCheck) }
+
+    /// The version row's help: when Sparkle last checked, or that it never has.
+    static func lastCheckText(_ date: Date?) -> String {
+        guard let date else { return "Never checked" }
         return "Last checked \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 }
