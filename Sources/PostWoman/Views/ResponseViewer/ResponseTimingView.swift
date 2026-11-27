@@ -127,8 +127,11 @@ struct ResponseTimingView: View {
 
     /// "0.4 ms" below 10 ms, whole milliseconds below a second, then seconds.
     static func format(_ milliseconds: Double) -> String {
-        if milliseconds < 10 { return String(format: "%.1f ms", milliseconds) }
-        if milliseconds < 1000 { return "\(Int(milliseconds.rounded())) ms" }
+        // The unit is chosen from the rounded value, so 9.96 reads "10 ms", not "10.0 ms", and 999.6 "1.00 s", not "1000 ms".
+        let tenths = String(format: "%.1f", milliseconds)
+        if let value = Double(tenths), value < 10 { return tenths + " ms" }
+        let whole = milliseconds.rounded()
+        if whole < 1000 { return "\(Int(whole)) ms" }
         return String(format: "%.2f s", milliseconds / 1000)
     }
 }

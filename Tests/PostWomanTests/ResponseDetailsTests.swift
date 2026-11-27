@@ -141,6 +141,13 @@ final class ResponseFormattingTests: XCTestCase {
         }
     }
 
+    func testTheUnitIsChosenAfterRounding() {
+        let cases: [(Double, String)] = [(9.96, "10 ms"), (9.99, "10 ms"), (999.5, "1.00 s"), (999.6, "1.00 s"), (999.99, "1.00 s")]
+        for (milliseconds, text) in cases {
+            XCTAssertEqual(ResponseTimingView.format(milliseconds), text, "\(milliseconds)")
+        }
+    }
+
     func testHeaderListsNeedThreeTokens() {
         let cases: [(String, [String]?)] = [
             ("GET, POST, PUT, DELETE", ["GET", "POST", "PUT", "DELETE"]), ("a,b,c", ["a", "b", "c"]), (" a ,\tb\t, c ", ["a", "b", "c"]),
