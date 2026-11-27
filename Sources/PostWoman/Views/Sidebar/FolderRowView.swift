@@ -11,6 +11,7 @@ struct FolderRowView: View {
         HStack(spacing: 8) {
             Image(systemName: "folder")
                 .foregroundColor(.secondary)
+                .accessibilityHidden(true)
 
             if isRenaming {
                 TextField("Folder Name", text: $folder.name)
@@ -59,9 +60,10 @@ struct FolderRowView: View {
                 .fixedSize()
             }
 
-            Text("\(folder.requests?.count ?? 0)")
+            Text("\(requestCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+                .accessibilityLabel(requestCount == 1 ? "1 request" : "\(requestCount) requests")
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
@@ -82,6 +84,8 @@ struct FolderRowView: View {
             }
         }
     }
+
+    private var requestCount: Int { folder.requests?.count ?? 0 }
 
     /// "Use Environment" and "Environments…" for this collection.
     @ViewBuilder

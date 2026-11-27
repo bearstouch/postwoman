@@ -234,9 +234,25 @@ final class FolderRowViewTests: XCTestCase {
             let row = try XCTUnwrap(host.rows.first)
             XCTAssertTrue(row.allText.contains("Shop API"))
             XCTAssertTrue(row.allText.contains("Staging"), "The environment is named, not only colored")
-            XCTAssertTrue(row.allText.contains("3"))
+            XCTAssertTrue(row.allText.contains("3 requests"))
             XCTAssertTrue(host.nodes.contains { $0.help == "Requests in Shop API use the Staging environment" })
         }
+    }
+
+    func testReadsAsNameEnvironmentAndCountWithoutItsIcon() throws {
+        let fixture = try SidebarFixture()
+        let one = Folder(name: "Single", sortOrder: 2)
+        fixture.context.insert(one)
+        fixture.context.insert(APIRequest(name: "Ping", folder: one))
+        let host = WindowHost(
+            List {
+                FolderRowView(folder: fixture.shop)
+                FolderRowView(folder: one)
+            }, size: CGSize(width: 300, height: 120), container: fixture.container)
+        defer { host.close() }
+        XCTAssertFalse(host.rows.contains { $0.all.contains { $0.role == "AXImage" } }, "The folder icon is decoration: \(host.rows.map(\.allText))")
+        XCTAssertTrue(host.rows[0].allText.contains("3 requests"), "\(host.rows[0].allText)")
+        XCTAssertTrue(host.rows[1].allText.contains("1 request"), "\(host.rows[1].allText)")
     }
 
     func testShowsNoEnvironmentWhenOnlyDefaultApplies() throws {
@@ -245,7 +261,7 @@ final class FolderRowViewTests: XCTestCase {
         defer { host.close() }
         let row = try XCTUnwrap(host.rows.first)
         XCTAssertTrue(row.allText.contains("Empty"))
-        XCTAssertTrue(row.allText.contains("0"))
+        XCTAssertTrue(row.allText.contains("0 requests"))
         XCTAssertFalse(row.allText.contains("Default"))
     }
 
@@ -817,7 +833,7 @@ final class ContentViewTests: XCTestCase {
             defer { host.close() }
             let sidebar = host.rows.map(\.allText)
             XCTAssertEqual(sidebar.prefix(3).map { $0.first }, ["General", "History", "Collections"], "\(sidebar)")
-            XCTAssertTrue(sidebar[3].contains("Shop API") && sidebar[3].contains("Staging") && sidebar[3].contains("3"), "\(sidebar[3])")
+            XCTAssertTrue(sidebar[3].contains("Shop API") && sidebar[3].contains("Staging") && sidebar[3].contains("3 requests"), "\(sidebar[3])")
             XCTAssertTrue(sidebar[4].contains("Empty"))
             XCTAssertTrue(host.rows.first { $0.allText == ["History"] }?.isSelected ?? false, "History is selected, and says so")
             XCTAssertTrue(host.text.contains("No Request Selected"))
