@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Server-sent events follow the WHATWG rules: lines end with LF, CRLF or CR; `data:` lines are joined with
 /// newlines; `event:` and `id:` name the event; lines starting with `:` are comments; a blank line dispatches
-/// the event. NDJSON gives one event per non-blank line.
+/// the event. NDJSON gives one event per non-blank line. One byte-order mark at the start of the stream is ignored.
 struct StreamEventParser {
     let kind: StreamKind
 
@@ -15,6 +15,9 @@ struct StreamEventParser {
     private var eventName: String?
     private var eventID: String?
     private var count = 0
+    /// How many bytes of a leading UTF-8 byte-order mark (EF BB BF) have arrived; nil once the stream is past its start.
+    private var markBytes: Int? = 0
+    private static let byteOrderMark: [UInt8] = [0xEF, 0xBB, 0xBF]
 
     init(kind: StreamKind) {
         self.kind = kind
@@ -24,6 +27,14 @@ struct StreamEventParser {
     mutating func feed(_ chunk: Data, time: Double) -> [StreamEvent] {
         var events: [StreamEvent] = []
         for byte in chunk {
+            if let matched = markBytes {
+                if byte == Self.byteOrderMark[matched] {
+                    markBytes = matched + 1 == Self.byteOrderMark.count ? nil : matched + 1
+                    continue
+                }
+                markBytes = nil
+                line.append(contentsOf: Self.byteOrderMark[..<matched])  // only the start of a mark: they were text
+            }
             if skipsLineFeed {
                 skipsLineFeed = false
                 if byte == 0x0A { continue }
@@ -41,6 +52,10 @@ struct StreamEventParser {
     /// The last event, when the stream ended without the line end or blank line that would dispatch it.
     mutating func finish(time: Double) -> [StreamEvent] {
         var events: [StreamEvent] = []
+        if let matched = markBytes {
+            markBytes = nil
+            line.append(contentsOf: Self.byteOrderMark[..<matched])
+        }
         if !line.isEmpty, let event = takeLine(time: time) { events.append(event) }
         if kind == .sse, let event = dispatch(time: time) { events.append(event) }
         return events

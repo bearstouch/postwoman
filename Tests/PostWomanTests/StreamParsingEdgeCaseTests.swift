@@ -116,6 +116,34 @@ final class StreamEventParserEdgeCaseTests: XCTestCase {
         XCTAssertEqual(parse([Data([0xFF, 0xFE]) + Data("\n".utf8)], kind: .ndjson).map(\.data), ["\u{FFFD}\u{FFFD}"])
     }
 
+    func testALeadingByteOrderMarkIsIgnored() {
+        XCTAssertEqual(parse(["\u{FEFF}data: x\n\n"]).map(\.data), ["x"])
+        XCTAssertEqual(parse(["\u{FEFF}event: e\ndata: x\n\n"]).first?.event, "e")
+        XCTAssertEqual(parse(["\u{FEFF}{\"a\":1}\n"], kind: .ndjson).map(\.data), [#"{"a":1}"#])
+    }
+
+    func testAByteOrderMarkSplitAcrossChunksIsStillIgnored() {
+        let bytes = Array("\u{FEFF}data: x\n\n".utf8)
+        XCTAssertEqual(parse(bytes.map { Data([$0]) }, kind: .sse).map(\.data), ["x"], "One byte per chunk")
+        for cut in 1...3 {
+            XCTAssertEqual(parse([Data(bytes[..<cut]), Data(bytes[cut...])], kind: .sse).map(\.data), ["x"], "Split at byte \(cut)")
+        }
+    }
+
+    func testOnlyOneByteOrderMarkAtTheStartIsIgnored() {
+        XCTAssertTrue(parse(["\u{FEFF}\u{FEFF}data: x\n\n"]).isEmpty, "A second mark makes the field name unknown.")
+        XCTAssertEqual(parse(["data: \u{FEFF}x\n\ndata: y\n\n"]).map(\.data), ["\u{FEFF}x", "y"], "A mark after the start is data.")
+        XCTAssertEqual(parse(["{\"a\":1}\n\u{FEFF}{\"b\":2}\n"], kind: .ndjson).map(\.data), [#"{"a":1}"#, "\u{FEFF}{\"b\":2}"])
+    }
+
+    func testBytesThatOnlyStartLikeAByteOrderMarkAreKept() {
+        let events = parse([Data([0xEF, 0xBB]), Data("x\n".utf8)], kind: .ndjson)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.data.hasSuffix("x"), true, events.first?.data ?? "")
+        XCTAssertNotEqual(events.first?.data, "x", "The two bytes are not dropped")
+        XCTAssertEqual(parse([Data([0xEF, 0xBB])], kind: .ndjson).count, 1, "Finishing keeps them too")
+    }
+
     func testEmptyChunksAndFinishingTwiceAddNothing() {
         var parser = StreamEventParser(kind: .sse)
         XCTAssertTrue(parser.feed(Data(), time: 0).isEmpty)
@@ -236,6 +264,14 @@ final class StreamTextAssemblerEdgeCaseTests: XCTestCase {
         ])
         XCTAssertEqual(assembler.text, "xy")
         XCTAssertEqual(assembler.firstTextTime, 20)
+    }
+
+    func testAnNDJSONStreamWithAByteOrderMarkKeepsItsFirstDelta() {
+        var parser = StreamEventParser(kind: .ndjson)
+        let body = "\u{FEFF}{\"response\":\"x\",\"done\":false}\n{\"response\":\"y\",\"done\":true}\n"
+        var assembler = StreamTextAssembler()
+        for event in parser.feed(Data(body.utf8), time: 0) + parser.finish(time: 1) { assembler.add(event) }
+        XCTAssertEqual(assembler.text, "xy")
     }
 
     func testMixedProvidersJoinInOrder() {
