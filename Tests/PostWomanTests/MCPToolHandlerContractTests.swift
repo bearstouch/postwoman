@@ -255,6 +255,24 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(after, before, "A refused call leaves the store as it was")
     }
 
+    func testSortOrderIsAcceptedUpToTheSchemaMaximumAndNoFurther() async throws {
+        for tool in ["collection_create", "collection_update"] {
+            let schema = try XCTUnwrap(MCPTools.byName[tool]?.properties["sortOrder"])
+            XCTAssertEqual(schema["maximum"], .number(1_000_000), tool)
+        }
+        let atLimit = try await call("collection_create", ["name": .string("Last"), "sortOrder": .number(1_000_000)])
+        XCTAssertEqual(atLimit["sortOrder"], .number(1_000_000))
+        let before = try await everything()
+        let created = await failure("collection_create", ["name": .string("Over"), "sortOrder": .number(1_000_001)])
+        XCTAssertEqual(created?.code, "INVALID_PARAMS")
+        XCTAssertEqual(created?.details?["field"], .string("sortOrder"))
+        let updated = await failure("collection_update", ["id": id(atLimit), "sortOrder": .number(10_000_000)])
+        XCTAssertEqual(updated?.code, "INVALID_PARAMS")
+        XCTAssertEqual(updated?.details?["field"], .string("sortOrder"))
+        let after = try await everything()
+        XCTAssertEqual(after, before, "A refused sortOrder changes nothing")
+    }
+
     // MARK: - Rollback
 
     func testAFailedUpdateRollsBackFieldsItHadAlreadyChanged() async throws {

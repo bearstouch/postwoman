@@ -606,7 +606,8 @@ struct Arguments {
     func int(_ name: String) throws -> Int? {
         guard let value = value(name) else { return nil }
         guard case .number(let number) = value, number.rounded() == number, number >= 0, number <= 10_000_000 else { throw invalid(name, "a whole number of 0 or more") }
-        let limits: [String: Int] = ["limit": 500, "maxBodyBytes": 900_000, "status": 999]
+        // The schemas' maximums; offset's is the 10,000,000 above.
+        let limits: [String: Int] = ["limit": 500, "maxBodyBytes": 900_000, "status": 999, "sortOrder": 1_000_000]
         if let limit = limits[name], number > Double(limit) { throw invalid(name, "at most \(limit)") }
         if name == "limit", number < 1 { throw invalid(name, "at least 1") }
         return Int(number)
