@@ -302,6 +302,37 @@ final class ExportImportRoundTripTests: XCTestCase {
         XCTAssertEqual(existing.selectedEnvironment?.name, "Staging")
     }
 
+    func testAFileFromANewerFormatIsRejectedWithoutChangingTheStore() throws {
+        _ = makeFullCollection()
+        try context.save()
+        let countsBefore = try storeCounts()
+        let newerShape = Data(#"{"version":"3.1","exportDate":"2026-01-01T00:00:00Z","collections":[]}"#.utf8)
+        for (version, data) in [("99.0", file(version: "99.0")), ("2.0", file(version: "2.0")), ("2", file(version: "2")), ("99999999999999999999.0", file(version: "99999999999999999999.0")), ("3.1", newerShape)] {
+            XCTAssertThrowsError(try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 1), version) { error in
+                XCTAssertEqual(error as? ExportImportService.ImportError, .newerVersion(version), version)
+                XCTAssertTrue(error.localizedDescription.hasPrefix("This file was made by a newer PostWoman (version \(version))"), error.localizedDescription)
+            }
+            XCTAssertEqual(try storeCounts(), countsBefore, "\(version) left the store as it was")
+        }
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    func testAFileWithAnUnreadableVersionIsRejected() throws {
+        for version in ["", "abc", "v1.0", "-1.0", " 1.0"] {
+            XCTAssertThrowsError(try ExportImportService.importFolder(from: file(version: version), context: context, existingFolderCount: 0), version) { error in
+                XCTAssertEqual(error as? ExportImportService.ImportError, .unknownVersion(version), version)
+            }
+        }
+        XCTAssertEqual(try storeCounts(), [0, 0, 0])
+    }
+
+    func testFilesFromThisFormatVersionImport() throws {
+        XCTAssertEqual(ExportImportService.formatVersion, "1.0")
+        for version in ["1.0", "1", "1.9", "1.0.1", "0.9"] {
+            XCTAssertEqual(try ExportImportService.importFolder(from: file(version: version), context: context, existingFolderCount: 0).name, "Hand written", version)
+        }
+    }
+
     func testAValidRequestAfterAMalformedOneStillRejectsTheWholeFile() throws {
         let good = #"{"name":"Good","url":"u","method":"GET","headers":[],"queryParams":[],"bodyType":"None","bodyContent":"","authenticationType":"None"}"#
         let bad = good.replacingOccurrences(of: "\"GET\"", with: "\"TRACE\"")

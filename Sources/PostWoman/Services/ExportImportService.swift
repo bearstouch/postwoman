@@ -9,6 +9,23 @@ enum ExportImportService {
     /// The current export format version.
     static let formatVersion = "1.0"
 
+    /// Why a file was not imported, beyond it not being a collection file at all.
+    enum ImportError: LocalizedError, Equatable {
+        /// The file's format major version is newer than ``formatVersion``: a newer app wrote it, and fields could be lost.
+        case newerVersion(String)
+        /// The file's version is not a dotted number, so which format it uses is unknown.
+        case unknownVersion(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .newerVersion(let version):
+                return "This file was made by a newer PostWoman (version \(version)), so this one can't read all of it. Update PostWoman, then import it again."
+            case .unknownVersion(let version):
+                return "This file's format version (\"\(version)\") isn't one PostWoman knows, so it wasn't imported."
+            }
+        }
+    }
+
     // MARK: - Codable Structures
 
     /// Root container for exported data.
@@ -145,6 +162,9 @@ enum ExportImportService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
+        // The version first, so a newer file is reported as newer even when the rest of it has a shape this app doesn't know.
+        let version = try decoder.decode(VersionHeader.self, from: data).version
+        try checkVersion(version)
         let container = try decoder.decode(ExportContainer.self, from: data)
 
         // Create the folder
@@ -191,6 +211,23 @@ enum ExportImportService {
         }
 
         return folder
+    }
+
+    /// Just the `version` key of a file, read before the rest.
+    private struct VersionHeader: Decodable {
+        let version: String
+    }
+
+    /// Accepts a dotted number whose major part is at most ``formatVersion``'s (every file so far says "1.0").
+    /// Minor versions only add optional fields, which older apps ignore.
+    private static func checkVersion(_ version: String) throws {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else {
+            throw ImportError.unknownVersion(version)
+        }
+        let current = Int(formatVersion.prefix { $0 != "." }) ?? 1
+        // A major part too long for an Int is newer than any this app knows.
+        guard let major = Int(parts[0]), major <= current else { throw ImportError.newerVersion(version) }
     }
 
     /// Shows an open panel and imports a folder from a JSON file.
