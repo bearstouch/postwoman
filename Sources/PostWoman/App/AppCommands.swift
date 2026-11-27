@@ -5,15 +5,13 @@ import SwiftUI
 /// common actions like creating requests, sending requests, and managing environments.
 /// Commands communicate with views using NotificationCenter to maintain loose coupling.
 struct AppCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
-
     /// The command menu structure containing File, Request, and Environment menus.
     /// Each menu item posts notifications that are observed by relevant views.
     var body: some Commands {
-        // Replace the default About menu item with custom About window
+        // The standard About panel, with linked license and copyright credits (as in Trellis)
         CommandGroup(replacing: .appInfo) {
             Button("About PostWoman") {
-                openWindow(id: "about")
+                AboutPanel.show()
             }
         }
 

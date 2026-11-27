@@ -72,14 +72,6 @@ struct PostWomanApp: App {
                 .environment(remoteAgent)
                 .themedScene()
         }
-
-        Window("About PostWoman", id: "about") {
-            AboutView()
-                .themedScene()
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
     }
 }
 
@@ -95,43 +87,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.applicationIconImage = icon
         }
         NSApp.activate()
-    }
-}
-
-/// Custom About view displaying app information with clickable license link.
-struct AboutView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    private let appVersion = AppVersion.current
-    private let licenseURL = URL(string: "https://github.com/bearstouch/postwoman/blob/master/LICENSE")!
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 128, height: 128)
-
-            Text("PostWoman 💅")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("Version \(appVersion)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text("Made with ❤️ by Bearstouch")
-                .font(.body)
-
-            Link("View License on GitHub", destination: licenseURL)
-                .font(.body)
-
-            Button("Close") {
-                dismiss()
-            }
-            .keyboardShortcut(.defaultAction)
-            .padding(.top, 8)
-        }
-        .padding(32)
-        .frame(width: 320)
     }
 }
