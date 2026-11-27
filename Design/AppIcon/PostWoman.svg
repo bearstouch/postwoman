@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<title>PostWoman</title>
+<defs>
+<clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+<filter id="outer" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="16"/></filter>
+<filter id="ds" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#2A0630" flood-opacity="0.38"/></filter>
+<filter id="dss" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#2A0630" flood-opacity="0.30"/></filter>
+<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.32"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="pinkg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8CFA"/><stop offset="1" stop-color="#D62FD6"/></linearGradient>
+<linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6FD"/><stop offset="1" stop-color="#F3D7F0"/></linearGradient>
+<linearGradient id="pl1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9CFB"/><stop offset="1" stop-color="#E23BE0"/></linearGradient>
+<linearGradient id="pl2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C02BC4"/><stop offset="1" stop-color="#8A1497"/></linearGradient>
+</defs>
+<rect x="100" y="114" width="824" height="824" rx="185" fill="#000" fill-opacity="0.35" filter="url(#outer)"/>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="#F7E4F5"/>
+<g clip-path="url(#sq)">
+<rect x="100" y="100" width="824" height="824" fill="url(#bg2)"/>
+<g transform="translate(470 560) rotate(-16)" filter="url(#ds)" opacity="1">
+<rect x="-220" y="-140" width="440" height="280" rx="40" fill="#fff"/>
+<rect x="-180" y="-100" width="96" height="44" rx="14" fill="#3FC27A"/>
+<rect x="-68" y="-89" width="234" height="22" rx="11" fill="#EBDDF0"/>
+<rect x="-180" y="-20" width="140" height="20" rx="10.0" fill="#E4D3EA"/><rect x="-26" y="-20" width="110" height="20" rx="10.0" fill="#EFE3F3"/><rect x="-180" y="20" width="200" height="20" rx="10.0" fill="#EFE3F3"/><rect x="-180" y="60" width="90" height="20" rx="10.0" fill="#E4D3EA"/>
+</g>
+<g transform="translate(480 580) rotate(-7)" filter="url(#ds)" opacity="1">
+<rect x="-220" y="-140" width="440" height="280" rx="40" fill="#fff"/>
+<rect x="-180" y="-100" width="96" height="44" rx="14" fill="#4C8DF6"/>
+<rect x="-68" y="-89" width="234" height="22" rx="11" fill="#EBDDF0"/>
+<rect x="-180" y="-20" width="120" height="20" rx="10.0" fill="#E4D3EA"/><rect x="-46" y="-20" width="140" height="20" rx="10.0" fill="#EFE3F3"/><rect x="-180" y="20" width="180" height="20" rx="10.0" fill="#EFE3F3"/><rect x="-180" y="60" width="100" height="20" rx="10.0" fill="#E4D3EA"/>
+</g>
+<g transform="translate(492 600) rotate(2)" filter="url(#ds)" opacity="1">
+<rect x="-220" y="-140" width="440" height="280" rx="40" fill="#fff"/>
+<rect x="-180" y="-100" width="120" height="44" rx="14" fill="#FF61FB"/>
+<rect x="-44" y="-89" width="210" height="22" rx="11" fill="#EBDDF0"/>
+<rect x="-180" y="-20" width="80" height="20" rx="10.0" fill="#B32BC9"/><rect x="-86" y="-20" width="170" height="20" rx="10.0" fill="#EBDDF0"/><rect x="-150" y="20" width="70" height="20" rx="10.0" fill="#B32BC9"/><rect x="-66" y="20" width="120" height="20" rx="10.0" fill="#FFC2FC"/><rect x="-150" y="60" width="90" height="20" rx="10.0" fill="#B32BC9"/><rect x="-46" y="60" width="100" height="20" rx="10.0" fill="#EBDDF0"/>
+</g>
+<path d="M300 380 Q420 250 600 300" fill="none" stroke="#D88BD8" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 26"/>
+<g filter="url(#ds)" transform="translate(30 -20)">
+<path d="M830 200 L560 330 L655 372 Z" fill="url(#pl1)"/>
+<path d="M830 200 L655 372 L690 470 Z" fill="url(#pl2)"/>
+<path d="M830 200 L690 470 L745 400 L800 430 Z" fill="url(#pl1)"/>
+</g>
+<rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
+</g>
+<rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity="0.22" stroke-width="3"/>
+</svg>
