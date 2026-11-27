@@ -110,6 +110,7 @@ struct MCPHTTPRequestParser: Sendable {
     static let maximumHeaderBytes = 16_384
     static let maximumHeaderCount = 64
     static let maximumBody = 1_048_576
+    private static let headTerminator = Data([0x0D, 0x0A, 0x0D, 0x0A])
     private var buffer = Data()
 
     init() {}
@@ -132,8 +133,11 @@ struct MCPHTTPRequestParser: Sendable {
         // Tolerate blank lines between requests (RFC 9112 §2.2).
         while buffer.endIndex - start >= 2, buffer[start] == 0x0D, buffer[start + 1] == 0x0A { start += 2 }
         let pending = buffer[start...]
-        guard let end = pending.firstRange(of: Data([0x0D, 0x0A, 0x0D, 0x0A])) else {
-            if pending.count > Self.maximumHeaderBytes { throw .headersTooLarge }
+        guard let end = pending.firstRange(of: Self.headTerminator) else {
+            // The bytes may end in the first part of the terminator; only the head before it counts, so the limit
+            // does not depend on how the reads split. At most 3 bytes over the limit are ever buffered.
+            let partial = (1...3).last { pending.count >= $0 && pending.suffix($0).elementsEqual(Self.headTerminator.prefix($0)) } ?? 0
+            if pending.count - partial > Self.maximumHeaderBytes { throw .headersTooLarge }
             return nil
         }
         guard end.lowerBound - start <= Self.maximumHeaderBytes else { throw .headersTooLarge }

@@ -89,6 +89,43 @@ final class MCPHTTPParserBoundaryTests: XCTestCase {
         XCTAssertEqual(status(exact + "a\r\n\r\n"), 431)
     }
 
+    func testAHeadAtTheByteLimitIsAcceptedHoweverTheTerminatorIsSplit() throws {
+        let prefix = "GET /mcp HTTP/1.1\r\nX: "
+        let exact = prefix + String(repeating: "a", count: MCPHTTPRequestParser.maximumHeaderBytes - prefix.utf8.count)
+        for split in [["\r", "\n", "\r", "\n"], ["\r\n", "\r\n"], ["\r\n\r", "\n"], ["\r\n\r\n"]] {
+            var parser = MCPHTTPRequestParser()
+            XCTAssertEqual(try parser.append(Data(exact.utf8)).count, 0)
+            var requests: [MCPHTTPRequest] = []
+            for piece in split { requests += try parser.append(Data(piece.utf8)) }
+            XCTAssertEqual(requests.count, 1, "\(split)")
+            XCTAssertEqual(requests.first?.header("X")?.utf8.count, MCPHTTPRequestParser.maximumHeaderBytes - prefix.utf8.count)
+            XCTAssertFalse(parser.hasPartialRequest)
+        }
+        // A head of one byte under the limit, with its terminator split too.
+        var shorter = MCPHTTPRequestParser()
+        XCTAssertEqual(try shorter.append(Data(exact.dropLast().utf8)).count, 0)
+        XCTAssertEqual(try shorter.append(Data("\r\n\r".utf8)).count, 0)
+        XCTAssertEqual(try shorter.append(Data("\n".utf8)).count, 1)
+    }
+
+    func testAHeadOverTheByteLimitIs431HoweverItIsSplit() {
+        let prefix = "GET /mcp HTTP/1.1\r\nX: "
+        let over = prefix + String(repeating: "a", count: MCPHTTPRequestParser.maximumHeaderBytes + 1 - prefix.utf8.count)
+        for split in [["\r", "\n", "\r", "\n"], ["\r\n", "\r\n"], ["\r\n\r\n"]] {
+            var parser = MCPHTTPRequestParser()
+            var thrown: MCPHTTPParseError?
+            do {
+                _ = try parser.append(Data(over.utf8))
+                for piece in split { _ = try parser.append(Data(piece.utf8)) }
+            } catch { thrown = error }
+            XCTAssertEqual(thrown, .headersTooLarge, "\(split)")
+        }
+        // Unterminated data past the limit is refused at once, so the buffer stays bounded.
+        var parser = MCPHTTPRequestParser()
+        let exact = prefix + String(repeating: "a", count: MCPHTTPRequestParser.maximumHeaderBytes - prefix.utf8.count)
+        XCTAssertThrowsError(try parser.append(Data((exact + "\r\na").utf8))) { XCTAssertEqual($0 as? MCPHTTPParseError, .headersTooLarge) }
+    }
+
     func testAHeadThatNeverEndsIsRefusedOnceItPassesTheLimit() {
         var parser = MCPHTTPRequestParser()
         XCTAssertNoThrow(try parser.append(Data(String(repeating: "a", count: MCPHTTPRequestParser.maximumHeaderBytes).utf8)))
