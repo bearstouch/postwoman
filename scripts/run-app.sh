@@ -51,6 +51,21 @@ cp Design/AppIcon/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
 # Sign the completed development bundle; no certificate or account is required.
 /usr/bin/codesign --force --entitlements release/PostWoman.entitlements --sign - --identifier com.bearstouch.postwoman.dev "$bundle"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"
+# `open` only re-activates an app that is already running, so quit the old dev build first.
+# Ask politely (a normal quit, so SwiftData saves) and never force-kill it.
+if [ "$launch" = true ] && pgrep -f "$destination/Contents/MacOS/PostWoman" >/dev/null; then
+    printf 'Quitting the running PostWoman Dev…\n'
+    /usr/bin/osascript -e 'tell application id "com.bearstouch.postwoman.dev" to quit' >/dev/null
+    waited=0
+    while pgrep -f "$destination/Contents/MacOS/PostWoman" >/dev/null; do
+        if [ "$waited" -ge 150 ]; then
+            printf 'PostWoman Dev did not quit (is a dialog open?). Quit it and run again.\n' >&2
+            exit 1
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+fi
 if [ -e "$destination" ]; then
     mv "$destination" "$previous"
 fi
