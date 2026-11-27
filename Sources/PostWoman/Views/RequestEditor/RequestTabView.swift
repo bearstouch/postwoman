@@ -79,5 +79,6 @@ struct TabButton: View {
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
