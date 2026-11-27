@@ -11,10 +11,39 @@ struct ResponseEventsView: View {
     @State private var searchText = ""
 
     private var filteredEvents: [StreamEvent] {
-        guard !searchText.isEmpty else { return events }
-        return events.filter {
-            $0.data.localizedCaseInsensitiveContains(searchText) || ($0.event?.localizedCaseInsensitiveContains(searchText) ?? false)
-        }
+        Self.filter(events, by: searchText)
+    }
+
+    /// The events whose data or name contains `text` (ignoring case); all of them when `text` is empty.
+    static func filter(_ events: [StreamEvent], by text: String) -> [StreamEvent] {
+        guard !text.isEmpty else { return events }
+        return events.filter { $0.data.localizedCaseInsensitiveContains(text) || ($0.event?.localizedCaseInsensitiveContains(text) ?? false) }
+    }
+
+    /// What shows instead of the list: nil when there are events to list.
+    static func placeholder(events: [StreamEvent], filtered: [StreamEvent], isLive: Bool, searchText: String) -> String? {
+        if events.isEmpty { return isLive ? "Waiting for the first event…" : "No events" }
+        if filtered.isEmpty { return "No events match \u{201C}\(searchText)\u{201D}" }
+        return nil
+    }
+
+    static func countText(_ count: Int) -> String {
+        count == 1 ? "1 event" : "\(count) events"
+    }
+
+    /// The arrival time as an offset from the request's start: "+182 ms".
+    static func timeText(_ event: StreamEvent) -> String {
+        "+" + ResponseTimingView.format(event.time)
+    }
+
+    /// The start of an event's data on one line: newlines shown as ⏎, at most 400 characters.
+    static func preview(_ data: String) -> String {
+        String(data.replacingOccurrences(of: "\n", with: " ⏎ ").prefix(400))
+    }
+
+    /// An event's data in full, pretty-printed when it is JSON.
+    static func detailText(_ event: StreamEvent) -> (text: String, isJSON: Bool) {
+        JSONFormatter.prettify(event.data).map { ($0, true) } ?? (event.data, false)
     }
 
     private var selectedEvent: StreamEvent? {
@@ -26,10 +55,8 @@ struct ResponseEventsView: View {
             toolbar
             HairlineDivider()
 
-            if events.isEmpty {
-                placeholder(isLive ? "Waiting for the first event…" : "No events")
-            } else if filteredEvents.isEmpty {
-                placeholder("No events match \u{201C}\(searchText)\u{201D}")
+            if let message = Self.placeholder(events: events, filtered: filteredEvents, isLive: isLive, searchText: searchText) {
+                placeholder(message)
             } else {
                 VSplitView {
                     list
@@ -72,7 +99,7 @@ struct ResponseEventsView: View {
 
             Spacer()
 
-            Text(events.count == 1 ? "1 event" : "\(events.count) events")
+            Text(Self.countText(events.count))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
@@ -104,20 +131,20 @@ struct ResponseEventsView: View {
     }
 
     private func detail(_ event: StreamEvent) -> some View {
-        let pretty = JSONFormatter.prettify(event.data)
+        let shown = Self.detailText(event)
         return VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Text("Event \(event.index + 1)")
                     .font(.callout.weight(.semibold))
                 if let name = event.event { chip(name) }
                 if let eventID = event.eventID { chip("id \(eventID)") }
-                Text("+" + ResponseTimingView.format(event.time))
+                Text(Self.timeText(event))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
                 ResponseIconButton(systemImage: "doc.on.doc", help: "Copy data") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(pretty ?? event.data, forType: .string)
+                    NSPasteboard.general.setString(shown.text, forType: .string)
                 }
                 ResponseIconButton(systemImage: "xmark", help: "Close") {
                     selection = nil
@@ -128,7 +155,7 @@ struct ResponseEventsView: View {
             .background(Theme.bar)
             HairlineDivider()
             ResponseTextView(
-                text: pretty ?? event.data, highlightsJSON: pretty != nil, wrapsLines: true, font: ThemeStore.shared.codeFont,
+                text: shown.text, highlightsJSON: shown.isJSON, wrapsLines: true, font: ThemeStore.shared.codeFont,
                 themeRevision: ThemeStore.shared.revision)
         }
     }
@@ -161,7 +188,7 @@ private struct EventRowView: View {
             Text("\(event.index + 1)")
                 .foregroundStyle(.secondary)
                 .frame(width: 36, alignment: .trailing)
-            Text("+" + ResponseTimingView.format(event.time))
+            Text(ResponseEventsView.timeText(event))
                 .foregroundStyle(.secondary)
                 .frame(width: 72, alignment: .trailing)
             if let name = event.event {
@@ -171,7 +198,7 @@ private struct EventRowView: View {
                     .frame(maxWidth: 180, alignment: .leading)
                     .fixedSize()
             }
-            Text(event.data.replacingOccurrences(of: "\n", with: " ⏎ ").prefix(400))
+            Text(ResponseEventsView.preview(event.data))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)

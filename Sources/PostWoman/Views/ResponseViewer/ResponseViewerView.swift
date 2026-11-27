@@ -23,6 +23,31 @@ struct ResponseViewerView: View {
             case .timing: return "stopwatch"
             }
         }
+
+        /// Events shows only for a streamed response.
+        static func available(for response: HTTPResponse) -> [ResponseTab] {
+            allCases.filter { $0 != .events || response.stream != nil }
+        }
+
+        /// The tab on screen: the chosen one, or Body when this response has no such tab.
+        static func shown(_ selected: ResponseTab, for response: HTTPResponse) -> ResponseTab {
+            available(for: response).contains(selected) ? selected : .body
+        }
+
+        /// The number in the tab's badge; nil for tabs without one.
+        func count(in response: HTTPResponse) -> Int? {
+            switch self {
+            case .events: return response.stream?.events.count
+            case .headers: return response.headers.count
+            case .cookies: return response.cookies.count
+            case .body, .timing: return nil
+            }
+        }
+
+        /// What VoiceOver reads for the icon-only tab: its name, and its count when it has one.
+        func accessibilityLabel(count: Int?) -> String {
+            count.map { "\(rawValue), \($0)" } ?? rawValue
+        }
     }
 
     var body: some View {
@@ -95,22 +120,16 @@ struct ResponseViewerView: View {
         }
     }
 
-    /// Events shows only for a streamed response.
     private func tabs(for response: HTTPResponse) -> [ResponseTab] {
-        ResponseTab.allCases.filter { $0 != .events || response.stream != nil }
+        ResponseTab.available(for: response)
     }
 
     private func shownTab(for response: HTTPResponse) -> ResponseTab {
-        tabs(for: response).contains(selectedTab) ? selectedTab : .body
+        ResponseTab.shown(selectedTab, for: response)
     }
 
     private func count(for tab: ResponseTab, in response: HTTPResponse) -> Int? {
-        switch tab {
-        case .events: return response.stream?.events.count
-        case .headers: return response.headers.count
-        case .cookies: return response.cookies.count
-        case .body, .timing: return nil
-        }
+        tab.count(in: response)
     }
 
     private func tabButton(_ tab: ResponseTab, count: Int?) -> some View {
@@ -144,7 +163,7 @@ struct ResponseViewerView: View {
         }
         .buttonStyle(.plain)
         .help(tab.rawValue)
-        .accessibilityLabel(count.map { "\(tab.rawValue), \($0)" } ?? tab.rawValue)
+        .accessibilityLabel(tab.accessibilityLabel(count: count))
     }
 }
 
@@ -158,7 +177,7 @@ private struct ResponseSummaryView: View {
                 Circle()
                     .fill(statusColor)
                     .frame(width: 7, height: 7)
-                Text(response.statusCode == 0 ? "Error" : "\(response.statusCode) \(response.statusText)")
+                Text(ResponseSummary.statusTitle(response))
                     .font(.system(.caption, design: .monospaced))
                     .fontWeight(.semibold)
             }
@@ -177,7 +196,7 @@ private struct ResponseSummaryView: View {
                 Rectangle()
                     .fill(Theme.hairline)
                     .frame(width: 1, height: 12)
-                Text(Self.formatBytes(response.bodySize ?? response.body?.utf8.count ?? 0))
+                Text(ResponseSummary.formatBytes(ResponseSummary.bodySize(response)))
                     .help("Body size")
             }
         }
@@ -190,6 +209,19 @@ private struct ResponseSummaryView: View {
     private var statusColor: Color {
         Theme.status(response.statusCode)
     }
+}
+
+/// The words of the response summary and its stream badge, kept apart from the views so they can be tested.
+enum ResponseSummary {
+    /// "200 OK", or "Error" when the request failed before a status arrived.
+    static func statusTitle(_ response: HTTPResponse) -> String {
+        response.statusCode == 0 ? "Error" : "\(response.statusCode) \(response.statusText)"
+    }
+
+    /// The body's size as received, else the UTF-8 size of its text.
+    static func bodySize(_ response: HTTPResponse) -> Int {
+        response.bodySize ?? response.body?.utf8.count ?? 0
+    }
 
     static func formatBytes(_ bytes: Int) -> String {
         if bytes < 1024 {
@@ -198,6 +230,37 @@ private struct ResponseSummaryView: View {
             return String(format: "%.1f KB", Double(bytes) / 1024)
         } else {
             return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+        }
+    }
+
+    /// The badge's words: "Streaming · 3 events", "Stream", "Stopped" or "Interrupted".
+    static func streamTitle(_ stream: StreamInfo) -> String {
+        switch stream.end {
+        case .streaming: return stream.events.count == 1 ? "Streaming · 1 event" : "Streaming · \(stream.events.count) events"
+        case .completed: return "Stream"
+        case .stopped: return "Stopped"
+        case .failed: return "Interrupted"
+        }
+    }
+
+    /// The badge's icon; nil while streaming, which shows a pulsing dot instead.
+    static func streamSymbol(_ stream: StreamInfo) -> String? {
+        switch stream.end {
+        case .streaming: return nil
+        case .completed: return "dot.radiowaves.left.and.right"
+        case .stopped: return "stop.circle"
+        case .failed: return "exclamationmark.triangle"
+        }
+    }
+
+    /// The badge's tooltip: the stream's kind and how it ended.
+    static func streamHelp(_ stream: StreamInfo) -> String {
+        let kind = stream.kind.displayName
+        switch stream.end {
+        case .streaming: return "\(kind), still arriving"
+        case .completed: return "\(kind): \(stream.events.count) events"
+        case .stopped: return "\(kind), stopped before the server ended it"
+        case .failed(let message): return "\(kind), interrupted: \(message)"
         }
     }
 }
@@ -210,28 +273,20 @@ private struct StreamBadge: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            switch stream.end {
-            case .streaming:
+            if let symbol = ResponseSummary.streamSymbol(stream) {
+                Image(systemName: symbol)
+            } else {
                 Circle()
                     .fill(Color.appAccent)
                     .frame(width: 6, height: 6)
                     .opacity(pulses ? 0.25 : 1)
                     .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulses)
                     .onAppear { pulses = true }
-                Text(stream.events.count == 1 ? "Streaming · 1 event" : "Streaming · \(stream.events.count) events")
-            case .completed:
-                Image(systemName: "dot.radiowaves.left.and.right")
-                Text("Stream")
-            case .stopped:
-                Image(systemName: "stop.circle")
-                Text("Stopped")
-            case .failed:
-                Image(systemName: "exclamationmark.triangle")
-                Text("Interrupted")
             }
+            Text(ResponseSummary.streamTitle(stream))
         }
         .foregroundStyle(color)
-        .help(help)
+        .help(ResponseSummary.streamHelp(stream))
     }
 
     private var color: Color {
@@ -239,16 +294,6 @@ private struct StreamBadge: View {
         case .streaming: return Color.appAccent
         case .completed, .stopped: return .secondary
         case .failed: return Theme.warning
-        }
-    }
-
-    private var help: String {
-        let kind = stream.kind.displayName
-        switch stream.end {
-        case .streaming: return "\(kind), still arriving"
-        case .completed: return "\(kind): \(stream.events.count) events"
-        case .stopped: return "\(kind), stopped before the server ended it"
-        case .failed(let message): return "\(kind), interrupted: \(message)"
         }
     }
 }

@@ -22,13 +22,12 @@ struct ResponseBodyView: View {
         case raw = "Raw"
     }
 
-    /// Text only when there is assembled text.
     private var modes: [ViewMode] {
-        ViewMode.allCases.filter { $0 != .text || assembledText != nil }
+        ResponseBodyFormat.modes(hasAssembledText: assembledText != nil)
     }
 
     private var mode: ViewMode {
-        modes.contains(viewMode) ? viewMode : .pretty
+        ResponseBodyFormat.mode(viewMode, among: modes)
     }
 
     var body: some View {
@@ -112,15 +111,67 @@ struct ResponseBodyView: View {
     }
 
     private var displayedBody: String {
+        ResponseBodyFormat.displayed(mode: mode, assembledText: assembledText, formatted: formattedBody, raw: responseBody)
+    }
+
+    private var contentTypeLabel: String? {
+        ResponseBodyFormat.contentTypeLabel(contentType, isJSON: isJSON)
+    }
+
+    private func formatBody() {
+        (formattedBody, isJSON) = ResponseBodyFormat.format(responseBody, contentType: contentType)
+    }
+
+    private func saveToFile() {
+        let panel = NSSavePanel()
+        let fileExtension = ResponseBodyFormat.fileExtension(mode: mode, label: contentTypeLabel)
+        panel.nameFieldStringValue = "response.\(fileExtension)"
+        if let type = UTType(filenameExtension: fileExtension) {
+            panel.allowedContentTypes = [type]
+        }
+        let content = displayedBody
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            try? content.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
+
+/// The body view's decisions: which view modes exist, what each shows, the media type's short name and the
+/// saved file's extension. Plain functions of the response, so they can be tested without a window.
+enum ResponseBodyFormat {
+    typealias ViewMode = ResponseBodyView.ViewMode
+
+    /// Text only when there is assembled text.
+    static func modes(hasAssembledText: Bool) -> [ViewMode] {
+        ViewMode.allCases.filter { $0 != .text || hasAssembledText }
+    }
+
+    /// The chosen mode, or Pretty when it isn't offered.
+    static func mode(_ chosen: ViewMode, among modes: [ViewMode]) -> ViewMode {
+        modes.contains(chosen) ? chosen : .pretty
+    }
+
+    /// The body pretty-printed when it is JSON (by content type or by its first character), else as received.
+    static func format(_ body: String?, contentType: String?) -> (text: String, isJSON: Bool) {
+        guard let body else { return ("", false) }
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let looksLikeJSON = contentType?.contains("json") == true || trimmed.hasPrefix("{") || trimmed.hasPrefix("[")
+        if looksLikeJSON, let pretty = JSONFormatter.prettify(body) { return (pretty, true) }
+        return (body, false)
+    }
+
+    /// What a mode shows: the assembled reply, the formatted body, or the body as received.
+    static func displayed(mode: ViewMode, assembledText: String?, formatted: String, raw: String?) -> String {
         switch mode {
         case .text: return assembledText ?? ""
-        case .pretty: return formattedBody
-        case .raw: return responseBody ?? ""
+        case .pretty: return formatted
+        case .raw: return raw ?? ""
         }
     }
 
     /// A short name for the body's media type: "JSON", "HTML", "XML", "Text"; nil when unknown.
-    private var contentTypeLabel: String? {
+    static func contentTypeLabel(_ contentType: String?, isJSON: Bool) -> String? {
         guard let type = contentType?.split(separator: ";").first?.trimmingCharacters(in: .whitespaces).lowercased(), !type.isEmpty else {
             return isJSON ? "JSON" : nil
         }
@@ -132,40 +183,13 @@ struct ResponseBodyView: View {
         return type
     }
 
-    private func formatBody() {
-        guard let body = responseBody else {
-            formattedBody = ""
-            isJSON = false
-            return
-        }
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        let looksLikeJSON = contentType?.contains("json") == true || trimmed.hasPrefix("{") || trimmed.hasPrefix("[")
-        if looksLikeJSON, let pretty = JSONFormatter.prettify(body) {
-            formattedBody = pretty
-            isJSON = true
-        } else {
-            formattedBody = body
-            isJSON = false
-        }
-    }
-
-    private func saveToFile() {
-        let panel = NSSavePanel()
-        let fileExtension: String
-        switch mode == .text ? "Text" : contentTypeLabel {
-        case "JSON": fileExtension = "json"
-        case "HTML": fileExtension = "html"
-        case "XML": fileExtension = "xml"
-        default: fileExtension = "txt"
-        }
-        panel.nameFieldStringValue = "response.\(fileExtension)"
-        if let type = UTType(filenameExtension: fileExtension) {
-            panel.allowedContentTypes = [type]
-        }
-        let content = displayedBody
-        panel.begin { result in
-            guard result == .OK, let url = panel.url else { return }
-            try? content.write(to: url, atomically: true, encoding: .utf8)
+    /// The saved file's extension: the assembled reply is text; otherwise from the media type's short name.
+    static func fileExtension(mode: ViewMode, label: String?) -> String {
+        switch mode == .text ? "Text" : label {
+        case "JSON": return "json"
+        case "HTML": return "html"
+        case "XML": return "xml"
+        default: return "txt"
         }
     }
 }

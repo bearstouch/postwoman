@@ -40,18 +40,14 @@ struct ResponseTimingView: View {
 
             if let timing {
                 HStack(spacing: 6) {
-                    if let networkProtocol = timing.networkProtocol { chip(networkProtocol) }
-                    if let tlsVersion = timing.tlsVersion { chip(tlsVersion) }
-                    chip(timing.isReusedConnection ? "Reused connection" : "New connection")
-                    if timing.redirectCount > 0 { chip(timing.redirectCount == 1 ? "1 redirect" : "\(timing.redirectCount) redirects") }
-                    if let remoteAddress = timing.remoteAddress { chip(remoteAddress, monospaced: true) }
+                    ForEach(Array(Self.chips(timing).enumerated()), id: \.offset) { _, item in chip(item.title, monospaced: item.monospaced) }
                 }
             }
         }
     }
 
     private func waterfall(_ timing: ResponseTiming) -> some View {
-        let total = max(timing.total, timing.phases.map { $0.start + $0.duration }.max() ?? 0, 1)
+        let total = Self.waterfallSpan(timing)
         return Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
             ForEach(timing.phases) { phase in
                 GridRow {
@@ -84,14 +80,35 @@ struct ResponseTimingView: View {
         }
     }
 
-    private func streamSummary(_ stream: StreamInfo) -> some View {
-        let rows: [(String, String)] = [
+    /// The milliseconds the waterfall's full width stands for: the total, or the end of the last phase when that is later; at least 1.
+    static func waterfallSpan(_ timing: ResponseTiming) -> Double {
+        max(timing.total, timing.phases.map { $0.start + $0.duration }.max() ?? 0, 1)
+    }
+
+    /// The connection's facts under the total: protocol, TLS version, new or reused, redirects, remote address.
+    static func chips(_ timing: ResponseTiming) -> [(title: String, monospaced: Bool)] {
+        [
+            timing.networkProtocol.map { ($0, false) },
+            timing.tlsVersion.map { ($0, false) },
+            (timing.isReusedConnection ? "Reused connection" : "New connection", false),
+            timing.redirectCount > 0 ? (timing.redirectCount == 1 ? "1 redirect" : "\(timing.redirectCount) redirects", false) : nil,
+            timing.remoteAddress.map { ($0, true) }
+        ].compactMap { $0 }
+    }
+
+    /// The rows of a stream's summary; First token only when the events carried reply text. "–" for what hasn't arrived.
+    static func streamRows(_ stream: StreamInfo) -> [(label: String, value: String)] {
+        [
             ("Stream", stream.kind.displayName),
             ("Events", "\(stream.events.count)"),
-            ("First byte", stream.firstByteTime.map(Self.format) ?? "–"),
-            stream.text != nil ? ("First token", stream.firstTextTime.map(Self.format) ?? "–") : nil,
-            ("Last event", stream.events.last.map { Self.format($0.time) } ?? "–")
+            ("First byte", stream.firstByteTime.map(format) ?? "–"),
+            stream.text != nil ? ("First token", stream.firstTextTime.map(format) ?? "–") : nil,
+            ("Last event", stream.events.last.map { format($0.time) } ?? "–")
         ].compactMap { $0 }
+    }
+
+    private func streamSummary(_ stream: StreamInfo) -> some View {
+        let rows = Self.streamRows(stream)
         return Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
             ForEach(rows, id: \.0) { label, value in
                 GridRow {
