@@ -15,7 +15,7 @@ struct PythonGenerator {
         var code = """
             import requests
 
-            url = "\(request.url)"
+            url = \(PythonLiteral.string(request.url))
 
             """
 
@@ -23,7 +23,7 @@ struct PythonGenerator {
         if !enabledParams.isEmpty {
             code += "params = {\n"
             for param in enabledParams {
-                code += "    \"\(param.key)\": \"\(escapeString(param.value))\",\n"
+                code += "    \(PythonLiteral.string(param.key)): \(PythonLiteral.string(param.value)),\n"
             }
             code += "}\n\n"
         }
@@ -38,13 +38,13 @@ struct PythonGenerator {
         if hasHeaders {
             code += "headers = {\n"
             for header in enabledHeaders {
-                code += "    \"\(header.key)\": \"\(escapeString(header.value))\",\n"
+                code += "    \(PythonLiteral.string(header.key)): \(PythonLiteral.string(header.value)),\n"
             }
 
             if request.authenticationType == .bearer,
                 let token = request.authBearerToken, !token.isEmpty
             {
-                code += "    \"Authorization\": \"Bearer \(escapeString(token))\",\n"
+                code += "    \"Authorization\": \(PythonLiteral.string("Bearer " + token)),\n"
             }
 
             code += "}\n\n"
@@ -55,7 +55,7 @@ struct PythonGenerator {
             let username = request.authBasicUsername,
             let password = request.authBasicPassword
         {
-            code += "auth = (\"\(escapeString(username))\", \"\(escapeString(password))\")\n\n"
+            code += "auth = (\(PythonLiteral.string(username)), \(PythonLiteral.string(password)))\n\n"
             authParam = ", auth=auth"
         }
 
@@ -67,11 +67,8 @@ struct PythonGenerator {
 
                     """
                 bodyParam = ", json=json_data"
-            } else if request.bodyType == .formData || request.bodyType == .urlEncoded {
-                code += "data = \"\"\"\(request.bodyContent)\"\"\"\n\n"
-                bodyParam = ", data=data"
             } else {
-                code += "data = \"\"\"\(request.bodyContent)\"\"\"\n\n"
+                code += "data = \(PythonLiteral.string(request.bodyContent, block: true))\n\n"
                 bodyParam = ", data=data"
             }
         }
@@ -95,21 +92,9 @@ struct PythonGenerator {
         return code
     }
 
-    /// Escapes special characters in strings for safe inclusion in Python code.
-    /// Handles backslashes, quotes, and newlines to prevent syntax errors.
-    ///
-    /// - Parameter string: The string to escape
-    /// - Returns: The escaped string safe for Python string literals
-    private func escapeString(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-    }
-
     /// The JSON body as a Python literal (dict, list, str, number, True/False/None), or a triple-quoted string if it isn't valid JSON.
     private func formatPythonDict(_ jsonString: String) -> String {
-        PythonLiteral(json: jsonString)?.text ?? "\"\"\"\(jsonString)\"\"\""
+        PythonLiteral(json: jsonString)?.text ?? PythonLiteral.string(jsonString, block: true)
     }
 }
 

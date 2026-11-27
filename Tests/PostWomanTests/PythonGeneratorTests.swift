@@ -241,4 +241,33 @@ final class PythonGeneratorTests: XCTestCase {
             XCTAssertTrue(text.contains(expected), "\(content): \(text)")
         }
     }
+
+    func testTextBodiesReachPythonByteForByte() throws {
+        let contents = [
+            #"path C:\new\table \\ done"#, #"say """hi""" there"#, "ends with a quote\"", "\"starts with a quote", "crlf\r\nline\ttab\u{1}ctl \u{85}", "a=1&b=\\n2",
+            "<x>\n  naïve 💅\n</x>\n"
+        ]
+        for type in ContentType.allCases where type != .none && type != .json {
+            for content in contents {
+                let captured = try XCTUnwrap(try pythonCall(code(body(content, type))), "\(type.rawValue): \(content.debugDescription) should run")
+                XCTAssertEqual(captured["data"] as? String, content, type.rawValue)
+            }
+        }
+    }
+
+    func testInvalidJSONBodyReachesPythonAsWritten() throws {
+        let content = #"{"a": """x""" \n \"#
+        let captured = try XCTUnwrap(try pythonCall(code(body(content, .json))), "The script should run")
+        XCTAssertEqual(captured["json"] as? String, content)
+    }
+
+    func testURLParamAndHeaderKeysAreEscaped() throws {
+        let request = APIRequest(name: "k", url: #"https://h/a"b\c"#)
+        request.queryParams = [KeyValuePair(key: #"q"uote\"#, value: "1")]
+        request.headers = [KeyValuePair(key: #"X-"K"\"#, value: "2")]
+        let captured = try XCTUnwrap(try pythonCall(code(request)), "The script should run")
+        XCTAssertEqual(captured["url"] as? String, #"https://h/a"b\c"#)
+        XCTAssertEqual(captured["params"] as? [String: String], [#"q"uote\"#: "1"])
+        XCTAssertEqual(captured["headers"] as? [String: String], [#"X-"K"\"#: "2"])
+    }
 }
