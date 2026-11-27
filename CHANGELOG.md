@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Settings → Remote Agent: an MCP server (off by default, like Trellis's Remote Control) that lets agents such as Claude Code, Codex and OpenCode list, create, update and delete collections, requests and history entries, and send requests (recorded in History). It listens on loopback (port 7778) unless you confirm a network address, needs the access token shown in Settings on every request, and offers ready-to-paste client setups. Saved credentials are write-only over MCP. The app now has the sandbox's incoming-connections entitlement
 - Settings → Appearance, in a new Settings window with a sidebar like Trellis's: choose System, Light or Dark; pick a light theme and a dark theme (PostWoman plus ten inspired by Trellis's themes: Modern, GitHub, One, Nord, Tokyo, Rosé Pine, Solarized, Gruvbox, Dracula and Monokai); pick an accent color (pink by default, or the theme's own); and set the code font size
 - Every border, divider and text field outline uses the theme's border color, including the column dividers and the request/response split
 

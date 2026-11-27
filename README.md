@@ -31,6 +31,15 @@ Export requests as code in multiple languages:
 - View past requests grouped by date
 - Restore requests from history
 
+### Remote Agent (MCP)
+- An optional [Model Context Protocol](https://modelcontextprotocol.io) server, so agents such as Claude Code can create, update and delete collections, requests and history, and send requests
+- Off by default. Turn it on in **Settings → Remote Agent**, press Apply, then use **Copy Client Setup** and the access token on the same page:
+
+```sh
+claude mcp add --transport http postwoman http://127.0.0.1:7778/mcp \
+  --header "Authorization: Bearer pwm_…"
+```
+
 ## Installation
 
 ### Download (Recommended)
@@ -111,7 +120,9 @@ Sources/PostWoman/
 │   ├── Sidebar/           # Collection tree and history
 │   ├── RequestEditor/     # URL bar and request tabs
 │   ├── ResponseViewer/    # Response display
-│   └── CodeGeneration/    # Code export
+│   ├── CodeGeneration/    # Code export
+│   └── Settings/          # General, Appearance, Remote Agent
+├── RemoteAgent/           # MCP server: HTTP listener, endpoint, tools
 ├── Services/
 │   ├── HTTPClient.swift   # Networking
 │   ├── AuthenticationHandler.swift

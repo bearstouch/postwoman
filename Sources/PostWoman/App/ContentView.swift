@@ -93,9 +93,9 @@ struct ContentView: View {
         } detail: {
             // Detail column showing request editor or empty state
             Group {
-                if sidebarSelection == .history, let history = selectedHistory {
+                if sidebarSelection == .history, let history = selectedHistory, !history.isDeleted {
                     HistoryDetailView(history: history, onRestore: restore)
-                } else if let request = selectedRequest {
+                } else if let request = selectedRequest, !request.isDeleted {
                     RequestEditorView(request: request)
                 } else {
                     EmptyStateView()
@@ -114,6 +114,13 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewRequest)) { _ in
             createRequest()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .remoteAgentWillDelete)) { notification in
+            // An agent is deleting models over MCP: never keep showing one that is gone.
+            guard let ids = notification.userInfo?["ids"] as? Set<UUID> else { return }
+            if let request = selectedRequest, ids.contains(request.id) { selectedRequest = nil }
+            if let history = selectedHistory, ids.contains(history.id) { selectedHistory = nil }
+            if case .folder(let folderID) = sidebarSelection, ids.contains(folderID) { sidebarSelection = .history }
         }
     }
 

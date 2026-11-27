@@ -54,6 +54,17 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   in menus) and `.textFieldStyle(.themed)` instead of `.roundedBorder`. Split views get `.themedSplitDividers()` on
   a pane inside them, and windows get `ThemedWindowChrome()` (no system titlebar separator).
 
+### Remote Agent (MCP server)
+- `RemoteAgent/` ports Trellis's `TrellisMCP`: `MCPHTTP.swift` (bounded HTTP/1.1 parser), `MCPListener.swift` (TCP, one thread
+  per connection, 16 connections), `MCPEndpoint.swift` (Streamable HTTP at `/mcp`: Origin and loopback Host checks, sessions,
+  bearer token on every request, auth rate limit) and `MCPTools.swift` (the tool catalog: names, closed schemas, annotations).
+- `MCPToolHandler` runs every tool on the main actor against the main SwiftData context, so the windows update at once. Before an
+  agent deletes models it posts `.remoteAgentWillDelete` so `ContentView` drops selections of them. Credentials are write-only.
+- Settings live in UserDefaults (`remoteAgent.settings`); the token (`pwm_…`) is a 0600 file in Application Support.
+  `RemoteAgentController` (environment object of the Settings scene) applies them; it is started in `PostWomanApp.init`.
+- Adding a tool: declare it in `MCPTools.all` and handle it in `MCPToolHandler.run`; `MCPServerTests` checks every tool is dispatched.
+- Listening needs `com.apple.security.network.server` in `release/PostWoman.entitlements`.
+
 ## Architecture
 
 ### Data Models (SwiftData)

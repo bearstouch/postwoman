@@ -19,6 +19,7 @@ struct SettingsView: View {
                     switch selection {
                     case .general: GeneralSettingsView()
                     case .appearance: AppearanceSettingsView()
+                    case .remoteAgent: RemoteAgentSettingsView()
                     }
                 }
                 .padding(.horizontal, 8)
@@ -70,30 +71,34 @@ struct SettingsView: View {
 }
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance
+    case general, appearance, remoteAgent
     var id: Self { self }
     var title: String {
         switch self {
         case .general: "General"
         case .appearance: "Appearance"
+        case .remoteAgent: "Remote Agent"
         }
     }
     var detail: String {
         switch self {
         case .general: "Defaults for new requests."
         case .appearance: "Choose light, dark or the macOS setting, and the themes and accent PostWoman uses."
+        case .remoteAgent: "Let agents such as Claude Code work with your collections, requests and history over MCP."
         }
     }
     var symbol: String {
         switch self {
         case .general: "gearshape.fill"
         case .appearance: "circle.lefthalf.filled"
+        case .remoteAgent: "antenna.radiowaves.left.and.right"
         }
     }
     @MainActor var tileColor: Color {
         switch self {
         case .general: Color(nsColor: .systemGray)
         case .appearance: Color.appAccent
+        case .remoteAgent: Color(nsColor: .systemIndigo)
         }
     }
 }

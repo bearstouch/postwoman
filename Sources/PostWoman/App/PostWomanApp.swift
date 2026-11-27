@@ -8,15 +8,24 @@ import SwiftData
 struct PostWomanApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    /// The shared SwiftData model container that manages all persistent data.
-    /// Contains schemas for all core data models used throughout the application.
-    /// Creates and configures the SwiftData model container with all application schemas.
-    /// This container manages persistent storage for:
+    /// The shared SwiftData model container that manages all persistent data:
     /// - Folders: Hierarchical organization of API requests
     /// - APIRequest: Individual HTTP request configurations
     /// - RequestHistory: Logs of executed requests and responses
-    var sharedModelContainer: ModelContainer = {
-        // Define the data schema containing all SwiftData models
+    let sharedModelContainer: ModelContainer
+
+    /// The MCP server agents use (Settings → Remote Agent). It works on the same main context as the windows.
+    @State private var remoteAgent: RemoteAgentController
+
+    init() {
+        let container = Self.makeModelContainer()
+        sharedModelContainer = container
+        let remoteAgent = RemoteAgentController(container: container)
+        remoteAgent.start()
+        _remoteAgent = State(initialValue: remoteAgent)
+    }
+
+    private static func makeModelContainer() -> ModelContainer {
         let schema = Schema([
             Folder.self,
             APIRequest.self,
@@ -40,7 +49,7 @@ struct PostWomanApp: App {
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     /// The main application scene containing the primary window and settings.
     /// Configures the app with SwiftData model container, custom commands,
@@ -60,6 +69,7 @@ struct PostWomanApp: App {
 
         Settings {
             SettingsView()
+                .environment(remoteAgent)
                 .themedScene()
         }
 
