@@ -35,9 +35,7 @@ struct BodyTabView: View {
             } else if bodyType == .formData || bodyType == .urlEncoded {
                 FormDataEditorView(bodyContent: $bodyContent)
             } else {
-                TextEditor(text: $bodyContent)
-                    .font(.system(.body, design: .monospaced))
-                    .scrollContentBackground(.hidden)
+                CodeTextEditor(text: $bodyContent)
                     .padding(8)
                     .background(Theme.field)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
