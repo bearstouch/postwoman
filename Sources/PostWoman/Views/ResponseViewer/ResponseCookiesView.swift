@@ -63,6 +63,7 @@ private struct CookieRowView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
                 .help("Copy value")
+                .accessibilityLabel("Copy value")
             }
 
             HStack(spacing: 6) {

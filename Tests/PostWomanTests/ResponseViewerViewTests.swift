@@ -822,6 +822,14 @@ final class ResponseCookiesViewTests: XCTestCase {
             XCTAssertFalse(rows.last?.contains("Secure") == true)
         }
     }
+
+    func testEachCookiesCopyButtonIsLabelled() {
+        let hosting = ViewHosting.host(ResponseCookiesView(cookies: [Fixture.sessionCookie]), size: CGSize(width: 700, height: 300))
+        defer { ViewHosting.close(hosting) }
+        let buttons = AX.cellElements(in: hosting).flatMap { $0 }.filter { $0.role == .button }
+        XCTAssertEqual(buttons.map(\.label), ["Copy value"])
+        XCTAssertEqual(buttons.map(\.help), ["Copy value"])
+    }
 }
 
 // MARK: - ResponseTimingView
