@@ -107,6 +107,7 @@ final class MCPToolHandler {
             if let timestamp = try args.date("timestamp") { entry.timestamp = timestamp }
             try Self.apply(args, to: entry)
             context.insert(entry)
+            HistoryRetention.trim(context)
             return Self.json(entry, maxBodyBytes: Self.defaultMaxBodyBytes)
         case "history_update":
             let entry = try history(args.uuid("id")!)
@@ -152,7 +153,10 @@ final class MCPToolHandler {
         do {
             let response = try await client.execute(request: request)
             history.record(response)
-            if record { context.insert(history) }
+            if record {
+                context.insert(history)
+                HistoryRetention.trim(context)
+            }
             var result: [String: JSONValue] = ["response": Self.json(response, maxBodyBytes: maxBody)]
             if record { result["historyId"] = .string(history.id.uuidString) }
             return .object(result)
@@ -160,6 +164,7 @@ final class MCPToolHandler {
             history.record(error)
             if record {
                 context.insert(history)
+                HistoryRetention.trim(context)
                 try? context.save()
             }
             throw MCPToolError(

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// The Settings window: a sidebar of sections and the selected section's pane, laid out like Trellis's.
@@ -82,7 +83,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     }
     var detail: String {
         switch self {
-        case .general: "Defaults for new requests."
+        case .general: "Defaults for new requests, and how much history PostWoman keeps."
         case .appearance: "Choose light, dark or the macOS setting, and the themes and accent PostWoman uses."
         case .remoteAgent: "Let agents such as Claude Code work with your collections, requests and history over MCP."
         }
@@ -130,10 +131,14 @@ extension View {
 
 // MARK: - General
 
-/// Request defaults.
+/// Request defaults and history retention.
 struct GeneralSettingsView: View {
     /// The default timeout in seconds for HTTP requests, persisted across app launches.
     @AppStorage("defaultTimeout") private var defaultTimeout: Double = 30.0
+    @AppStorage(HistoryRetention.limitKey) private var historyLimit = HistoryRetention.defaultLimit
+    @Environment(\.modelContext) private var modelContext
+    @Query private var history: [RequestHistory]
+    @State private var isConfirmingClear = false
 
     var body: some View {
         Form {
@@ -151,8 +156,45 @@ struct GeneralSettingsView: View {
                     SettingsLabel("Default timeout", help: "How long a new request waits for a response before it fails.")
                 }
             }
+            Section("History") {
+                LabeledContent {
+                    HStack(spacing: 6) {
+                        TextField("Maximum entries", value: $historyLimit, format: .number)
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 70)
+                            .textFieldStyle(.themed)
+                        Text("entries").foregroundStyle(.secondary)
+                    }
+                } label: {
+                    SettingsLabel(
+                        "Maximum entries",
+                        help: "PostWoman keeps the most recent requests and deletes older ones. The default is \(HistoryRetention.defaultLimit).")
+                }
+                LabeledContent {
+                    Button("Clear History…", role: .destructive) { isConfirmingClear = true }
+                        .disabled(history.isEmpty)
+                } label: {
+                    SettingsLabel(
+                        "Clear history",
+                        help: history.count == 1 ? "1 entry in History." : "\(history.count) entries in History.")
+                }
+            }
         }
         .settingsFormStyle()
+        .onChange(of: historyLimit) { _, limit in
+            let clamped = min(max(limit, HistoryRetention.limitRange.lowerBound), HistoryRetention.limitRange.upperBound)
+            if clamped != limit {
+                historyLimit = clamped
+            } else {
+                HistoryRetention.trim(modelContext, limit: clamped)
+            }
+        }
+        .confirmationDialog("Clear all history?", isPresented: $isConfirmingClear) {
+            Button("Clear History", role: .destructive) { HistoryRetention.clear(modelContext) }
+        } message: {
+            Text("This deletes every entry in History. Saved requests are not affected.")
+        }
     }
 }
 

@@ -140,6 +140,7 @@ struct RequestEditorView: View {
                 history.record(error)
             }
             modelContext.insert(history)
+            HistoryRetention.trim(modelContext)
         }
     }
 

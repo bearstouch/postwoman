@@ -72,6 +72,7 @@ struct PostWomanApp: App {
                 .environment(remoteAgent)
                 .themedScene()
         }
+        .modelContainer(sharedModelContainer)
     }
 }
 
