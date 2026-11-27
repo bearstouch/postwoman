@@ -97,10 +97,12 @@ struct ManageEnvironmentsView: View {
             HStack(spacing: 4) {
                 Button(action: add) { Image(systemName: "plus").frame(width: 20, height: 18) }
                     .help("New Environment")
+                    .accessibilityLabel("New Environment")
                 Button(action: { if let editing, !editing.isDefault { delete(editing) } }) {
                     Image(systemName: "minus").frame(width: 20, height: 18)
                 }
                 .help("Delete Environment")
+                .accessibilityLabel("Delete Environment")
                 .disabled(editing?.isDefault ?? true)
                 Spacer()
                 Button("Duplicate") { if let editing { duplicate(editing) } }
@@ -125,6 +127,7 @@ struct ManageEnvironmentsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(environment.isDefault ? "\(environment.name) always applies. Other environments override it." : environment.name)
         .accessibilityAddTraits(isEditing ? .isSelected : [])
     }
 
@@ -170,7 +173,6 @@ private struct EnvironmentListRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .help(environment.isDefault ? "\(environment.name) always applies. Other environments override it." : environment.name)
     }
 }
 
@@ -319,6 +321,7 @@ private struct VariableRowView: View {
                 .toggleStyle(.checkbox)
                 .labelsHidden()
                 .frame(width: 18)
+                .accessibilityLabel("Enabled")
             TextField("name", text: $variable.key)
                 .textFieldStyle(.themed)
                 .font(.system(.body, design: .monospaced))
@@ -340,6 +343,7 @@ private struct VariableRowView: View {
                     }
                     .buttonStyle(.borderless)
                     .help(reveals ? "Hide Value" : "Show Value")
+                    .accessibilityLabel(reveals ? "Hide Value" : "Show Value")
                 }
             }
             .frame(maxWidth: .infinity)
@@ -363,10 +367,12 @@ private struct VariableRowView: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(variable.isSecret ? Theme.accent : .secondary)
                 .help(variable.isSecret ? "Secret: masked, kept out of History and exports" : "Make Secret")
+                .accessibilityLabel("Secret")
                 .frame(width: 50)
             Button(action: onDelete) { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                 .buttonStyle(.plain)
                 .help("Remove Variable")
+                .accessibilityLabel("Remove Variable")
                 .frame(width: 18)
         }
         .padding(.horizontal, 10)

@@ -300,6 +300,28 @@ final class ManageEnvironmentsViewTests: XCTestCase {
         XCTAssertFalse(labels.contains { $0.hasPrefix("Production") })
     }
 
+    func testControlsAreNamedForVoiceOverNotByTheirIcons() throws {
+        let fixture = try EnvironmentFixture()
+        let hosting = host(fixture, editing: fixture.staging)
+        defer { ViewHosting.close(hosting) }
+        let elements = ViewHosting.elements(in: hosting)
+        let buttons = ViewHosting.buttonLabels(in: hosting)
+        for expected in ["New Environment", "Delete Environment", "Show Value", "Remove Variable"] {
+            XCTAssertTrue(buttons.contains(expected), "No button named '\(expected)' in \(buttons)")
+        }
+        for icon in ["Add", "Remove", "Show", "Close"] { XCTAssertFalse(buttons.contains(icon), "A button is read as its icon, '\(icon)'") }
+        let checkboxes = elements.filter { $0.role == .checkBox }.map(\.label)
+        XCTAssertEqual(checkboxes, ["Enabled", "Secret"], "The variable's switches say what they switch")
+    }
+
+    func testRowHelpIsSaidOnce() throws {
+        let fixture = try EnvironmentFixture()
+        let hosting = host(fixture)
+        defer { ViewHosting.close(hosting) }
+        let help = ViewHosting.elements(in: hosting).filter { $0.label.hasPrefix("Default,") || $0.label.hasPrefix("Staging,") }.map(\.help)
+        XCTAssertEqual(help, ["Default always applies. Other environments override it.", "Staging"])
+    }
+
     func testIconOnlyButtonsHaveHelp() throws {
         let fixture = try EnvironmentFixture()
         let hosting = host(fixture, editing: fixture.staging)
@@ -368,6 +390,7 @@ final class NewEnvironmentViewTests: XCTestCase {
             XCTAssertTrue(text.contains("No overrides: everything comes from Default"))
             XCTAssertEqual(AXTree.button("Create", in: hosting)?.isEnabled, false)
             XCTAssertEqual(AXTree.button("Cancel", in: hosting)?.isEnabled, true)
+            XCTAssertTrue(ViewHosting.elements(in: hosting).contains { $0.role == .textField && $0.label == "Name" }, "The name field is named")
         }
     }
 }

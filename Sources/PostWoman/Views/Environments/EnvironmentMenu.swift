@@ -80,6 +80,7 @@ struct NewEnvironmentView: View {
                     Text("Name").foregroundStyle(.secondary)
                     TextField("Staging", text: $name)
                         .textFieldStyle(.themed)
+                        .accessibilityLabel("Name")
                         .onSubmit(create)
                 }
                 GridRow(alignment: .top) {
