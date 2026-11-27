@@ -22,7 +22,7 @@ struct EnvironmentMenu: View {
             if let folder {
                 Picker("Environment", selection: selection(folder)) {
                     Text("\(folder.defaultEnvironmentName) only").tag(UUID?.none)
-                    ForEach(folder.overrideEnvironments) { environment in
+                    ForEach(folder.overrideEnvironments, id: \.id) { environment in
                         Text(environment.name).tag(Optional(environment.id))
                     }
                 }
@@ -93,7 +93,7 @@ struct NewEnvironmentView: View {
                         .labelsHidden()
                         if startsAsCopy {
                             Picker("Copy of", selection: $copyFrom) {
-                                ForEach(copySources) { environment in
+                                ForEach(copySources, id: \.id) { environment in
                                     Text(environment.name).tag(Optional(environment.id))
                                 }
                             }

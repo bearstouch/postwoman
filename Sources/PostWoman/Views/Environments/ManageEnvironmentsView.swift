@@ -79,7 +79,7 @@ struct ManageEnvironmentsView: View {
                         .padding(.horizontal, 8)
                         .padding(.top, 12)
                         .padding(.bottom, 2)
-                    ForEach(folder.overrideEnvironments) { environment in
+                    ForEach(folder.overrideEnvironments, id: \.id) { environment in
                         row(for: environment, isSelected: folder.selectedEnvironmentID == environment.id)
                             .contextMenu {
                                 Button("Use for Requests") { folder.selectedEnvironment = environment }
