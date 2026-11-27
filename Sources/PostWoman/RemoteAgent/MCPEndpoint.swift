@@ -246,14 +246,27 @@ actor MCPEndpoint {
 
     static func rpcError(_ status: Int, _ error: MCPRPCError, id: JSONValue?) -> MCPHTTPResponse { .json(status, errorBody(error, id: id)) }
 
-    /// `localhost`, `127.0.0.0/8` or `::1`, with an optional port.
+    /// `localhost`, `127.0.0.0/8` or `::1` (`[::1]` with a port), with an optional port of 1–65535 in ASCII digits.
+    /// Nothing else may follow the address, so `[::1]evil.example` is refused.
     static func isLoopbackHost(_ host: String) -> Bool {
         var name = host.lowercased()
+        var port: Substring?
         if name.hasPrefix("[") {
             guard let close = name.firstIndex(of: "]") else { return false }
+            let rest = name[name.index(after: close)...]
+            if !rest.isEmpty {
+                guard rest.first == ":" else { return false }
+                port = rest.dropFirst()
+            }
             name = String(name[name.index(after: name.startIndex)..<close])
         } else if let colon = name.lastIndex(of: ":"), name.firstIndex(of: ":") == colon {
+            port = name[name.index(after: colon)...]
             name = String(name[..<colon])
+        }
+        if let port {
+            guard !port.isEmpty, port.utf8.count <= 5, port.utf8.allSatisfy({ (0x30...0x39).contains($0) }), let number = Int(port), (1...65_535).contains(number) else {
+                return false
+            }
         }
         if name == "localhost" { return true }
         guard name.allSatisfy({ $0.isHexDigit || $0 == "." || $0 == ":" }) else { return false }

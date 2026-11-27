@@ -135,6 +135,21 @@ final class MCPEndpointSecurityTests: XCTestCase {
         }
     }
 
+    func testOnlyANumericPortMayFollowTheHost() async {
+        for host in ["localhost:1", "localhost:65535", "127.0.0.1:07778", "[::1]:1", "[::1]:65535"] {
+            XCTAssertTrue(MCPEndpoint.isLoopbackHost(host), host)
+        }
+        for host in [
+            "[::1]evil.example", "[::1].evil.example", "[::1]:7778evil", "[::1]:", "[::1]:abc", "[::1]:0", "[::1]:65536", "[::1]:7778:1", "[::1]]",
+            "localhost:", "localhost:abc", "localhost:0", "localhost:65536", "localhost:-1", "localhost:+80", "localhost: 80", "localhost:٧٧", "localhost:99999999999999999999",
+            "127.0.0.1:", "127.0.0.1:x", "127.0.0.1:0"
+        ] {
+            XCTAssertFalse(MCPEndpoint.isLoopbackHost(host), host)
+        }
+        let response = await endpoint().handle(request(body: initialize, host: "[::1]evil.example"))
+        XCTAssertEqual(response.status, 403)
+    }
+
     func testHostIsRequiredAndCheckedOnALoopbackBind() async {
         let endpoint = endpoint()
         let missing = await endpoint.handle(request(body: initialize, host: nil))
