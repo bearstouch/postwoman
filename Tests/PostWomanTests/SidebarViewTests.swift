@@ -265,6 +265,24 @@ final class FolderRowViewTests: XCTestCase {
         XCTAssertFalse(row.allText.contains("Default"))
     }
 
+    func testDeletingACollectionAnnouncesItsRequestsAndEnvironmentsThenDeletesThem() throws {
+        let fixture = try SidebarFixture()
+        let announced = Received<Set<UUID>>()
+        let token = NotificationCenter.default.addObserver(forName: .remoteAgentWillDelete, object: nil, queue: nil) { notification in
+            announced.append(notification.userInfo?["ids"] as? Set<UUID> ?? [])
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+        let expected = Set([fixture.shop.id] + (fixture.shop.requests ?? []).map(\.id) + (fixture.shop.environments ?? []).map(\.id))
+        SidebarActions.deleteFolder(fixture.shop, context: fixture.context)
+        try fixture.context.save()
+        XCTAssertEqual(announced.values, [expected], "Announced once, with every id")
+        XCTAssertEqual(expected.count, 7, "The collection, its 3 requests and its 3 environments")
+        XCTAssertEqual(try fixture.folders().map(\.name), ["Empty"])
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<APIRequest>()), 0)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<CollectionEnvironment>()), 1, "Only Empty's Default is left")
+        XCTAssertEqual(try fixture.history().count, 5, "History is kept")
+    }
+
     func testFollowsRenamesAndEnvironmentChanges() throws {
         let fixture = try SidebarFixture()
         let host = WindowHost(List { FolderRowView(folder: fixture.shop) }, size: CGSize(width: 300, height: 120), container: fixture.container)
@@ -863,6 +881,21 @@ final class ContentViewTests: XCTestCase {
         XCTAssertTrue(host.nodes.contains { $0.role == "AXMenuButton" && $0.label == "Staging" }, "The toolbar names the collection's environment")
     }
 
+    func testDeletingTheSelectedCollectionFromTheSidebarLeavesNothingOfItShown() throws {
+        let fixture = try SidebarFixture()
+        let host = host(fixture)
+        defer { host.close() }
+        post(.createNewRequest)
+        XCTAssertTrue(host.text.contains("Send"), "The new request is open")
+        SidebarActions.deleteFolder(fixture.shop, context: fixture.context)
+        try fixture.context.save()
+        ViewHosting.settle()
+        XCTAssertFalse(host.text.contains("Folder not found"), "\(host.text)")
+        XCTAssertFalse(host.text.contains("Send"), "Its request is no longer in the editor: \(host.text)")
+        XCTAssertTrue(host.text.contains("No Request Selected"))
+        XCTAssertTrue(host.rows.first { $0.allText == ["History"] }?.isSelected ?? false, "Back to History")
+    }
+
     func testNewFolderFromTheMenuAddsAndSelectsIt() throws {
         let fixture = try SidebarFixture()
         let host = host(fixture)
@@ -966,7 +999,7 @@ final class AppCommandsTests: XCTestCase {
 
     func testEnvironmentShortcutsPostTheirIndex() {
         let center = NotificationCenter()
-        let received = Received()
+        let received = Received<Int>()
         let token = center.addObserver(forName: .selectEnvironment, object: nil, queue: nil) { notification in
             received.append(notification.userInfo?["index"] as? Int ?? -1)
         }
@@ -984,8 +1017,8 @@ final class AppCommandsTests: XCTestCase {
     }
 }
 
-/// Indexes a notification observer saw (it is called synchronously, on the posting thread).
-private final class Received: @unchecked Sendable {
-    private(set) var values: [Int] = []
-    func append(_ value: Int) { values.append(value) }
+/// What a notification observer saw (it is called synchronously, on the posting thread).
+private final class Received<Value>: @unchecked Sendable {
+    private(set) var values: [Value] = []
+    func append(_ value: Value) { values.append(value) }
 }

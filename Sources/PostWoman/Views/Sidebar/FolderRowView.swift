@@ -107,7 +107,7 @@ struct FolderRowView: View {
     }
 
     private func deleteFolder() {
-        modelContext.delete(folder)
+        SidebarActions.deleteFolder(folder, context: modelContext)
     }
 
     private func exportFolder() {

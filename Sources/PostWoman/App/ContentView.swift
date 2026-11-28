@@ -152,9 +152,7 @@ struct ContentView: View {
 
     /// Deletes the folders at the specified indices.
     private func deleteFolders(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(folders[index])
-        }
+        for folder in offsets.map({ folders[$0] }) { SidebarActions.deleteFolder(folder, context: modelContext) }
     }
 
     /// Imports a collection from a JSON file.

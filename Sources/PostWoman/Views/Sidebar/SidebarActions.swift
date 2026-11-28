@@ -43,6 +43,14 @@ enum SidebarActions {
         return selected?.id == request.id ? nil : selected
     }
 
+    /// Deletes a collection with its requests and environments. It is announced first (as an agent's deletions are),
+    /// so the window stops showing the collection and the request open from it.
+    static func deleteFolder(_ folder: Folder, context: ModelContext) {
+        let ids = [folder.id] + (folder.requests ?? []).map(\.id) + (folder.environments ?? []).map(\.id)
+        NotificationCenter.default.post(name: .remoteAgentWillDelete, object: nil, userInfo: ["ids": Set(ids)])
+        context.delete(folder)
+    }
+
     /// The entries whose URL or method contains `searchText` (any case); all of them when it is empty.
     static func history(_ history: [RequestHistory], matching searchText: String) -> [RequestHistory] {
         if searchText.isEmpty { return history }
