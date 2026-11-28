@@ -5,8 +5,13 @@ enum RequestTab: String, CaseIterable, Identifiable {
     case headers = "Headers"
     case body = "Body"
     case auth = "Auth"
+    /// The request as it will be sent (`RequestPreview`). Saved requests only: History shows what was sent in its other tabs.
+    case preview = "Preview"
 
     var id: String { rawValue }
+
+    /// The tabs History shows: everything but Preview.
+    static let historyTabs: [RequestTab] = allCases.filter { $0 != .preview }
 
     /// The tab a request or History entry opens on: Body when it has a body and no query parameters (a POST with JSON,
     /// say, where Params would be an empty table), else Params.
@@ -27,6 +32,7 @@ enum RequestTab: String, CaseIterable, Identifiable {
         case .headers: return request.headers.activeCount > 0 ? request.headers.activeCount : nil
         case .body: return request.sendsBody ? 1 : nil
         case .auth: return request.authenticationType != .none ? 1 : nil
+        case .preview: return nil
         }
     }
 }

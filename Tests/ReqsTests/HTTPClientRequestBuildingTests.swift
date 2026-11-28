@@ -187,8 +187,8 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
     }
 
     func testEachBodyTypeSendsItsBytesAndDefaultContentType() async throws {
-        // Form Data is sent as multipart parts (testFormDataIsSentAsMultipartPartsWithTheirBoundary).
-        for type in ContentType.allCases where type != .none && type != .formData {
+        // Form Data is sent as multipart parts (testFormDataIsSentAsMultipartPartsWithTheirBoundary), File as its bytes (FileBodyTests).
+        for type in ContentType.allCases where type != .none && type != .formData && type != .file {
             CapturingURLProtocol.sent.withLock { $0.removeAll() }
             let request = APIRequest(name: "b", url: "https://api.example.com", method: .post)
             request.bodyType = type

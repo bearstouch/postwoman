@@ -27,6 +27,9 @@ enum SidebarActions {
         newRequest.queryParams = request.queryParams
         newRequest.bodyType = request.bodyType
         newRequest.bodyContent = request.bodyContent
+        newRequest.bodyFile = request.bodyFile
+        newRequest.bodyFileName = request.bodyFileName
+        newRequest.bodyFileSize = request.bodyFileSize
         newRequest.authenticationType = request.authenticationType
         newRequest.authBearerToken = request.authBearerToken
         newRequest.authBasicUsername = request.authBasicUsername

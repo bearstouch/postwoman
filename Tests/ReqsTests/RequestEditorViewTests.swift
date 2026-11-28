@@ -270,7 +270,7 @@ final class RequestTabViewTests: XCTestCase {
         let (container, _, request) = try EditorHosting.store()
         request.headers = []
         EditorHosting.eachVariant(RequestTabView(selectedTab: .constant(.params), request: request), sizes: sizes, container: container) { hosting, variant in
-            XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Params, 1", "Headers", "Body, 1", "Auth, 1"], variant)
+            XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Params, 1", "Headers", "Body, 1", "Auth, 1", "Preview"], variant)
         }
     }
 
@@ -348,7 +348,9 @@ final class HeadersTabViewTests: XCTestCase {
 /// The body tab bound to a request, as the editor shows it, so tests can change the body type.
 private struct BodyTabHost: View {
     @Bindable var request: APIRequest
-    var body: some View { BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent, method: request.method) }
+    var body: some View {
+        BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent, bodyFileName: $request.bodyFileName, bodyFileSize: $request.bodyFileSize, attachFile: request.attachFile, method: request.method)
+    }
 }
 
 @MainActor
@@ -797,5 +799,100 @@ final class ContentDetailViewTests: XCTestCase {
         XCTAssertTrue(text.contains("Second"), "\(text)")
         XCTAssertFalse(text.contains { $0.contains("sent as written") }, "The first request's notice isn't shown for the second: \(text)")
         XCTAssertTrue(text.contains("Send a request to see the response here"), "\(text)")
+    }
+}
+
+// MARK: - File body
+
+extension BodyTabViewTests {
+    func testTheFileEditorSaysWhatTheRequestHas() {
+        XCTAssertEqual(BodyEditing.Editor(.file), .file)
+        let empty = FileBodyEditing.State(size: nil, name: nil)
+        XCTAssertEqual(empty, .empty)
+        XCTAssertEqual(empty.title, "No file chosen")
+        XCTAssertEqual(empty.chooseTitle, "Choose File…")
+        XCTAssertFalse(empty.canRemove)
+
+        let attached = FileBodyEditing.State(size: 2048, name: "photo.png")
+        XCTAssertEqual(attached, .attached(name: "photo.png", size: 2048, mimeType: "image/png"))
+        XCTAssertEqual(attached.title, "photo.png")
+        XCTAssertTrue(attached.detail.contains("image/png"), attached.detail)
+        XCTAssertTrue(attached.detail.contains(FileBody.formattedSize(2048)), attached.detail)
+        XCTAssertEqual(attached.chooseTitle, "Choose Another File…")
+        XCTAssertTrue(attached.canRemove)
+
+        let missing = FileBodyEditing.State(size: nil, name: "photo.png")
+        XCTAssertEqual(missing, .missing(name: "photo.png"))
+        XCTAssertEqual(missing.title, "photo.png isn't attached")
+        XCTAssertTrue(missing.detail.contains("Choose the file to send it"), missing.detail)
+        XCTAssertTrue(missing.canRemove, "The leftover name can be cleared")
+        XCTAssertEqual(FileBodyEditing.State(size: nil, name: ""), .empty)
+    }
+
+    func testTheFileEditorShowsTheFileAndItsButtons() throws {
+        let (container, _, request) = try EditorHosting.store()
+        request.bodyType = .file
+        request.attachFile(Data("secret bytes".utf8), name: "photo.png")
+        EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label.contains("photo.png") }, "\(variant): \(elements)")
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Choose Another File…" }, variant)
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Remove" && !$0.help.isEmpty }, variant)
+            XCTAssertFalse(elements.contains { $0.label.contains("secret bytes") || $0.value.contains("secret bytes") }, "The bytes aren't shown (\(variant))")
+            EditorHosting.assertButtonsAreLabelled(in: hosting, variant)
+        }
+    }
+
+    func testARestoredFileSaysItHasToBeChosenAgain() throws {
+        let (container, _, request) = try EditorHosting.store()
+        request.bodyType = .file
+        request.bodyFileName = "photo.png"
+        EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label.contains("photo.png isn't attached") }, "\(variant): \(elements)")
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Choose Another File…" }, variant)
+        }
+        request.bodyFileName = nil
+        EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label.contains("No file chosen") }, "\(variant): \(elements)")
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Choose File…" }, variant)
+            XCTAssertFalse(elements.contains { $0.role == .button && $0.label == "Remove" }, variant)
+        }
+    }
+}
+
+// MARK: - Preview
+
+@MainActor
+final class RequestPreviewViewTests: XCTestCase {
+    /// Tall enough that the text doesn't scroll: a scroller's arrows are unlabelled AppKit buttons, not the view's.
+    private let sizes = [CGSize(width: 420, height: 480), CGSize(width: 1000, height: 500)]
+
+    func testThePreviewShowsTheRequestWithItsSecretsHidden() throws {
+        let (container, folder, request) = try EditorHosting.store()
+        request.authenticationType = .bearer
+        request.authBearerToken = "typed-bearer-token"
+        EditorHosting.eachVariant(RequestPreviewView(request: request, resolver: folder.variableResolver), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            let everything = elements.map { $0.label + " " + $0.value }.joined(separator: "\n")
+            XCTAssertTrue(everything.contains("POST /users?key=%7B%7Btoken%7D%7D&page=1 HTTP/1.1"), "The secret stays a name, encoded as sent (\(variant)): \(elements)")
+            XCTAssertTrue(everything.contains("Host: api.example.com"), variant)
+            XCTAssertFalse(everything.contains("s3cret-token"), "The secret variable stays a name (\(variant))")
+            XCTAssertFalse(everything.contains("typed-bearer-token"), "The bearer token is masked (\(variant))")
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Copy Request" && !$0.help.isEmpty }, variant)
+            XCTAssertTrue(elements.contains { $0.label == RequestPreview.footnote && $0.help == RequestPreview.footnoteDetail }, variant)
+            EditorHosting.assertButtonsAreLabelled(in: hosting, iconOnly: ["Copy Request"], variant)
+        }
+    }
+
+    func testAnUnsendableURLSaysWhatToEnter() throws {
+        let (container, folder, request) = try EditorHosting.store()
+        request.url = ""
+        EditorHosting.eachVariant(RequestPreviewView(request: request, resolver: folder.variableResolver), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label == RequestPreview.invalidURLMessage }, "\(variant): \(elements)")
+            XCTAssertFalse(elements.contains { $0.role == .button && $0.label == "Copy Request" }, "Nothing to copy (\(variant))")
+        }
     }
 }

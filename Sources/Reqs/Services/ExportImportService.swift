@@ -74,6 +74,9 @@ enum ExportImportService {
         let authBasicUsername: String?
         let authBasicPassword: String?
         let authOAuthConfig: OAuthConfig?
+        /// A File body's file name. Exports never carry the file itself (as History doesn't): the file is chosen again after
+        /// an import, so a shared export can't hold a file its author forgot was attached. Absent in older files.
+        var bodyFileName: String? = nil
     }
 
     // MARK: - Export
@@ -115,7 +118,8 @@ enum ExportImportService {
                     authBearerToken: request.authBearerToken,
                     authBasicUsername: request.authBasicUsername,
                     authBasicPassword: request.authBasicPassword,
-                    authOAuthConfig: request.authOAuthConfig
+                    authOAuthConfig: request.authOAuthConfig,
+                    bodyFileName: request.bodyType == .file ? request.bodyFileName : nil
                 )
             }
 
@@ -250,6 +254,7 @@ enum ExportImportService {
             request.queryParams = fresh(exportedRequest.queryParams)
             request.bodyType = exportedRequest.bodyType
             request.bodyContent = exportedRequest.bodyContent
+            request.bodyFileName = exportedRequest.bodyFileName
             request.authenticationType = exportedRequest.authenticationType
             request.authBearerToken = exportedRequest.authBearerToken
             request.authBasicUsername = exportedRequest.authBasicUsername

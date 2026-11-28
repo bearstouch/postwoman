@@ -185,9 +185,14 @@ struct RequestEditorView: View {
         case .headers:
             HeadersTabView(headers: $request.headers, resolver: resolver)
         case .body:
-            BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent, method: request.method)
+            BodyTabView(
+                bodyType: $request.bodyType, bodyContent: $request.bodyContent, bodyFileName: $request.bodyFileName, bodyFileSize: $request.bodyFileSize,
+                attachFile: request.attachFile,
+                method: request.method)
         case .auth:
             AuthTabView(request: request)
+        case .preview:
+            RequestPreviewView(request: request, resolver: resolver)
         }
     }
 

@@ -21,7 +21,7 @@ struct CURLGenerator {
 
         // cURL defaults to GET, but switches to POST for a body, so a GET with a body is spelled out too. HEAD is -I:
         // with -X HEAD, curl waits for a body that never comes.
-        let hasBody = request.sendsBody
+        let hasBody = request.sendsBody || request.generatesFileBody
         if request.method == .head {
             parts.append("-I")
         } else if request.method != .get || hasBody {
@@ -56,7 +56,13 @@ struct CURLGenerator {
         if let authentication { parts.append(authentication) }
 
         // Add request body if present
-        if hasBody, let fields = MultipartForm.fields(of: request) {
+        if hasBody, request.bodyType == .file {
+            // --data-binary sends the file's bytes as they are (-d would drop its line breaks).
+            parts.append("--data-binary @" + quoted(FileBody.codePath(forFileName: request.bodyFileName)))
+            if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil, let mimeType = request.bodyMIMEType {
+                parts.append("-H " + quoted("Content-Type: \(mimeType)"))
+            }
+        } else if hasBody, let fields = MultipartForm.fields(of: request) {
             // --form-string, not -F: a value starting with @ or < is sent as written, not read from a file. curl adds the
             // multipart Content-Type and its boundary.
             for field in fields { parts.append("--form-string " + quoted("\(field.key)=\(field.value)")) }
@@ -66,7 +72,7 @@ struct CURLGenerator {
 
             // Add Content-Type header if not already specified
             if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil,
-                let mimeType = request.bodyType.mimeType
+                let mimeType = request.bodyMIMEType
             {
                 parts.append("-H 'Content-Type: \(mimeType)'")
             }

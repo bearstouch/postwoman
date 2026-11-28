@@ -21,11 +21,14 @@ enum ContentType: String, Codable, CaseIterable, Identifiable {
     /// Plain text body
     case text = "Plain Text"
 
+    /// The bytes of a file the user chose (`APIRequest.bodyFile`), sent as the whole body
+    case file = "File"
+
     /// Unique identifier for use in SwiftUI lists
     var id: String { rawValue }
 
     /// The MIME type string to use in Content-Type headers.
-    /// Returns nil for .none case as no Content-Type header is needed.
+    /// Returns nil for .none case as no Content-Type header is needed. A file is sent as its own type: see `RequestFields.bodyMIMEType`.
     var mimeType: String? {
         switch self {
         case .none: return nil
@@ -34,6 +37,7 @@ enum ContentType: String, Codable, CaseIterable, Identifiable {
         case .urlEncoded: return "application/x-www-form-urlencoded"
         case .xml: return "application/xml"
         case .text: return "text/plain"
+        case .file: return "application/octet-stream"
         }
     }
 }

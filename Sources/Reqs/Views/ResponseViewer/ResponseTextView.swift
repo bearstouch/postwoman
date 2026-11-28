@@ -7,6 +7,9 @@ struct ResponseTextView: NSViewRepresentable {
     let text: String
     var highlightsJSON: Bool
     var wrapsLines: Bool
+    /// The text is an HTTP message (the Preview tab): the request line and header names are colored, and
+    /// `highlightsJSON` applies to the body after the blank line only.
+    var highlightsHTTP = false
     /// Increment to open the find bar.
     var findRequest: Int = 0
     /// When the text changes and the view was scrolled to the end, keep the end in view (a stream arriving).
@@ -22,6 +25,7 @@ struct ResponseTextView: NSViewRepresentable {
     final class Coordinator {
         var text: String?
         var highlightsJSON = false
+        var highlightsHTTP = false
         var wrapsLines: Bool?
         var findRequest = 0
         var font: NSFont?
@@ -74,15 +78,16 @@ struct ResponseTextView: NSViewRepresentable {
         }
 
         let fontChanged = coordinator.font != font
-        if coordinator.text != text || coordinator.highlightsJSON != highlightsJSON || fontChanged {
+        if coordinator.text != text || coordinator.highlightsJSON != highlightsJSON || coordinator.highlightsHTTP != highlightsHTTP || fontChanged {
             let textChanged = coordinator.text != text
             // A stream's text only grows; keep the reader's place instead of jumping back to the top.
             let appended = coordinator.text.map { !$0.isEmpty && text.hasPrefix($0) } ?? false
             let wasAtEnd = scrollView.contentView.bounds.maxY >= textView.frame.height - 24
             coordinator.text = text
             coordinator.highlightsJSON = highlightsJSON
+            coordinator.highlightsHTTP = highlightsHTTP
             coordinator.font = font
-            textView.textStorage?.setAttributedString(Self.attributedText(text, highlightsJSON: highlightsJSON, font: font))
+            textView.textStorage?.setAttributedString(Self.attributedText(text, highlightsJSON: highlightsJSON, highlightsHTTP: highlightsHTTP, font: font))
             if fontChanged { (scrollView.verticalRulerView as? LineNumberRulerView)?.setTextFont(font) }
             if textChanged {
                 if followsEnd, wasAtEnd {
@@ -128,7 +133,7 @@ struct ResponseTextView: NSViewRepresentable {
 
     /// The body as styled text: the code font, JSON colors when asked, and a hanging indent per
     /// line so wrapped lines line up under their own text.
-    static func attributedText(_ text: String, highlightsJSON: Bool, font: NSFont) -> NSAttributedString {
+    static func attributedText(_ text: String, highlightsJSON: Bool, highlightsHTTP: Bool = false, font: NSFont) -> NSAttributedString {
         let result = NSMutableAttributedString(string: text, attributes: [.font: font, .foregroundColor: CodePalette.text])
         let length = result.length
         guard length > 0, length <= styledLimit else { return result }
@@ -147,10 +152,51 @@ struct ResponseTextView: NSViewRepresentable {
             location = NSMaxRange(lineRange)
         }
 
-        if highlightsJSON {
+        if highlightsHTTP {
+            HTTPMessageHighlighter.colorize(result, bodyIsJSON: highlightsJSON)
+        } else if highlightsJSON {
             JSONHighlighter.colorize(result)
         }
         return result
     }
 
+}
+
+/// Colors an HTTP message as the Preview tab shows it: the method, the version, each header name and `{{variables}}`
+/// in the head, and a JSON body when asked.
+enum HTTPMessageHighlighter {
+    static func colorize(_ text: NSMutableAttributedString, bodyIsJSON: Bool) {
+        let string = text.string as NSString
+        let headEnd = string.range(of: "\n\n")
+        let headLength = headEnd.location == NSNotFound ? string.length : headEnd.location
+        var location = 0
+        var isFirstLine = true
+        while location < headLength {
+            let line = string.lineRange(for: NSRange(location: location, length: 0))
+            let content = NSRange(location: line.location, length: min(NSMaxRange(line), headLength) - line.location)
+            let lineText = string.substring(with: content) as NSString
+            if isFirstLine {
+                let space = lineText.range(of: " ")
+                if space.location != NSNotFound { text.addAttribute(.foregroundColor, value: CodePalette.literal, range: NSRange(location: content.location, length: space.location)) }
+                let version = lineText.range(of: " HTTP/", options: .backwards)
+                if version.location != NSNotFound {
+                    text.addAttribute(.foregroundColor, value: CodePalette.punctuation, range: NSRange(location: content.location + version.location + 1, length: lineText.length - version.location - 1))
+                }
+            } else {
+                let colon = lineText.range(of: ":")
+                if colon.location != NSNotFound { text.addAttribute(.foregroundColor, value: CodePalette.key, range: NSRange(location: content.location, length: colon.location)) }
+            }
+            isFirstLine = false
+            location = NSMaxRange(line)
+        }
+        let head = string.substring(to: headLength)  // UTF-16 offsets, as NSRange counts them.
+        for (range, _) in VariableResolver.references(in: head) {
+            text.addAttribute(.foregroundColor, value: CodePalette.variable, range: NSRange(range, in: head))
+        }
+        guard bodyIsJSON, headEnd.location != NSNotFound else { return }
+        let bodyStart = NSMaxRange(headEnd)
+        let body = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: bodyStart, length: string.length - bodyStart)))
+        JSONHighlighter.colorize(body)
+        text.replaceCharacters(in: NSRange(location: bodyStart, length: string.length - bodyStart), with: body)
+    }
 }

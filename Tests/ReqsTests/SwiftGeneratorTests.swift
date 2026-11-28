@@ -205,7 +205,7 @@ final class SwiftGeneratorTests: XCTestCase {
     }
 
     func testOtherBodiesAreEscapedSingleLineLiterals() {
-        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData && type != .file {
             let request = APIRequest(name: "b", url: "https://h", method: .post)
             request.bodyType = type
             request.bodyContent = "say \"hi\"\n\tdone \\"

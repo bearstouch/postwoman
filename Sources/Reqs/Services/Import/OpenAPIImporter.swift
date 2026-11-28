@@ -214,7 +214,9 @@ private struct Spec {
             if mime.lowercased() != "application/xml", !draft.hasHeader("Content-Type") { draft.headers.append(KeyValuePair(key: "Content-Type", value: mime)) }
         default:
             if mime.lowercased() == "application/octet-stream" || mime.hasPrefix("image/") {
-                notes.append(ImportSupport.fileFieldsNote)
+                draft.setFileBody(path: nil, notes: &notes)
+                // With no file name to give a type, the spec's type is the header.
+                if mime.lowercased() != "application/octet-stream", !draft.hasHeader("Content-Type") { draft.headers.append(KeyValuePair(key: "Content-Type", value: mime)) }
                 return
             }
             draft.setBody(mimeType: mime, text: value.scalarText ?? "")

@@ -47,7 +47,8 @@ private func built(_ words: [String], nest: Bool = false) throws -> [String: JSO
 private func sample(_ flag: Flag) -> String {
     let samples = [
         "method": "GET", "body-type": "json", "auth": "bearer", "basic": "u:p", "header": "A: b", "response-header": "A: b", "query": "a=b", "time-ms": "1",
-        "var": "a=b", "secret": "a=b", "color": "green", "body-file": "/tmp/body.json"
+        "var": "a=b", "secret": "a=b", "color": "green", "body-file": "/tmp/body.json",
+        "upload": "/tmp/body.json"
     ]
     return samples[flag.name] ?? (flag.value == "N" ? "1" : "x")
 }
@@ -271,8 +272,8 @@ final class CLIParsingTests: XCTestCase {
 
     func testChoicesAreCheckedAndListed() throws {
         for type in CLICommands.bodyTypes { XCTAssertEqual(try built(["request", "create", "--body-type", type])["bodyType"], .string(type)) }
-        XCTAssertEqual(message(["request", "create", "--body-type", "yaml"]), "--body-type must be one of none, json, form-data, urlencoded, xml, text.")
-        XCTAssertEqual(message(["request", "create", "--body-type", "JSON"]), "--body-type must be one of none, json, form-data, urlencoded, xml, text.", "Case-sensitive")
+        XCTAssertEqual(message(["request", "create", "--body-type", "yaml"]), "--body-type must be one of none, json, form-data, urlencoded, xml, text, file.")
+        XCTAssertEqual(message(["request", "create", "--body-type", "JSON"]), "--body-type must be one of none, json, form-data, urlencoded, xml, text, file.", "Case-sensitive")
         for color in CLICommands.environmentColors { XCTAssertEqual(try built(["environment", "update", "--id", "E", "--color", color])["color"], .string(color)) }
         XCTAssertEqual(message(["environment", "create", "--color", "purple"]), "--color must be one of green, orange, red, blue, pink, gray.")
     }

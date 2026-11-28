@@ -98,7 +98,8 @@ final class ExportImportRoundTripTests: XCTestCase {
             XCTAssertEqual(new.authOAuthConfig, old.authOAuthConfig, old.name)
         }
         XCTAssertEqual(after[2].authOAuthConfig, oauth)
-        XCTAssertEqual(Set(after.map(\.bodyType)), Set(ContentType.allCases))
+        // A File body exports its name only: testAnExportKeepsTheFileNameButNeverTheFile.
+        XCTAssertEqual(Set(after.map(\.bodyType)), Set(ContentType.allCases).subtracting([.file]))
         XCTAssertEqual(Set(after.map(\.authenticationType)), Set(AuthenticationType.allCases))
     }
 
