@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Reqs</title>
+    <link>https://github.com/bearstouch/reqs</link>
+    <description>Reqs updates</description>
+    <language>en</language>
+    <item>
+      <title>Reqs 0.12.0</title>
+      <pubDate>Sat, 28 Nov 2026 16:53:34 GMT</pubDate>
+      <sparkle:version>0.12.0.100</sparkle:version>
+      <sparkle:shortVersionString>0.12.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:fullReleaseNotesLink>https://github.com/bearstouch/reqs/releases/tag/v0.12.0</sparkle:fullReleaseNotesLink>
+      <link>https://github.com/bearstouch/reqs/releases/tag/v0.12.0</link>
+      <sparkle:informationalUpdate>
+        <sparkle:belowVersion>0.11.1</sparkle:belowVersion>
+      </sparkle:informationalUpdate>
+      <enclosure url="https://github.com/bearstouch/reqs/releases/download/v0.12.0/Reqs-0.12.0.dmg" length="4910674" type="application/octet-stream" sparkle:edSignature="NXyLKu4ZxEynvdLpy8RxQ6ykkIzvJwyI0xdHKjc1+NgN0tIKXpPfnV6T/gAETxfVdwJuh/HZpY+Xvty1OkHxBg==" />
+    </item>
+  </channel>
+</rss>
