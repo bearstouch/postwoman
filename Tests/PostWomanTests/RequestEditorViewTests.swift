@@ -638,3 +638,75 @@ final class RequestEditorViewTests: XCTestCase {
         EditorHosting.assertNoSecrets(in: hosting, "after send")
     }
 }
+
+// MARK: - Detail column
+
+/// The window's selection, changed by a test as clicking another request in the list would.
+@MainActor
+@Observable
+private final class SelectionHolder {
+    var selection = ContentSelection()
+}
+
+private struct DetailHost: View {
+    let holder: SelectionHolder
+    var body: some View { ContentDetailView(selection: holder.selection, onRestore: { _ in }) }
+}
+
+@MainActor
+final class ContentDetailViewTests: XCTestCase {
+    private let size = CGSize(width: 1000, height: 700)
+
+    private func form(_ name: String, _ body: String, in folder: Folder, _ container: ModelContainer) -> APIRequest {
+        let request = APIRequest(name: name, url: "https://h/\(name)", method: .post, folder: folder)
+        container.mainContext.insert(request)
+        request.bodyType = .urlEncoded
+        request.bodyContent = body
+        return request
+    }
+
+    private func fieldValues(in hosting: NSView) -> [String] { ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value) }
+
+    func testSelectingAnotherRequestShowsItsOwnFormFieldsNotThePreviousOnes() throws {
+        let (container, folder, _) = try EditorHosting.store()
+        let first = form("First", "alpha=one", in: folder, container)
+        let second = form("Second", "beta=two", in: folder, container)
+        let holder = SelectionHolder()
+        holder.selection.sidebar = .folder(folder.id)
+        holder.selection.request = first
+        let hosting = ViewHosting.host(DetailHost(holder: holder), size: size, container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(EditorHosting.press("Body, 1", in: hosting))
+        XCTAssertTrue(fieldValues(in: hosting).contains("alpha"), "\(fieldValues(in: hosting))")
+
+        holder.selection.request = second
+        ViewHosting.settle()
+        EditorHosting.press("Body, 1", in: hosting)
+        let fields = fieldValues(in: hosting)
+        XCTAssertTrue(fields.contains("beta") && fields.contains("two"), "\(fields)")
+        XCTAssertFalse(fields.contains("alpha") || fields.contains("one"), "The first request's fields are gone: \(fields)")
+        XCTAssertEqual(second.bodyContent, "beta=two")
+        XCTAssertEqual(first.bodyContent, "alpha=one")
+    }
+
+    func testSelectingAnotherRequestDoesNotShowThePreviousOnesSendResult() throws {
+        let (container, folder, first) = try EditorHosting.store()
+        // Nothing listens on port 1, so the send fails at once without leaving the machine.
+        first.url = "http://127.0.0.1:1/{{undefined}}"
+        let second = form("Second", "beta=two", in: folder, container)
+        let holder = SelectionHolder()
+        holder.selection.sidebar = .folder(folder.id)
+        holder.selection.request = first
+        let hosting = ViewHosting.host(DetailHost(holder: holder), size: size, container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(EditorHosting.press("Send", in: hosting))
+        XCTAssertTrue(EditorHosting.wait { ViewHosting.text(in: hosting).contains { $0.contains("{{undefined}}") && $0.contains("sent as written") } })
+
+        holder.selection.request = second
+        ViewHosting.settle()
+        let text = ViewHosting.text(in: hosting)
+        XCTAssertTrue(text.contains("Second"), "\(text)")
+        XCTAssertFalse(text.contains { $0.contains("sent as written") }, "The first request's notice isn't shown for the second: \(text)")
+        XCTAssertTrue(text.contains("Send a request to see the response here"), "\(text)")
+    }
+}

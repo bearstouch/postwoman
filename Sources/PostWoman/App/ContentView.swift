@@ -88,23 +88,15 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 300)
         } detail: {
             // Detail column showing request editor or empty state
-            Group {
-                if selection.sidebar == .history, let history = selection.history, !history.isDeleted {
-                    HistoryDetailView(history: history, onRestore: restore)
-                } else if let request = selection.request, !request.isDeleted {
-                    RequestEditorView(request: request)
-                } else {
-                    EmptyStateView()
+            ContentDetailView(selection: selection, onRestore: restore)
+                .overlay(alignment: .top) { HairlineDivider() }
+                .themedSplitDividers()
+                .frame(minWidth: 600, idealWidth: 600)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        EnvironmentMenu(folder: currentFolder)
+                    }
                 }
-            }
-            .overlay(alignment: .top) { HairlineDivider() }
-            .themedSplitDividers()
-            .frame(minWidth: 600, idealWidth: 600)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    EnvironmentMenu(folder: currentFolder)
-                }
-            }
         }
         .navigationSplitViewStyle(.balanced)
         // The window draws no titlebar separator; each pane's top hairline (above) takes its place.
@@ -164,6 +156,25 @@ struct ContentView: View {
             if let folder = importedFolder {
                 selection.sidebar = .folder(folder.id)
             }
+        }
+    }
+}
+
+/// The detail column: the selected History entry, else the request being edited, else the empty state.
+struct ContentDetailView: View {
+    let selection: ContentSelection
+    let onRestore: (RequestHistory) -> Void
+
+    var body: some View {
+        if selection.sidebar == .history, let history = selection.history, !history.isDeleted {
+            HistoryDetailView(history: history, onRestore: onRestore)
+        } else if let request = selection.request, !request.isDeleted {
+            // One editor per request: without the identity, selecting another request would keep the first one's response,
+            // send in flight, open tab and form fields, and an edit would then write those fields into the other request.
+            RequestEditorView(request: request)
+                .id(request.id)
+        } else {
+            EmptyStateView()
         }
     }
 }
