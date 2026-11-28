@@ -626,9 +626,12 @@ struct Arguments {
         return flag
     }
 
+    static let maxMilliseconds: Double = 86_400_000
+
     func double(_ name: String) throws -> Double? {
         guard let value = value(name) else { return nil }
-        guard case .number(let number) = value, number.isFinite, number >= 0 else { throw invalid(name, "a number of 0 or more") }
+        // Bounded (a day, for the one use: a response time in ms): a huge value rounds to infinity, which no JSON reply can hold.
+        guard case .number(let number) = value, number.isFinite, number >= 0, number <= Self.maxMilliseconds else { throw invalid(name, "a number from 0 to 86400000") }
         return number
     }
 

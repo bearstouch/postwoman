@@ -121,6 +121,18 @@ final class MCPToolHandlerContractTests: XCTestCase {
 
     // MARK: - Invalid params
 
+    // MARK: History fields
+
+    func testAnAbsurdResponseTimeIsRefusedInsteadOfStoredAsAnEntryThatCannotBeRead() async throws {
+        // 1e308 ms rounds to infinity in the reply, which JSON can't hold: the entry was saved and every later read of it failed.
+        let error = await failure("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200), "timeMs": .number(1e308)])])
+        XCTAssertEqual(error?.code, "INVALID_PARAMS")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<RequestHistory>()), 0)
+        let day = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200), "timeMs": .number(86_400_000)])])
+        XCTAssertEqual(day["response"]?["timeMs"], .number(86_400_000))
+        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: day.data))
+    }
+
     // MARK: History retention
 
     func testAnEntryOlderThanEverythingKeptIsRefusedInsteadOfReportedAsCreated() async throws {

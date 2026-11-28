@@ -152,7 +152,7 @@ enum MCPTools {
         "properties": .object([
             "status": integer("HTTP status code.", minimum: 0, maximum: 999), "headers": pairs("Response headers."), "body": string("Response body."),
             "contentType": string("Content-Type of the body."),
-            "timeMs": .object(["type": .string("number"), "minimum": .number(0), "description": .string("Response time in milliseconds.")])
+            "timeMs": .object(["type": .string("number"), "minimum": .number(0), "maximum": .number(86_400_000), "description": .string("Response time in milliseconds.")])
         ])
     ])
 
