@@ -25,7 +25,7 @@ private final class WindowHost {
     let window: NSWindow
 
     init(_ view: some View, size: CGSize = CGSize(width: 900, height: 600), appearance: NSAppearance.Name = .aqua, container: ModelContainer) {
-        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        _ = NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: appearance)
