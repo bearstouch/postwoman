@@ -763,14 +763,34 @@ final class ResponseHeadersViewTests: XCTestCase {
         }
     }
 
-    func testCopyAllIsLabelledAndRowCopyButtonsWaitForTheHover() {
+    func testCopyAllIsLabelledAndEachRowOffersItsCopiesAsActions() {
         let hosting = ViewHosting.host(ResponseHeadersView(headers: headers), size: CGSize(width: 900, height: 400))
         defer { ViewHosting.close(hosting) }
         let buttons = ViewHosting.elements(in: hosting).filter { $0.role == .button }
         // A row's Copy value button is transparent until the pointer is over the row, and SwiftUI leaves it out of the tree until then.
         XCTAssertEqual(buttons.map(\.label), ["Copy all headers"])
+        // So each row offers the copies as actions VoiceOver lists (VO-Command-Space).
+        let actions = Self.customActionNames(in: hosting)
+        let copies: Set = ["Copy Name", "Copy Value", "Copy Header"]
+        XCTAssertGreaterThanOrEqual(actions.filter { copies.isSubset(of: $0) }.count, headers.count, "Every row has the three copies: \(actions)")
         XCTAssertEqual(buttons.first?.help, "Copy all headers")
         XCTAssertEqual(AX.isEnabled("Copy all headers", in: hosting), true)
+    }
+
+    /// The custom action names of every accessibility element under `root` that has some.
+    private static func customActionNames(in root: NSView) -> [[String]] {
+        var found: [[String]] = []
+        func visit(_ object: Any, depth: Int) {
+            guard depth < 60, let node = object as? NSObject else { return }
+            let selector = NSSelectorFromString("accessibilityCustomActions")
+            if node.responds(to: selector), let actions = node.perform(selector)?.takeUnretainedValue() as? [NSAccessibilityCustomAction], !actions.isEmpty {
+                found.append(actions.map(\.name))
+            }
+            let children = NSSelectorFromString("accessibilityChildren")
+            for child in (node.responds(to: children) ? node.perform(children)?.takeUnretainedValue() as? [Any] : nil) ?? [] { visit(child, depth: depth + 1) }
+        }
+        visit(root, depth: 0)
+        return found
     }
 
     func testFilteringShowsTheMatchCount() {

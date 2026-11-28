@@ -175,11 +175,16 @@ struct HeaderRowView: View {
         .background(isHovering ? Theme.chip.opacity(0.6) : Color.clear)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
-        .contextMenu {
-            Button("Copy Name") { copy(header.key) }
-            Button("Copy Value") { copy(header.value) }
-            Button("Copy Header") { copy("\(header.key): \(header.value)") }
-        }
+        .contextMenu { copyButtons }
+        // The row's Copy value button only shows on hover, so VoiceOver gets the same copies as actions on the row.
+        .accessibilityActions { copyButtons }
+    }
+
+    @ViewBuilder
+    private var copyButtons: some View {
+        Button("Copy Name") { copy(header.key) }
+        Button("Copy Value") { copy(header.value) }
+        Button("Copy Header") { copy("\(header.key): \(header.value)") }
     }
 
     @ViewBuilder
