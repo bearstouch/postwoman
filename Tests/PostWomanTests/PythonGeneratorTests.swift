@@ -198,6 +198,19 @@ final class PythonGeneratorTests: XCTestCase {
         }
     }
 
+    func testAJSONBodyOfNullIsSentAsWrittenNotAsNoBody() throws {
+        // requests reads `json=None` as no body at all; the app sends the four characters with the JSON Content-Type.
+        for content in ["null", " null\n"] {
+            let request = body(content, .json)
+            XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)", content)
+            let received = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual(received["data"] as? String, content)
+            XCTAssertEqual((received["headers"] as? [String: String])?["Content-Type"], "application/json")
+            XCTAssertNil(received["json"])
+        }
+        XCTAssertEqual(call(body("[null]", .json)), "response = requests.post(url, json=json_data)", "null inside a value is still None")
+    }
+
     func testARepeatedParamIsSentEachTimeInOrder() throws {
         // A dict keeps only the last value of a repeated key; the app sends ?id=1&tag=a&id=2.
         let request = APIRequest(name: "q", url: "https://h")

@@ -149,6 +149,8 @@ struct PythonLiteral {
         guard let text = reader.value(indent: 0) else { return nil }
         reader.skipWhitespace()
         guard reader.isAtEnd else { return nil }
+        // `json=None` means "no body" to requests, so a body of `null` is sent as written instead.
+        guard text != "None" else { return nil }
         self.text = text
     }
 
