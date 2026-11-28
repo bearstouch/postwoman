@@ -270,7 +270,7 @@ final class RequestTabViewTests: XCTestCase {
         let (container, _, request) = try EditorHosting.store()
         request.headers = []
         EditorHosting.eachVariant(RequestTabView(selectedTab: .constant(.params), request: request), sizes: sizes, container: container) { hosting, variant in
-            XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Params, 1", "Headers", "Body, 1", "Auth, 1"], variant)
+            XCTAssertEqual(ViewHosting.buttonLabels(in: hosting), ["Params, 1", "Headers", "Body, 1", "Auth, 1", "Preview"], variant)
         }
     }
 
@@ -858,6 +858,41 @@ extension BodyTabViewTests {
             XCTAssertTrue(elements.contains { $0.label.contains("No file chosen") }, "\(variant): \(elements)")
             XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Choose File…" }, variant)
             XCTAssertFalse(elements.contains { $0.role == .button && $0.label == "Remove" }, variant)
+        }
+    }
+}
+
+// MARK: - Preview
+
+@MainActor
+final class RequestPreviewViewTests: XCTestCase {
+    /// Tall enough that the text doesn't scroll: a scroller's arrows are unlabelled AppKit buttons, not the view's.
+    private let sizes = [CGSize(width: 420, height: 480), CGSize(width: 1000, height: 500)]
+
+    func testThePreviewShowsTheRequestWithItsSecretsHidden() throws {
+        let (container, folder, request) = try EditorHosting.store()
+        request.authenticationType = .bearer
+        request.authBearerToken = "typed-bearer-token"
+        EditorHosting.eachVariant(RequestPreviewView(request: request, resolver: folder.variableResolver), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            let everything = elements.map { $0.label + " " + $0.value }.joined(separator: "\n")
+            XCTAssertTrue(everything.contains("POST /users?key=%7B%7Btoken%7D%7D&page=1 HTTP/1.1"), "The secret stays a name, encoded as sent (\(variant)): \(elements)")
+            XCTAssertTrue(everything.contains("Host: api.example.com"), variant)
+            XCTAssertFalse(everything.contains("s3cret-token"), "The secret variable stays a name (\(variant))")
+            XCTAssertFalse(everything.contains("typed-bearer-token"), "The bearer token is masked (\(variant))")
+            XCTAssertTrue(elements.contains { $0.role == .button && $0.label == "Copy Request" && !$0.help.isEmpty }, variant)
+            XCTAssertTrue(elements.contains { $0.label == RequestPreview.footnote && $0.help == RequestPreview.footnoteDetail }, variant)
+            EditorHosting.assertButtonsAreLabelled(in: hosting, iconOnly: ["Copy Request"], variant)
+        }
+    }
+
+    func testAnUnsendableURLSaysWhatToEnter() throws {
+        let (container, folder, request) = try EditorHosting.store()
+        request.url = ""
+        EditorHosting.eachVariant(RequestPreviewView(request: request, resolver: folder.variableResolver), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label == RequestPreview.invalidURLMessage }, "\(variant): \(elements)")
+            XCTAssertFalse(elements.contains { $0.role == .button && $0.label == "Copy Request" }, "Nothing to copy (\(variant))")
         }
     }
 }

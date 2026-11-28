@@ -56,14 +56,16 @@ struct RequestSnapshot: RequestFields, Sendable, Equatable {
     var authBasicUsername: String?
     var authBasicPassword: String?
 
-    init(_ request: some RequestFields) {
+    /// `includingFile: false` leaves `bodyFile` nil without reading it: a File body's bytes live beside the store, and
+    /// the Preview, which redraws on every edit, needs only their size.
+    init(_ request: some RequestFields, includingFile: Bool = true) {
         url = request.url
         method = request.method
         headers = request.headers
         queryParams = request.queryParams
         bodyType = request.bodyType
         bodyContent = request.bodyContent
-        bodyFile = request.bodyFile
+        bodyFile = includingFile ? request.bodyFile : nil
         bodyFileName = request.bodyFileName
         authenticationType = request.authenticationType
         authBearerToken = request.authBearerToken

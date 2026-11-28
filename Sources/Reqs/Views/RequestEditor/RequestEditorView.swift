@@ -191,6 +191,8 @@ struct RequestEditorView: View {
                 method: request.method)
         case .auth:
             AuthTabView(request: request)
+        case .preview:
+            RequestPreviewView(request: request, resolver: resolver)
         }
     }
 

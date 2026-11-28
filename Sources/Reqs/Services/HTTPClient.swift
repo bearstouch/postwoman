@@ -103,9 +103,6 @@ final class HTTPClient {
     /// Where the timeout chosen in Settings → General is read from, at each send.
     private let defaults: UserDefaults
 
-    /// Service for applying authentication to requests.
-    private let authHandler = AuthenticationHandler()
-
     /// Creates a new HTTP client with the specified URLSession.
     /// - Parameter session: URLSession to use for requests (defaults to shared session)
     ///   - defaults: Where the timeout chosen in Settings is read from.
@@ -131,7 +128,7 @@ final class HTTPClient {
     /// - Returns: HTTPResponse containing the server's response
     /// - Throws: HTTPClientError if the request cannot be completed
     func execute(request: some RequestFields, onProgress: (@MainActor (HTTPResponse) -> Void)? = nil) async throws -> HTTPResponse {
-        let urlRequest = try makeURLRequest(request)
+        let urlRequest = try Self.urlRequest(for: request, timeout: RequestTimeout.seconds(in: defaults))
         let url = urlRequest.url!
         let startTime = Date()
         func elapsed() -> Double { Date().timeIntervalSince(startTime) * 1000 }
@@ -217,8 +214,10 @@ final class HTTPClient {
     /// What a query name or value may hold unencoded: `.urlQueryAllowed` without the separators `&` `=` `#` and `+`.
     private static let queryValueAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
 
-    /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body.
-    private func makeURLRequest(_ request: some RequestFields) throws -> URLRequest {
+    /// The URLRequest for `request`: its URL with the enabled query parameters, headers, authentication and body. The
+    /// Preview tab shows this same request (`RequestPreview`), with a fixed multipart `boundary` so it doesn't change on
+    /// every redraw.
+    static func urlRequest(for request: some RequestFields, timeout: TimeInterval, boundary: String = MultipartForm.makeBoundary()) throws -> URLRequest {
         // Parse URL and add query parameters
         guard var urlComponents = URLComponents(string: RequestURL.encoded(request.url)) else {
             throw HTTPClientError.invalidURL
@@ -236,7 +235,7 @@ final class HTTPClient {
         // Configure the URL request. The timeout is the longest wait between packets, so long streams are fine.
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
-        urlRequest.timeoutInterval = RequestTimeout.seconds(in: defaults)
+        urlRequest.timeoutInterval = timeout
         // Send means ask the server: never answer from URLCache, which would show a cacheable response again as if fresh.
         urlRequest.cachePolicy = .reloadIgnoringLocalCacheData
 
@@ -246,7 +245,7 @@ final class HTTPClient {
         }
 
         // Apply authentication
-        authHandler.apply(
+        AuthenticationHandler().apply(
             authenticationType: request.authenticationType,
             bearerToken: request.authBearerToken,
             basicUsername: request.authBasicUsername,
@@ -264,7 +263,6 @@ final class HTTPClient {
         } else if request.sendsBody, let fields = MultipartForm.fields(of: request) {
             // No named field, nothing to send (as the generated cURL and Python do).
             guard !fields.isEmpty else { return urlRequest }
-            let boundary = MultipartForm.makeBoundary()
             urlRequest.httpBody = MultipartForm.body(fields, boundary: boundary)
             urlRequest.setValue(MultipartForm.contentType(boundary: boundary), forHTTPHeaderField: "Content-Type")
         } else if request.sendsBody {

@@ -131,6 +131,9 @@ Located in `Sources/Reqs/Services/`:
   `missingBodyFile`, never an empty body). Exports keep only the name too. Set files with `attachFile` (bytes, name and `bodyFileSize`
   together): reads use `bodyFileSize`, so listing requests never loads the bytes. Generated code reads the file by name (`generatesFileBody`). MCP takes `bodyFile {name, base64}` (≤ `MCPTools.maximumBodyFileBytes`, so the call fits `MCPHTTPRequestParser.maximumBody`; History tools
   take none) and reads report name/attached/size/contentType, never bytes; the CLI's `--upload` (`CLICommands.savedRequestFields`) matches
+- **`RequestPreview`** - The Preview tab's text: built from `HTTPClient.urlRequest(for:timeout:boundary:)` (the URLRequest Send uses,
+  with a fixed boundary of the real one's length), resolved with `redactSecrets` and Auth credentials masked. `make(_: APIRequest, resolver:)`
+  never reads `bodyFile` (it redraws on every edit): a File body is described from `bodyFileName`/`bodyFileSize`
 - **`RequestTimeout`** - The timeout from Settings → General (`defaultTimeout`, 1…600 s), read by `HTTPClient` at each send. Requests
   also bypass URLCache (`.reloadIgnoringLocalCacheData`), and response text follows the declared charset (`HTTPClient.text`)
 - **`ExportImportService`** - Reqs's own files: one collection (`ExportContainer`) or all of them (`BackupContainer`, File → Export

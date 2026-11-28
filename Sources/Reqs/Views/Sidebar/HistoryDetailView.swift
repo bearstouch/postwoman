@@ -99,7 +99,7 @@ struct HistoryDetailView: View {
 
     private var tabBar: some View {
         HStack(spacing: 4) {
-            ForEach(RequestTab.allCases) { tab in
+            ForEach(RequestTab.historyTabs) { tab in
                 TabButton(title: tab.rawValue, isSelected: selectedTab == tab, badge: badge(for: tab)) {
                     selectedTab = tab
                 }
@@ -117,6 +117,7 @@ struct HistoryDetailView: View {
         case .headers: return enabledHeaders.isEmpty ? nil : enabledHeaders.count
         case .body: return history.requestBody == nil && history.bodyType != .file ? nil : 1
         case .auth: return authenticationType == .none ? nil : 1
+        case .preview: return nil
         }
     }
 
@@ -147,6 +148,8 @@ struct HistoryDetailView: View {
             }
         case .auth:
             KeyValueListView(pairs: authPairs, emptyMessage: "No authentication")
+        case .preview:
+            EmptyView()
         }
     }
 
