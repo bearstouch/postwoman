@@ -31,7 +31,7 @@ final class CLIContractTests: XCTestCase {
             for nest in toolName == "request_execute" ? [false, true] : [false] {
                 var arguments = ToolArguments()
                 // request execute takes request fields only without --id (an ad-hoc request).
-                let fieldNames = Set(CLICommands.requestFields.map(\.name))
+                let fieldNames = Set(CLICommands.savedRequestFields.map(\.name))
                 let skipFields = toolName == "request_execute" && !nest
                 for flag in command.flags where flag.name != "body-file" && !(nest && flag.name == "id") && !(skipFields && fieldNames.contains(flag.name)) {
                     let value = flag.value == nil ? "" : samples[flag.name] ?? (flag.value == "N" ? "1" : "x")

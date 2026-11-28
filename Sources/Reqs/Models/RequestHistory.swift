@@ -33,6 +33,10 @@ final class RequestHistory {
     /// The content type of the request body.
     var bodyType: ContentType?
 
+    /// For a File body, the name and size of the file sent. History never keeps a file's bytes, so `requestBody` is nil.
+    var requestBodyFileName: String?
+    var requestBodyFileSize: Int?
+
     /// The authentication the request used, and its credentials.
     var authenticationType: AuthenticationType?
     var authBearerToken: String?
@@ -106,15 +110,20 @@ final class RequestHistory {
     ///   - environmentName: The environment it was resolved with.
     convenience init(request: APIRequest, sent: RequestSnapshot? = nil, environmentName: String? = nil) {
         let sent = sent ?? RequestSnapshot(request)
+        let sendsFile = sent.sendsBody && sent.bodyType == .file
         self.init(
             url: sent.url,
             method: sent.method,
             requestHeaders: sent.headers,
-            requestBody: sent.sendsBody ? sent.bodyContent : nil
+            requestBody: sent.sendsBody && !sendsFile ? sent.bodyContent : nil
         )
         requestName = request.name
         queryParams = sent.queryParams
         bodyType = sent.sendsBody ? sent.bodyType : ContentType.none
+        if sendsFile {
+            requestBodyFileName = sent.bodyFileName
+            requestBodyFileSize = sent.bodyFile?.count
+        }
         authenticationType = sent.authenticationType
         authBearerToken = sent.authBearerToken
         authBasicUsername = sent.authBasicUsername
@@ -165,7 +174,7 @@ final class RequestHistory {
         )
     }
 
-    /// A new, unsaved request with this entry's request configuration.
+    /// A new, unsaved request with this entry's request configuration. A File body comes back as its name only.
     func makeRequest(folder: Folder? = nil) -> APIRequest {
         let request = APIRequest(name: requestName ?? url, url: url, method: method, folder: folder)
         request.headers = requestHeaders
@@ -173,6 +182,10 @@ final class RequestHistory {
         if let requestBody {
             request.bodyContent = requestBody
             request.bodyType = bodyType ?? .json
+        } else if bodyType == .file {
+            // Only the name: the Body tab asks for the file again, and sending fails until it is chosen.
+            request.bodyType = .file
+            request.bodyFileName = requestBodyFileName
         }
         request.authenticationType = authenticationType ?? .none
         request.authBearerToken = authBearerToken

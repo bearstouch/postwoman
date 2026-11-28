@@ -109,7 +109,7 @@ enum HoppscotchImporter {
             draft.bodyType = .urlEncoded
             draft.body = ImportSupport.formBody(keyValueLines(convert(value["body"]?.scalarText ?? "")))
         case "application/octet-stream":
-            notes.append(ImportSupport.fileFieldsNote)
+            draft.setFileBody(path: nil, notes: &notes)
         default:
             draft.setBody(mimeType: contentType, text: convert(value["body"]?.scalarText ?? ""))
         }

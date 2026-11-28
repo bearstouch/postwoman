@@ -125,6 +125,12 @@ Located in `Sources/Reqs/Services/`:
 - **`AuthenticationHandler`** - Applies Bearer/Basic auth to requests (`basicCredentials`: a field never typed counts as empty; the generators use it too)
 - **`MultipartForm`** - A Form Data body keeps its fields as `a=1&b=2` (`FormBody`); sending and generated code turn them into
   `multipart/form-data` parts, unless the request sets its own Content-Type (then the body goes as written)
+- **`FileBody`** - A File body (`ContentType.file`): `APIRequest.bodyFile` (bytes, `@Attribute(.externalStorage)`, ≤ `FileBody.maximumSize`)
+  and `bodyFileName` (its extension gives the Content-Type: `RequestFields.bodyMIMEType`). The request keeps its own copy; History keeps only
+  `requestBodyFileName`/`requestBodyFileSize`, never bytes, so a restored request has a name and no file (`lacksBodyFile`: sending throws
+  `missingBodyFile`, never an empty body). Exports keep only the name too. Set files with `attachFile` (bytes, name and `bodyFileSize`
+  together): reads use `bodyFileSize`, so listing requests never loads the bytes. Generated code reads the file by name (`generatesFileBody`). MCP takes `bodyFile {name, base64}` (≤ `MCPTools.maximumBodyFileBytes`, so the call fits `MCPHTTPRequestParser.maximumBody`; History tools
+  take none) and reads report name/attached/size/contentType, never bytes; the CLI's `--upload` (`CLICommands.savedRequestFields`) matches
 - **`RequestTimeout`** - The timeout from Settings → General (`defaultTimeout`, 1…600 s), read by `HTTPClient` at each send. Requests
   also bypass URLCache (`.reloadIgnoringLocalCacheData`), and response text follows the declared charset (`HTTPClient.text`)
 - **`ExportImportService`** - Reqs's own files: one collection (`ExportContainer`) or all of them (`BackupContainer`, File → Export

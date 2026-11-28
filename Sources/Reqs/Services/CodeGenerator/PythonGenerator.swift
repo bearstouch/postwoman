@@ -36,12 +36,12 @@ struct PythonGenerator {
 
         // A JSON body that doesn't parse can't go as `json=` (requests would send it as a JSON string), so it is sent as
         // written with `data=`, and the Content-Type the app would send.
-        let hasBody = request.sendsBody
+        let hasBody = request.sendsBody || request.generatesFileBody
         let jsonLiteral = hasBody && request.bodyType == .json ? PythonLiteral(json: request.bodyContent) : nil
         // requests writes the Content-Type itself for `json=` and for multipart `files=`, and none for a `data=` string, so
         // that one gets the body type's, as the app sends it.
         let sendsData = hasBody && jsonLiteral == nil && MultipartForm.fields(of: request) == nil
-        let addedContentType = sendsData && !enabledHeaders.contains { $0.key.lowercased() == "content-type" } ? request.bodyType.mimeType : nil
+        let addedContentType = sendsData && !enabledHeaders.contains { $0.key.lowercased() == "content-type" } ? request.bodyMIMEType : nil
         if addedContentType != nil { hasHeaders = true }
 
         if request.authenticationType == .bearer, let token = request.authBearerToken, !token.isEmpty {
@@ -82,6 +82,9 @@ struct PythonGenerator {
             for field in fields { code += "    (\(PythonLiteral.string(field.key)), (None, \(PythonLiteral.string(field.value)))),\n" }
             code += "]\n\n"
             bodyParam = ", files=files"
+        } else if hasBody, request.bodyType == .file {
+            code += "with open(\(PythonLiteral.string(FileBody.codePath(forFileName: request.bodyFileName))), \"rb\") as file:\n    data = file.read()\n\n"
+            bodyParam = ", data=data"
         } else if hasBody {
             if let jsonLiteral {
                 code += """

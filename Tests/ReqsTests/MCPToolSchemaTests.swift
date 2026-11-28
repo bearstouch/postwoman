@@ -51,7 +51,7 @@ final class MCPToolSchemaTests: XCTestCase {
 
     func testEnumsListWhatTheHandlerAccepts() {
         XCTAssertEqual(MCPTools.methods, HTTPMethod.allCases.map(\.rawValue))
-        XCTAssertEqual(MCPTools.bodyTypes, ["none", "json", "form-data", "urlencoded", "xml", "text"])
+        XCTAssertEqual(MCPTools.bodyTypes, ["none", "json", "form-data", "urlencoded", "xml", "text", "file"])
         XCTAssertEqual(MCPTools.authTypes, ["none", "bearer", "basic", "oauth2"])
         XCTAssertEqual(strings(MCPTools.requestFields["method"]?["enum"]), MCPTools.methods)
         XCTAssertEqual(strings(MCPTools.requestFields["auth"]?["properties"]?["type"]?["enum"]), MCPTools.authTypes)

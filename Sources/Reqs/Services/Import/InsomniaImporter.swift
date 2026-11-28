@@ -129,7 +129,7 @@ enum InsomniaImporter {
             draft.body = variables(in: value["text"]?.scalarText ?? "")
             notes.append("GraphQL bodies were imported as JSON ({\"query\": …, \"variables\": …}).")
         case "application/octet-stream":
-            notes.append(ImportSupport.fileFieldsNote)
+            draft.setFileBody(path: value["fileName"]?.scalarText, notes: &notes)
         default:
             draft.setBody(mimeType: mime, text: variables(in: value["text"]?.scalarText ?? ""))
         }

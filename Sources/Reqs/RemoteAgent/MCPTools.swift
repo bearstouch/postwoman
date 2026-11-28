@@ -135,14 +135,31 @@ enum MCPTools {
         "queryParams": pairs("Query parameters, added to the URL when sent. Replaces the whole list."),
         "bodyType": enumeration(
             bodyTypes,
-            "Body type; it sets Content-Type unless a header does. none sends no body, and neither do GET and HEAD. form-data takes its fields as a=1&b=2 (percent-encoded) and sends them as multipart parts, unless a Content-Type header is set: then the body goes as written."
+            "Body type; it sets Content-Type unless a header does. none sends no body, and neither do GET and HEAD. form-data takes its fields as a=1&b=2 (percent-encoded) and sends them as multipart parts, unless a Content-Type header is set: then the body goes as written. file sends bodyFile's bytes, with the Content-Type its name's extension gives."
         ),
         "body": string("Raw body text."),
+        "bodyFile": bodyFile,
         "auth": auth(oauth2: true)
     ]
 
-    /// The request fields of a History entry: `requestFields` without auth.oauth2.
-    static let historyRequestFields: [String: JSONValue] = requestFields.merging(["auth": auth(oauth2: false)]) { $1 }
+    /// The largest file request_create/update/execute take: its base64 (4/3 of it) and the rest of the call must fit the
+    /// MCP request body limit (`MCPHTTP.maximumBody`, 1 MiB). Larger files are chosen in the app.
+    static let maximumBodyFileBytes = 700_000
+
+    /// A File body's file: its name and bytes. Reads report its name, size and type, never the bytes.
+    private static let bodyFile: JSONValue = .object([
+        "type": .string("object"), "additionalProperties": .bool(false), "required": .array([.string("name"), .string("base64")]),
+        "description": .string(
+            "A file to send as the whole body. Sets bodyType to file unless bodyType is passed. At most \(maximumBodyFileBytes) bytes (the call is limited to 1 MiB); choose larger files in the app. Reads return bodyFile {name, attached, size, contentType}, never the bytes; attached is false for a request restored from History, which keeps only the name."
+        ),
+        "properties": .object([
+            "name": string("File name; its extension sets the Content-Type unless a header does."), "base64": string("The file's bytes, base64-encoded.")
+        ])
+    ])
+
+    /// The request fields of a History entry: `requestFields` without auth.oauth2, and without bodyFile (History keeps
+    /// a file's name and size, never its bytes).
+    static let historyRequestFields: [String: JSONValue] = requestFields.merging(["auth": auth(oauth2: false)]) { $1 }.filter { $0.key != "bodyFile" }
 
     private static let maxBodyBytes = integer("Longest response body to return, in UTF-8 bytes; longer bodies are cut and bodyTruncated is true. Default 262144.", minimum: 0, maximum: 900_000)
 
@@ -296,7 +313,7 @@ enum MCPTools {
 
 /// Body types as the tools name them.
 enum MCPBodyType: String, CaseIterable {
-    case none, json, formData = "form-data", urlEncoded = "urlencoded", xml, text
+    case none, json, formData = "form-data", urlEncoded = "urlencoded", xml, text, file
 
     init(_ type: ContentType) {
         switch type {
@@ -306,6 +323,7 @@ enum MCPBodyType: String, CaseIterable {
         case .urlEncoded: self = .urlEncoded
         case .xml: self = .xml
         case .text: self = .text
+        case .file: self = .file
         }
     }
 
@@ -317,6 +335,7 @@ enum MCPBodyType: String, CaseIterable {
         case .urlEncoded: .urlEncoded
         case .xml: .xml
         case .text: .text
+        case .file: .file
         }
     }
 }

@@ -200,6 +200,8 @@ struct RequestDraft {
     var queryParams: [KeyValuePair] = []
     var bodyType: ContentType = .none
     var body = ""
+    /// A binary body's file name (`ContentType.file`); the file itself never comes with an import.
+    var bodyFileName: String?
     var auth = AuthDraft()
 
     /// The request as stored. An API key becomes a header or query parameter, unless the request already sets that name.
@@ -217,7 +219,7 @@ struct RequestDraft {
         return ExportImportService.ExportableRequest(
             name: name, url: url, method: method, headers: headers, queryParams: queryParams, bodyType: bodyType, bodyContent: body,
             authenticationType: auth.type, authBearerToken: auth.token, authBasicUsername: auth.username, authBasicPassword: auth.password,
-            authOAuthConfig: nil)
+            authOAuthConfig: nil, bodyFileName: bodyType == .file ? bodyFileName : nil)
     }
 
     /// Sets the body from a MIME type and its text. Types Reqs has no body type for are sent as plain text with their own
@@ -229,6 +231,13 @@ struct RequestDraft {
         if bodyType == .text, !mime.isEmpty, mime != "text/plain", !hasHeader("Content-Type") {
             headers.append(KeyValuePair(key: "Content-Type", value: mimeType ?? mime))
         }
+    }
+
+    /// A binary body: File, named after `path`'s last component, with a note that the file has to be chosen again.
+    mutating func setFileBody(path: String?, notes: inout [String]) {
+        bodyType = .file
+        bodyFileName = ImportSupport.fileName(fromPath: path)
+        if !notes.contains(ImportSupport.binaryBodyNote) { notes.append(ImportSupport.binaryBodyNote) }
     }
 
     func hasHeader(_ name: String) -> Bool { headers.contains { $0.key.caseInsensitiveCompare(name) == .orderedSame } }
@@ -258,7 +267,17 @@ struct AuthDraft: Equatable {
 enum ImportSupport {
     static let oauthNote = "Reqs doesn't run OAuth 2.0 flows: OAuth 2.0 requests use Bearer authentication with the token the file had, or {{accessToken}} when it had none."
     static let scriptsNote = "Pre-request and test scripts aren't imported."
-    static let fileFieldsNote = "File fields and binary bodies aren't imported: Reqs sends text bodies only."
+    static let fileFieldsNote = "File fields in form bodies aren't imported: Reqs sends form fields as text."
+
+    /// Other apps' exports name a binary body's file (a path on their machine) but don't hold it.
+    static let binaryBodyNote = "Binary bodies were imported as File bodies without their files: choose each file in the request's Body tab."
+
+    /// The file name a binary body's path ends in, or nil when it names none.
+    static func fileName(fromPath path: String?) -> String? {
+        guard let path, !path.isEmpty else { return nil }
+        let name = (path.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent
+        return name.isEmpty || name == "/" ? nil : name
+    }
 
     /// The method, or GET (with a note) for one Reqs doesn't have.
     static func method(_ text: String?, notes: inout [String]) -> HTTPMethod {

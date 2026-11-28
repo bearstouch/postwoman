@@ -388,6 +388,16 @@ final class MCPToolHandler {
             // A body with no type would never be sent; JSON is the editor's usual choice.
             if request.bodyType == .none, try args.string("bodyType") == nil, !body.isEmpty { request.bodyType = .json }
         }
+        if let file = try args.object("bodyFile") {
+            let name = (try file.nonEmptyString("name")! as NSString).lastPathComponent
+            guard !["/", ".", ".."].contains(name) else { throw MCPToolError.invalidParams("bodyFile.name must name a file.", field: "bodyFile.name") }
+            guard let data = Data(base64Encoded: try file.string("base64")!) else { throw MCPToolError.invalidParams("bodyFile.base64 must be base64.", field: "bodyFile.base64") }
+            guard data.count <= MCPTools.maximumBodyFileBytes else {
+                throw MCPToolError.invalidParams("bodyFile is \(data.count) bytes; at most \(MCPTools.maximumBodyFileBytes) can be sent here. Choose larger files in the app.", field: "bodyFile.base64")
+            }
+            request.attachFile(data, name: name)
+            if try args.string("bodyType") == nil { request.bodyType = .file }
+        }
         if let type = try args.bodyType() { request.bodyType = type }
         if let auth = try args.object("auth") {
             if let type = try auth.authType() { request.authenticationType = type }
@@ -415,6 +425,8 @@ final class MCPToolHandler {
         if let params = try args.pairs("queryParams") { entry.queryParams = params }
         if let body = try args.string("body") { entry.requestBody = body.isEmpty ? nil : body }
         if let type = try args.bodyType() { entry.bodyType = type }
+        // History keeps no file bytes, so a File entry has no body text either (it would be hidden behind the file name).
+        if entry.bodyType == .file { entry.requestBody = nil }
         // History keeps no OAuth configuration, so auth.oauth2 is an unknown argument here, as in the schema.
         if let auth = try args.object("auth", allowed: MCPTools.historyAuthFields) {
             if let type = try auth.authType() { entry.authenticationType = type }
@@ -486,6 +498,12 @@ final class MCPToolHandler {
             "id": .string(request.id.uuidString), "name": .string(request.name), "collectionId": .from(request.folder?.id.uuidString),
             "method": .string(request.method.rawValue), "url": .string(request.url), "headers": pairs(request.headers), "queryParams": pairs(request.queryParams),
             "bodyType": .string(MCPBodyType(request.bodyType).rawValue), "body": .string(request.bodyContent), "auth": auth,
+            "bodyFile": request.bodyFileName.map { name in
+                .object([
+                    "name": .string(name), "attached": .bool(request.bodyFileSize != nil), "size": .from(request.bodyFileSize),
+                    "contentType": .string(FileBody.mimeType(forFileName: name))
+                ])
+            } ?? .null,
             "sortOrder": .number(Double(request.sortOrder)), "createdAt": .from(request.createdAt), "updatedAt": .from(request.updatedAt)
         ])
     }
@@ -502,6 +520,7 @@ final class MCPToolHandler {
         let request: JSONValue = .object([
             "name": .from(entry.requestName), "method": .string(entry.method.rawValue), "url": .string(entry.url), "headers": pairs(entry.requestHeaders),
             "queryParams": pairs(entry.queryParams ?? []), "bodyType": .from(entry.bodyType.map { MCPBodyType($0).rawValue }), "body": .from(entry.requestBody),
+            "bodyFile": entry.bodyType == .file ? .object(["name": .from(entry.requestBodyFileName), "size": .from(entry.requestBodyFileSize)]) : .null,
             "auth": auth(entry.authenticationType ?? .none, token: entry.authBearerToken, username: entry.authBasicUsername, password: entry.authBasicPassword)
         ])
         var value: [String: JSONValue] = [
@@ -730,11 +749,12 @@ struct Arguments {
 
     private static let nestedNames: [String: Set<String>] = [
         "auth": ["type", "token", "username", "password", "oauth2"],
+        "bodyFile": ["name", "base64"],
         "oauth2": ["authorizationURL", "tokenURL", "clientID", "clientSecret", "scope", "redirectURI"],
         "request": Set(MCPTools.requestFields.keys),
         "response": ["status", "headers", "body", "contentType", "timeMs"]
     ]
 
     /// The nested schemas' `required` lists.
-    private static let nestedRequired: [String: [String]] = ["response": ["status"]]
+    private static let nestedRequired: [String: [String]] = ["response": ["status"], "bodyFile": ["name", "base64"]]
 }

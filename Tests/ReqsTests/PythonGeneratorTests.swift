@@ -191,7 +191,7 @@ final class PythonGeneratorTests: XCTestCase {
     }
 
     func testOtherBodiesAreTripleQuotedData() {
-        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData && type != .file {
             let request = body("a=1&b=2\nsecond", type)
             XCTAssertTrue(code(request).contains("data = \"\"\"a=1&b=2\nsecond\"\"\"\n"), type.rawValue)
             XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)", type.rawValue)
@@ -327,7 +327,7 @@ final class PythonGeneratorTests: XCTestCase {
             #"path C:\new\table \\ done"#, #"say """hi""" there"#, "ends with a quote\"", "\"starts with a quote", "crlf\r\nline\ttab\u{1}ctl \u{85}", "a=1&b=\\n2",
             "<x>\n  naïve 💅\n</x>\n"
         ]
-        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData && type != .file {
             for content in contents {
                 let captured = try XCTUnwrap(try pythonCall(code(body(content, type))), "\(type.rawValue): \(content.debugDescription) should run")
                 XCTAssertEqual(captured["data"] as? String, content, type.rawValue)

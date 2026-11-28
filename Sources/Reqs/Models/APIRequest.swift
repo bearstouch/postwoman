@@ -40,6 +40,25 @@ final class APIRequest {
     /// The raw body content. Supports {{variable}} substitution.
     var bodyContent: String
 
+    /// The bytes a File body sends (`ContentType.file`), as they were when the file was chosen; kept beside the store,
+    /// not in it. Nil when no file is attached. Kept when another body type is chosen, as `bodyContent` is.
+    @Attribute(.externalStorage) var bodyFile: Data?
+
+    /// The chosen file's name: shown in the Body tab, its extension gives the Content-Type, and History keeps it
+    /// (without the bytes).
+    var bodyFileName: String?
+
+    /// The attached file's size in bytes, nil when no file is attached. Kept beside the bytes so showing or listing a
+    /// request (an agent's `collection_get`) never loads them. Set with `attachFile`.
+    var bodyFileSize: Int?
+
+    /// Attaches `data` as the File body, named `name`, or removes the file (nil): bytes, name and size change together.
+    func attachFile(_ data: Data?, name: String?) {
+        bodyFile = data
+        bodyFileName = data == nil ? nil : name
+        bodyFileSize = data?.count
+    }
+
     /// The type of authentication to use for this request.
     var authenticationType: AuthenticationType
 

@@ -7,7 +7,7 @@ public enum CLI {
     /// Runs one invocation and returns the process exit status. Never retries a tool call.
     public static func run(_ arguments: [String], environment: CLIEnvironment) async -> Int32 {
         let json = arguments.contains("--json")
-        let input = CLIInput(readFile: environment.readFile, readStdin: environment.readStdin)
+        let input = CLIInput(readFile: environment.readFile, readStdin: environment.readStdin, fileSize: environment.fileSize)
         do throws(CLIFailure) {
             switch try CLIArguments.parse(arguments, input: input) {
             case .help(let noun, let verb):

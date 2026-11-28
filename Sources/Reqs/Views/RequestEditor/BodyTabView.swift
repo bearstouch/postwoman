@@ -4,6 +4,11 @@ import SwiftUI
 struct BodyTabView: View {
     @Binding var bodyType: ContentType
     @Binding var bodyContent: String
+    /// A File body's name and size (`APIRequest.bodyFileName`, `bodyFileSize`; the bytes are never read to show them),
+    /// and how to attach or remove the file (`APIRequest.attachFile`).
+    @Binding var bodyFileName: String?
+    @Binding var bodyFileSize: Int?
+    var attachFile: (Data?, String?) -> Void = { _, _ in }
     /// The request's method; a HEAD request's body is kept but not sent, and the tab says so.
     var method: HTTPMethod = .get
 
@@ -60,6 +65,8 @@ struct BodyTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .form:
                 FormDataEditorView(bodyContent: $bodyContent)
+            case .file:
+                FileBodyEditorView(fileName: bodyFileName, fileSize: bodyFileSize, attachFile: attachFile)
             case .code:
                 CodeTextEditor(
                     text: $bodyContent, font: ThemeStore.shared.codeFont, highlightsJSON: bodyType == .json,
@@ -78,6 +85,150 @@ struct BodyTabView: View {
         if formatted != bodyContent {
             bodyContent = formatted
         }
+    }
+}
+
+/// A File body: the chosen file's name, size and type, a button to choose (or drop) another, and Remove.
+struct FileBodyEditorView: View {
+    let fileName: String?
+    let fileSize: Int?
+    let attachFile: (Data?, String?) -> Void
+    @State private var isChoosing = false
+    @State private var isReading = false
+    @State private var isDropTargeted = false
+    @State private var failure: String?
+
+    var body: some View {
+        let state = FileBodyEditing.State(size: fileSize, name: fileName)
+        VStack(spacing: 12) {
+            Image(systemName: state.symbol)
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            VStack(spacing: 4) {
+                Text(state.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+                Text(state.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .accessibilityElement(children: .combine)
+            HStack {
+                Button(state.chooseTitle) { isChoosing = true }
+                    .disabled(isReading)
+                if state.canRemove {
+                    Button("Remove", role: .destructive) {
+                        attachFile(nil, nil)
+                        failure = nil
+                    }
+                    .help("Remove the file from this request")
+                    .disabled(isReading)
+                }
+            }
+            if isReading {
+                ProgressView("Reading the file…")
+                    .controlSize(.small)
+            }
+            if let failure {
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(Theme.failure)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.field)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(isDropTargeted ? Color.appAccent : Theme.hairline, style: StrokeStyle(lineWidth: isDropTargeted ? 2 : 1, dash: [6, 4]))
+                .padding(12)
+        )
+        .fileImporter(isPresented: $isChoosing, allowedContentTypes: [.item]) { result in
+            switch result {
+            case .success(let url): attach(url)
+            case .failure(let error): failure = error.localizedDescription
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard !isReading, let url = urls.first(where: \.isFileURL) else { return false }
+            attach(url)
+            return true
+        } isTargeted: {
+            isDropTargeted = $0
+        }
+    }
+
+    /// Reads the file off the main thread (up to 25 MB, maybe on a slow volume), then attaches it. A failure keeps the
+    /// file the request had.
+    private func attach(_ url: URL) {
+        isReading = true
+        Task {
+            let result = await Task.detached { () -> Result<(name: String, data: Data), FileBody.Failure> in
+                do throws(FileBody.Failure) { return .success(try FileBody.read(url)) } catch { return .failure(error) }
+            }.value
+            isReading = false
+            switch result {
+            case .success(let file):
+                attachFile(file.data, file.name)
+                failure = nil
+            case .failure(let error):
+                failure = error.localizedDescription
+            }
+        }
+    }
+}
+
+/// The File editor's decisions: what it shows for the file a request has, has lost, or doesn't have.
+enum FileBodyEditing {
+    enum State: Equatable {
+        /// No file chosen.
+        case empty
+        /// A file is attached: its name, size and the Content-Type it is sent with by default.
+        case attached(name: String, size: Int, mimeType: String)
+        /// Only the name is left (restored from History, or imported from another app): sending fails until it is chosen again.
+        case missing(name: String)
+
+        init(size: Int?, name: String?) {
+            if let size {
+                self = .attached(name: name ?? "Unnamed file", size: size, mimeType: FileBody.mimeType(forFileName: name))
+            } else if let name, !name.isEmpty {
+                self = .missing(name: name)
+            } else {
+                self = .empty
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .empty: "No file chosen"
+            case .attached(let name, _, _): name
+            case .missing(let name): "\(name) isn't attached"
+            }
+        }
+
+        var detail: String {
+            switch self {
+            case .empty: "Choose a file, or drop one here. Its bytes are sent as the request body."
+            case .attached(_, let size, let mimeType): "\(FileBody.formattedSize(size)) · sent as \(mimeType) unless a Content-Type header is set"
+            case .missing: "Reqs has only the file's name (History and other apps' exports keep no file). Choose the file to send it."
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .empty: "doc.badge.plus"
+            case .attached: "doc.fill"
+            case .missing: "questionmark.folder"
+            }
+        }
+
+        var chooseTitle: String { self == .empty ? "Choose File…" : "Choose Another File…" }
+        var canRemove: Bool { self != .empty }
     }
 }
 
@@ -110,14 +261,15 @@ struct FormDataEditorView: View {
 
 /// The body tab's decisions: which editor a body type gets, and what Prettify makes of the text.
 enum BodyEditing {
-    /// The editor for a body type: none, form fields, or a text editor.
+    /// The editor for a body type: none, form fields, a file, or a text editor.
     enum Editor: Equatable {
-        case none, form, code
+        case none, form, file, code
 
         init(_ type: ContentType) {
             switch type {
             case .none: self = .none
             case .formData, .urlEncoded: self = .form
+            case .file: self = .file
             case .json, .xml, .text: self = .code
             }
         }
@@ -193,6 +345,6 @@ enum FormBody {
         }
         """
 
-    BodyTabView(bodyType: $bodyType, bodyContent: $bodyContent)
+    BodyTabView(bodyType: $bodyType, bodyContent: $bodyContent, bodyFileName: .constant(nil), bodyFileSize: .constant(nil))
         .frame(width: 600, height: 400)
 }
