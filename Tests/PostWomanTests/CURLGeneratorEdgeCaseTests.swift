@@ -125,7 +125,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     func testDisabledAndKeylessHeadersAreLeftOut() {
         let request = APIRequest(name: "h", url: "https://api.example.com")
         request.headers = [KeyValuePair(key: "Off", value: "1", isEnabled: false), KeyValuePair(key: "", value: "keyless"), KeyValuePair(key: "On", value: "")]
-        XCTAssertEqual(parts(request), ["curl", "'https://api.example.com'", "-H 'On: '"], "An enabled header with an empty value is still sent")
+        XCTAssertEqual(parts(request), ["curl", "'https://api.example.com'", "-H 'On;'"], "An enabled header with an empty value is still sent")
     }
 
     func testDisabledAndKeylessParamsLeaveTheURLWithoutAQuestionMark() {
@@ -264,6 +264,13 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
             request.authBearerToken = token
             XCTAssertEqual(parts(request), ["curl", "'https://h'"], String(describing: token))
         }
+    }
+
+    func testAHeaderWithAnEmptyValueIsStillSent() {
+        // The app sends `X-Empty:` with no value. For curl `-H 'X-Empty: '` means "don't send it" (and drops Accept or User-Agent).
+        let request = APIRequest(name: "h", url: "https://h")
+        request.headers = [KeyValuePair(key: "X-Empty", value: ""), KeyValuePair(key: "Accept", value: "")]
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'X-Empty;'", "-H 'Accept;'"])
     }
 
     func testARepeatedHeaderIsSentOnceWithItsLastValueAsTheAppSendsIt() {

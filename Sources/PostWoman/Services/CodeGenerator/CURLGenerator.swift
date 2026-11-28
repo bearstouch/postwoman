@@ -50,7 +50,8 @@ struct CURLGenerator {
             let name = header.key.lowercased()
             if enabledHeaders[(index + 1)...].contains(where: { $0.key.lowercased() == name }) { continue }
             if authentication != nil, name == "authorization" { continue }
-            parts.append("-H " + quoted("\(header.key): \(header.value)"))
+            // `Name;` is curl's spelling of a header with an empty value; `Name:` would send none, or remove curl's own.
+            parts.append("-H " + quoted(header.value.isEmpty ? "\(header.key);" : "\(header.key): \(header.value)"))
         }
         if let authentication { parts.append(authentication) }
 
