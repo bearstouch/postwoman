@@ -43,7 +43,9 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   to 0.9.0 used `com.postwoman.app`, then `com.bearstouch.postwoman` as PostWoman.
 - The app was called PostWoman (bundle ID `com.bearstouch.postwoman`) up to 0.11.0. Reqs has its own bundle ID, so it is
   a separate app with its own container: PostWoman's data stays with PostWoman (users move collections with Export/Import),
-  and PostWoman can't update itself into Reqs.
+  and PostWoman can't update itself into Reqs (Sparkle refuses another bundle identifier). The appcast is PostWoman's old
+  feed (GitHub redirects the old repo), so `scripts/update-appcast.py` marks every item informational below 0.11.1:
+  PostWoman shows "Reqs is available" with a link to the release page. Reqs versions must be 0.11.1 or later.
 - SwiftPM has no asset catalog: the icon is `Design/AppIcon/AppIcon.icns` (copied into the bundle)
   and the accent (electric blue by default; pink, the old default, is still a choice) is `Color.appAccent`, applied with `.themedScene()` at each scene root.
   Use it instead of `Color.accentColor`.
