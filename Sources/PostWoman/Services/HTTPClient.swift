@@ -252,6 +252,8 @@ final class HTTPClient {
 
         // Set request body if present
         if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+            // No named field, nothing to send (as the generated cURL and Python do).
+            guard !fields.isEmpty else { return urlRequest }
             let boundary = MultipartForm.makeBoundary()
             urlRequest.httpBody = MultipartForm.body(fields, boundary: boundary)
             urlRequest.setValue(MultipartForm.contentType(boundary: boundary), forHTTPHeaderField: "Content-Type")

@@ -216,6 +216,16 @@ final class HTTPClientRequestTests: XCTestCase {
             "--\(boundary)\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\nx y\r\n--\(boundary)--\r\n")
     }
 
+    func testFormDataWithNoNamedFieldSendsNoBody() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "&"
+            })
+        XCTAssertNil(received.request.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertTrue(received.body?.isEmpty ?? true)
+    }
+
     func testFormDataWithItsOwnContentTypeIsSentAsWritten() async throws {
         let received = try await send(
             makeRequest(method: .post) {

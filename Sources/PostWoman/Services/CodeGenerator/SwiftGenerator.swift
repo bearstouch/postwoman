@@ -74,7 +74,9 @@ struct SwiftGenerator {
             break
         }
 
-        if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+        if request.sendsBody, let fields = MultipartForm.fields(of: request), fields.isEmpty {
+            // No named field, nothing to send.
+        } else if request.sendsBody, let fields = MultipartForm.fields(of: request) {
             let literals = fields.map { "(\(SwiftLiteral.string(MultipartForm.escapedName($0.key))), \(SwiftLiteral.string($0.value)))" }
             code += """
 

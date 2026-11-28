@@ -167,8 +167,9 @@ enum FormBody {
         return new == Self.body(from: Self.pairs(from: body)) ? nil : new
     }
 
-    /// What a form name or value keeps unencoded: query characters other than the separators `&` and `=`, and `+` (a space).
-    private static let fieldAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))
+    /// What a form name or value keeps unencoded: query characters other than the separators `&` and `=`, and `+` (a space);
+    /// and braces, so a `{{variable}}` typed in a field is still one when the request is resolved.
+    private static let fieldAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+")).union(CharacterSet(charactersIn: "{}"))
 
     /// The enabled, named fields, percent-encoded and joined with `&`.
     static func body(from pairs: [KeyValuePair]) -> String {

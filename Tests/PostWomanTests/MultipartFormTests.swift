@@ -41,6 +41,43 @@ final class MultipartFormTests: XCTestCase {
         XCTAssertFalse(body.contains("\r\nEvil: 1"))
     }
 
+    func testAVariablesValueStaysInsideItsFieldWhateverItContains() {
+        // Resolved as text, `a&b=c+d%41` would add a field `b` and turn `+` and `%41` into a space and an A.
+        let resolver = VariableResolver(defaults: [Variable(key: "pw", value: "a&b=c+d%41"), Variable(key: "field", value: "us er")], selected: nil)
+        let sent = RequestSnapshot(request("password={{pw}}&{{field}}=ana&plain=x%20y")).resolved(with: resolver)
+        let fields = MultipartForm.fields(of: sent)
+        XCTAssertEqual(fields?.map(\.key), ["password", "us er", "plain"])
+        XCTAssertEqual(fields?.map(\.value), ["a&b=c+d%41", "ana", "x y"])
+    }
+
+    func testAVariableTypedInAFormFieldIsStillAVariable() {
+        // The editor used to store the braces percent-encoded, where the resolver never saw them.
+        let typed = FormBody.body(from: [KeyValuePair(key: "token", value: "{{token}}")])
+        XCTAssertEqual(typed, "token={{token}}")
+        let resolver = VariableResolver(defaults: [Variable(key: "token", value: "abc")], selected: nil)
+        for type in [ContentType.formData, .urlEncoded] {
+            let template = RequestSnapshot(request(typed, type: type))
+            XCTAssertEqual(template.missingVariables(with: .empty), ["token"], type.rawValue)
+            XCTAssertEqual(template.resolved(with: resolver).bodyContent, "token=abc", type.rawValue)
+        }
+        let stored = RequestSnapshot(request("token=%7B%7Btoken%7D%7D")).resolved(with: resolver)
+        XCTAssertEqual(MultipartForm.fields(of: stored)?.first?.value, "abc", "A Form Data body saved before still resolves")
+    }
+
+    func testASecretInAFormFieldStaysANameWhenRedacted() {
+        let resolver = VariableResolver(defaults: [Variable(key: "pw", value: "s3cret&x=1", isSecret: true)], selected: nil)
+        let recorded = RequestSnapshot(request("password={{pw}}")).resolved(with: resolver, redactSecrets: true)
+        XCTAssertEqual(recorded.bodyContent, "password={{pw}}")
+    }
+
+    func testAFormWithNoNamedFieldSendsNoBodyAnywhere() throws {
+        let empty = request("&")
+        XCTAssertEqual(MultipartForm.fields(of: empty), [])
+        XCTAssertFalse(CURLGenerator().generate(from: empty).contains("form"))
+        XCTAssertFalse(SwiftGenerator().generate(from: empty).contains("httpBody"))
+        XCTAssertFalse(SwiftGenerator().generate(from: empty).contains("Content-Type"))
+    }
+
     func testBoundariesDiffer() {
         XCTAssertNotEqual(MultipartForm.makeBoundary(), MultipartForm.makeBoundary())
     }

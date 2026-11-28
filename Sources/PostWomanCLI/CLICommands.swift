@@ -163,7 +163,7 @@ enum CLICommands {
         Flag(name: "body-file", value: "PATH", help: "Read the body from a file, or - for standard input.") { args, value, input throws(CLIFailure) in
             args.fields["body"] = .string(try input.text(at: value))
         },
-        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data, urlencoded, xml or text (default json with a body).") {
+        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data (fields as a=1&b=2, sent as multipart parts), urlencoded, xml or text (default json with a body).") {
             args, value, _ throws(CLIFailure) in
             guard bodyTypes.contains(value) else { throw .arguments("--body-type must be one of \(bodyTypes.joined(separator: ", ")).") }
             args.fields["bodyType"] = .string(value)

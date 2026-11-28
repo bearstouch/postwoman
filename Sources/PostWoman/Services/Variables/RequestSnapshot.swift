@@ -63,7 +63,7 @@ struct RequestSnapshot: RequestFields, Sendable, Equatable {
         copy.url = resolve(url)
         copy.headers = resolve(headers)
         copy.queryParams = resolve(queryParams)
-        copy.bodyContent = resolve(bodyContent)
+        copy.bodyContent = MultipartForm.encodes(self) ? MultipartForm.resolved(bodyContent, with: resolve) : resolve(bodyContent)
         copy.authBearerToken = authBearerToken.map(resolve)
         copy.authBasicUsername = authBasicUsername.map(resolve)
         copy.authBasicPassword = authBasicPassword.map(resolve)

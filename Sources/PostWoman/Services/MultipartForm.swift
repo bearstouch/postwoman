@@ -6,8 +6,19 @@ enum MultipartForm {
     /// The fields to send, or nil when the body goes out as written: another body type, or the request names its own
     /// Content-Type, which means its author wrote the body (and its boundary) by hand.
     static func fields(of request: some RequestFields) -> [KeyValuePair]? {
-        guard request.bodyType == .formData, !request.headers.contains(where: { $0.isEnabled && $0.key.lowercased() == "content-type" }) else { return nil }
+        guard encodes(request) else { return nil }
         return FormBody.pairs(from: request.bodyContent).filter { !$0.key.isEmpty }
+    }
+
+    /// Whether `request`'s body is form fields that are sent as parts.
+    static func encodes(_ request: some RequestFields) -> Bool {
+        request.bodyType == .formData && !request.headers.contains(where: { $0.isEnabled && $0.key.lowercased() == "content-type" })
+    }
+
+    /// `body` with the `{{variables}}` of each field name and value replaced by `resolve`, then encoded again, so a value
+    /// holding `&`, `=`, `+` or `%` stays one field instead of being read as more fields or as an escape.
+    static func resolved(_ body: String, with resolve: (String) -> String) -> String {
+        FormBody.body(from: FormBody.pairs(from: body).map { KeyValuePair(key: resolve($0.key), value: resolve($0.value)) })
     }
 
     /// A boundary no field can contain by accident.
