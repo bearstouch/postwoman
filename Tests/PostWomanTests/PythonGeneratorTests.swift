@@ -198,6 +198,17 @@ final class PythonGeneratorTests: XCTestCase {
         }
     }
 
+    func testARepeatedParamIsSentEachTimeInOrder() throws {
+        // A dict keeps only the last value of a repeated key; the app sends ?id=1&tag=a&id=2.
+        let request = APIRequest(name: "q", url: "https://h")
+        request.queryParams = [KeyValuePair(key: "id", value: "1"), KeyValuePair(key: "tag", value: "a"), KeyValuePair(key: "id", value: "2")]
+        let output = lines(request)
+        let start = try XCTUnwrap(output.firstIndex(of: "params = ["))
+        XCTAssertEqual(Array(output[start...(start + 4)]), ["params = [", #"    ("id", "1"),"#, #"    ("tag", "a"),"#, #"    ("id", "2"),"#, "]"])
+        let captured = try XCTUnwrap(try pythonCall(code(request)))
+        XCTAssertEqual(captured["params"] as? [[String]], [["id", "1"], ["tag", "a"], ["id", "2"]])
+    }
+
     func testTextBodiesCarryTheContentTypeTheAppSends() throws {
         // requests sets no Content-Type for a str body, and the app always sends the body type's.
         for type in [ContentType.xml, .text, .urlEncoded] {

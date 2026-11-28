@@ -21,11 +21,14 @@ struct PythonGenerator {
 
         let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
         if !enabledParams.isEmpty {
-            code += "params = {\n"
+            // A dict would keep only the last value of a repeated name (`id=1&id=2`), so those go as a list of pairs.
+            let repeats = Set(enabledParams.map(\.key)).count < enabledParams.count
+            code += repeats ? "params = [\n" : "params = {\n"
             for param in enabledParams {
-                code += "    \(PythonLiteral.string(param.key)): \(PythonLiteral.string(param.value)),\n"
+                let key = PythonLiteral.string(param.key), value = PythonLiteral.string(param.value)
+                code += repeats ? "    (\(key), \(value)),\n" : "    \(key): \(value),\n"
             }
-            code += "}\n\n"
+            code += repeats ? "]\n\n" : "}\n\n"
         }
 
         let enabledHeaders = request.headers.filter { $0.isEnabled && !$0.key.isEmpty }
