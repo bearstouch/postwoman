@@ -29,6 +29,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - With more than one window open, a menu command (New Request, Send, Duplicate, Save, Generate Code, the Environment menu) acts in the front window only
 - `environment_update` keeps a saved secret whose name was typed with a leading or trailing space when an agent sends it back without a value
 - `history_create` refuses (`NOT_ALLOWED`) an entry older than everything a full History keeps, instead of reporting an ID for an entry that was deleted at once
+- A URL pasted with whitespace around it (a trailing space or newline) is sent without it, instead of ending in `%20` or being refused as invalid
+- New Folder, an imported collection and `collection_create` go after the last collection even after deletions, instead of above or level with an existing one
+- Importing a collection gives its variables, headers and parameters IDs of their own (a second import, or a hand-edited file, could make two rows share one, so deleting one deleted both), and keeps the first environment selected when two share the selected one's name
+- Generated cURL sends a header with an empty value (`-H 'Name;'`); generated Python sends a JSON body of `null` instead of no body
+- `history_create` and `history_update` refuse a `timeMs` over a day (a huge one made the entry unreadable), and clearing an entry's `errorMessage` marks a 2xx entry successful again
+- `postwoman` accepts `--server=URL`, `--agent-token=…` and `--agent-token-file=…`, and ignores an empty `POSTWOMAN_URL`
 - `postwoman` tables no longer cut a name with an emoji or a combining accent in the middle
 - `postwoman` tries the app whose Remote Agent is on first, so a leftover token from another PostWoman build no longer uses up the server's failed sign-in limit after a few commands
 
