@@ -129,7 +129,7 @@ The version comes from `release/manifest.json`.
 ## Usage
 
 ### Creating a Request
-1. Click **+** in the sidebar and choose **New Folder** (or **Import Collection…**)
+1. Click **+** in the sidebar and choose **New Folder** (or **Import…** for a Reqs, Postman, Hoppscotch, Insomnia or OpenAPI file: choose, drop or paste it)
 2. Select the collection and click **New Request** (Cmd+N)
 3. Enter the URL and select the HTTP method
 4. Configure params, headers, body and authentication as needed
@@ -141,6 +141,8 @@ The version comes from `release/manifest.json`.
 |--------|----------|
 | New Request | Cmd+N |
 | New Folder | Shift+Cmd+N |
+| Import collections or environments | Cmd+O |
+| Export all collections | Shift+Cmd+E |
 | Send Request | Cmd+Return |
 | Stop a streamed response | Cmd+. |
 | Save Request | Cmd+S |

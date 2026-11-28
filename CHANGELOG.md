@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- File → Import… (Cmd+O, also + → Import… in the sidebar) opens an Import window: choose or drop files, or paste an export on the Text tab. It reads Reqs files, Postman collections (v2.0 and v2.1) and environments, Hoppscotch collections and environments, Insomnia exports (v4 JSON and v5 YAML) and OpenAPI 3 or Swagger 2.0 specs (JSON or YAML), and shows what each file is ("Postman collection · 12 requests"), what won't come across and where environments go before anything is imported. Several files import together, or none do when one fails. Folders become part of each request's name ("Users / Get user"), authentication set on a folder or collection is applied to the requests that inherit it, and `<<variables>>` (Hoppscotch) and `{{ _.variables }}` (Insomnia) become `{{variables}}`. An OpenAPI spec gets one request per operation, grouped by tag, at `{{baseUrl}}` (each server an environment), with example bodies built from the schemas and secret variables for its security schemes. Environment files join the collection imported with them, else the one selected in the sidebar. Files Reqs can't read safely (more than 20,000 requests, YAML aliases that expand without end, folders that contain themselves) are refused with a message instead of freezing the app
+- File → Export All Collections… (Shift+Cmd+E) saves every collection and its environments to one file, which Import reads back as new collections next to the existing ones. Secret values are saved empty, as when exporting one collection
+
 ## [0.12.0] - 2026-11-28
 
 ### Changed
