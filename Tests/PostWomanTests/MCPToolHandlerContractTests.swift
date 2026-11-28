@@ -121,6 +121,16 @@ final class MCPToolHandlerContractTests: XCTestCase {
 
     // MARK: - Invalid params
 
+    func testACollectionCreatedByAnAgentGoesAfterTheLastOneEvenAfterDeletions() async throws {
+        let first = try await call("collection_create", ["name": .string("A")])
+        _ = try await call("collection_create", ["name": .string("B")])
+        let third = try await call("collection_create", ["name": .string("C")])
+        _ = try await call("collection_delete", ["id": id(first)])
+        let fourth = try await call("collection_create", ["name": .string("D")])
+        let order = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<Folder>()).map { ($0.id, $0.sortOrder) })
+        XCTAssertGreaterThan(try XCTUnwrap(order[try XCTUnwrap(uuid(id(fourth)))]), try XCTUnwrap(order[try XCTUnwrap(uuid(id(third)))]), "Not level with C")
+    }
+
     // MARK: History fields
 
     func testAnAbsurdResponseTimeIsRefusedInsteadOfStoredAsAnEntryThatCannotBeRead() async throws {

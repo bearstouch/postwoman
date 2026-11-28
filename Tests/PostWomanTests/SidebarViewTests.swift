@@ -750,6 +750,18 @@ final class ContentViewTests: XCTestCase {
 
     // MARK: New Folder, New Request, Open as Request
 
+    func testANewCollectionGoesAfterTheLastOneEvenAfterDeletions() throws {
+        // Counting the collections put it above, or level with, one that was already there.
+        let fixture = try SidebarFixture()
+        let last = try XCTUnwrap(try fixture.folders().last)
+        last.sortOrder = 5
+        var selection = ContentSelection()
+        let created = selection.createFolder(in: try fixture.folders(), context: fixture.context)
+        XCTAssertEqual(created.sortOrder, 6)
+        XCTAssertEqual(try fixture.folders().last?.id, created.id, "Listed at the end")
+        XCTAssertEqual(Folder.nextSortOrder(after: []), 0)
+    }
+
     func testNewFolderAddsASelectedCollectionWithItsDefaultEnvironment() throws {
         let fixture = try SidebarFixture()
         var selection = ContentSelection()

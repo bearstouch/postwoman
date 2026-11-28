@@ -156,7 +156,8 @@ enum ExportImportService {
     /// - Parameters:
     ///   - data: The JSON data to import
     ///   - context: The SwiftData model context
-    ///   - existingFolderCount: The count of existing folders (for sortOrder)
+    ///   - existingFolderCount: The imported collection's sortOrder: `Folder.nextSortOrder(after:)`, which is the count
+    ///     of existing folders only while none was deleted
     /// - Returns: The newly created Folder
     static func importFolder(from data: Data, context: ModelContext, existingFolderCount: Int) throws -> Folder {
         let decoder = JSONDecoder()

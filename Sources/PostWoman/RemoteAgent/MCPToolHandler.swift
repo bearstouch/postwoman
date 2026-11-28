@@ -68,7 +68,7 @@ final class MCPToolHandler {
             }
             return value
         case "collection_create":
-            let folder = Folder(name: try args.nonEmptyString("name")!, sortOrder: try args.int("sortOrder") ?? folders().count)
+            let folder = Folder(name: try args.nonEmptyString("name")!, sortOrder: try args.int("sortOrder") ?? Folder.nextSortOrder(after: folders()))
             context.insert(folder)
             folder.ensureDefaultEnvironment()
             return Self.summary(folder)

@@ -160,7 +160,7 @@ struct ContentView: View {
     private func importCollection() {
         ExportImportService.importFolderWithDialog(
             context: modelContext,
-            existingFolderCount: folders.count
+            existingFolderCount: Folder.nextSortOrder(after: folders)
         ) { importedFolder in
             if let folder = importedFolder {
                 selection.sidebar = .folder(folder.id)

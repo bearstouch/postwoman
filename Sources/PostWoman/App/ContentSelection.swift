@@ -51,7 +51,7 @@ struct ContentSelection {
     /// New Folder: a "New Collection" at the end, with its Default environment, selected.
     @discardableResult
     mutating func createFolder(in folders: [Folder], context: ModelContext) -> Folder {
-        let folder = Folder(name: "New Collection", sortOrder: folders.count)
+        let folder = Folder(name: "New Collection", sortOrder: Folder.nextSortOrder(after: folders))
         context.insert(folder)
         folder.ensureDefaultEnvironment()
         sidebar = .folder(folder.id)
