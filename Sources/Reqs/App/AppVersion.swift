@@ -2,7 +2,7 @@ import Foundation
 
 /// The app version. `release` must match `release/manifest.json` (checked by `AppVersionTests`).
 enum AppVersion {
-    static let release = "0.11.0"
+    static let release = "0.12.0"
 
     /// The packaged bundle's version, or `release` when running unbundled (`swift run`).
     static var current: String { bundled ?? release }

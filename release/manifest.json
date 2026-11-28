@@ -3,7 +3,7 @@
   "name": "Reqs",
   "displayName": "Reqs",
   "copyright": "Made with ❤️ by Bearstouch",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "minimumMacOS": "14.0",
   "architectures": ["arm64", "x86_64"],
   "packageFormat": "dmg",
