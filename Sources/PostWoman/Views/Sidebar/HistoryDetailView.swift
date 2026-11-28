@@ -131,6 +131,13 @@ struct HistoryDetailView: View {
         }
     }
 
+    /// A credential as History shows it: one dot per character, as the editor's secure fields hide it. One written only as
+    /// `{{variables}}` holds no secret (History keeps secret variables as their names), so it stays readable.
+    static func masked(_ credential: String) -> String {
+        let literal = credential.replacing(/\{\{[^{}]+\}\}/, with: "").trimmingCharacters(in: .whitespaces)
+        return literal.isEmpty ? credential : String(repeating: "•", count: credential.count)
+    }
+
     private var authPairs: [KeyValuePair] {
         switch authenticationType {
         case .none:
@@ -138,13 +145,13 @@ struct HistoryDetailView: View {
         case .bearer:
             return [
                 KeyValuePair(key: "Type", value: authenticationType.rawValue),
-                KeyValuePair(key: "Token", value: history.authBearerToken ?? "")
+                KeyValuePair(key: "Token", value: Self.masked(history.authBearerToken ?? ""))
             ]
         case .basic:
             return [
                 KeyValuePair(key: "Type", value: authenticationType.rawValue),
                 KeyValuePair(key: "Username", value: history.authBasicUsername ?? ""),
-                KeyValuePair(key: "Password", value: String(repeating: "•", count: history.authBasicPassword?.count ?? 0))
+                KeyValuePair(key: "Password", value: Self.masked(history.authBasicPassword ?? ""))
             ]
         case .oauth2:
             return [KeyValuePair(key: "Type", value: authenticationType.rawValue)]

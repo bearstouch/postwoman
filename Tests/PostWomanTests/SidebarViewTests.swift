@@ -642,6 +642,29 @@ final class HistoryDetailViewTests: XCTestCase {
         XCTAssertFalse(host.text.contains { $0.contains("hunter22") })
     }
 
+    func testALiteralBearerTokenIsMaskedLikeThePassword() throws {
+        let fixture = try SidebarFixture()
+        let entry = fixture.serverError
+        entry.authenticationType = .bearer
+        entry.authBearerToken = "sk-live-123456"
+        let host = host(entry, fixture)
+        defer { host.close() }
+        host.press(try XCTUnwrap(host.buttons.first { $0.label.hasPrefix("Auth") }))
+        XCTAssertTrue(host.text.contains("Token"))
+        XCTAssertTrue(host.text.contains("••••••••••••••"), "One dot per character, as the editor's secure field hides it")
+        XCTAssertFalse(host.text.contains { $0.contains("sk-live") }, "\(host.text)")
+    }
+
+    func testCredentialsWrittenAsVariablesStayReadableBecauseTheyHoldNoSecret() {
+        XCTAssertEqual(HistoryDetailView.masked("{{token}}"), "{{token}}")
+        XCTAssertEqual(HistoryDetailView.masked(" {{ api key }} "), " {{ api key }} ")
+        XCTAssertEqual(HistoryDetailView.masked("{{a}}{{b}}"), "{{a}}{{b}}")
+        XCTAssertEqual(HistoryDetailView.masked("abc"), "•••")
+        XCTAssertEqual(HistoryDetailView.masked("live-{{suffix}}"), "•••••••••••••••", "Literal text beside a variable is still a secret")
+        XCTAssertEqual(HistoryDetailView.masked("{{}}"), "••••")
+        XCTAssertEqual(HistoryDetailView.masked(""), "")
+    }
+
     func testEmptyTabsSaySo() throws {
         let fixture = try SidebarFixture()
         let host = host(fixture.success, fixture)
