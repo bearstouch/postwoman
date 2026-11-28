@@ -25,13 +25,13 @@ Thank you for your interest in contributing to Reqs! This document provides guid
 
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/postwoman.git
+   git clone https://github.com/YOUR_USERNAME/reqs.git
    cd reqs
    ```
 
 3. **Add the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/bearstouch/postwoman.git
+   git remote add upstream https://github.com/bearstouch/reqs.git
    ```
 
 4. **Build, test and run**:

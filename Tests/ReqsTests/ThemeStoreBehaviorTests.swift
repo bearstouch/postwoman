@@ -94,8 +94,8 @@ final class ThemeStoreBehaviorTests: XCTestCase {
         defaults.set("dracula-dark", forKey: ThemeStore.Key.lightTheme)
         defaults.set("dracula-light", forKey: ThemeStore.Key.darkTheme)
         let store = ThemeStore(defaults: defaults)
-        XCTAssertEqual(store.lightThemeID, "postwoman-light")
-        XCTAssertEqual(store.darkThemeID, "postwoman-dark")
+        XCTAssertEqual(store.lightThemeID, "reqs-light")
+        XCTAssertEqual(store.darkThemeID, "reqs-dark")
         XCTAssertFalse(store.light.isDark)
         XCTAssertTrue(store.dark.isDark)
     }
@@ -140,8 +140,8 @@ final class ThemeStoreBehaviorTests: XCTestCase {
     }
 
     func testInitialSnapshotIsTheDefaultPair() {
-        XCTAssertEqual(ThemeSnapshot.initial.light.id, "postwoman-light")
-        XCTAssertEqual(ThemeSnapshot.initial.dark.id, "postwoman-dark")
+        XCTAssertEqual(ThemeSnapshot.initial.light.id, "reqs-light")
+        XCTAssertEqual(ThemeSnapshot.initial.dark.id, "reqs-dark")
         XCTAssertEqual(ThemeSnapshot.initial.accent, .blue)
     }
 

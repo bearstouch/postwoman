@@ -96,12 +96,12 @@ struct AppLocation: Equatable, Sendable {
         func container(_ id: String) -> String { "\(home)/Library/Containers/\(id)/Data/Library" }
         return [
             Self(
-                name: "Reqs", tokenPath: container("com.bearstouch.postwoman") + "/Application Support/PostWoman/remote-agent-token",
-                preferencesPath: container("com.bearstouch.postwoman") + "/Preferences/com.bearstouch.postwoman.plist"),
+                name: "Reqs", tokenPath: container("com.bearstouch.reqs") + "/Application Support/Reqs/remote-agent-token",
+                preferencesPath: container("com.bearstouch.reqs") + "/Preferences/com.bearstouch.reqs.plist"),
             Self(
-                name: "Reqs Dev", tokenPath: container("com.bearstouch.postwoman.dev") + "/Application Support/PostWoman/remote-agent-token",
-                preferencesPath: container("com.bearstouch.postwoman.dev") + "/Preferences/com.bearstouch.postwoman.dev.plist"),
-            Self(name: "Reqs (swift run)", tokenPath: home + "/Library/Application Support/PostWoman Dev/remote-agent-token", preferencesPath: nil)
+                name: "Reqs Dev", tokenPath: container("com.bearstouch.reqs.dev") + "/Application Support/Reqs/remote-agent-token",
+                preferencesPath: container("com.bearstouch.reqs.dev") + "/Preferences/com.bearstouch.reqs.dev.plist"),
+            Self(name: "Reqs (swift run)", tokenPath: home + "/Library/Application Support/Reqs Dev/remote-agent-token", preferencesPath: nil)
         ]
     }
 }
@@ -229,22 +229,18 @@ final class MCPClient: Sendable {
 enum ConnectionResolver {
     static func candidates(server: String?, token: String?, tokenFile: String?, environment: CLIEnvironment) throws(CLIFailure) -> [Connection] {
         // An empty REQS_URL (exported blank by an env file) is no choice, like an empty REQS_TOKEN; an empty --server is a mistake.
-        // The POSTWOMAN_* names from before the rename still count, after the REQS_* ones.
-        let fromEnvironment = ["REQS_URL", "POSTWOMAN_URL"].lazy.compactMap { environment.variable($0) }
-            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let fromEnvironment = environment.variable("REQS_URL").flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         let explicitURL = try (server ?? fromEnvironment).map { text throws(CLIFailure) in try url(text) }
         let fallback = try url(MCPClient.defaultURL)
-        // Any flag beats any environment variable: --agent-token, --agent-token-file, REQS_TOKEN, REQS_TOKEN_FILE, then the POSTWOMAN_* ones.
+        // Any flag beats any environment variable: --agent-token, --agent-token-file, REQS_TOKEN, REQS_TOKEN_FILE.
         func read(_ path: String) throws(CLIFailure) -> String {
             guard let data = try? environment.readFile(path) else { throw .arguments("Can't read the token file \(path).") }
             return String(decoding: data, as: UTF8.self)
         }
         var explicitToken = token
         if explicitToken == nil, let tokenFile { explicitToken = try read(tokenFile) }
-        for prefix in ["REQS", "POSTWOMAN"] {
-            if explicitToken == nil { explicitToken = environment.variable("\(prefix)_TOKEN") }
-            if explicitToken == nil, let path = environment.variable("\(prefix)_TOKEN_FILE") { explicitToken = try read(path) }
-        }
+        if explicitToken == nil { explicitToken = environment.variable("REQS_TOKEN") }
+        if explicitToken == nil, let path = environment.variable("REQS_TOKEN_FILE") { explicitToken = try read(path) }
         explicitToken = explicitToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let explicitToken, !explicitToken.isEmpty {
             // A token alone: try it at each app's endpoint, so it reaches whichever app it belongs to.

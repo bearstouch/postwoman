@@ -1,7 +1,7 @@
 #!/bin/sh
 # Assembles a debug .build/Reqs.app (sandboxed, ad-hoc signed), verifies it and opens it.
 #   scripts/run-app.sh [--build-only] [app arguments…]
-# The dev bundle uses com.bearstouch.postwoman.dev, so its sandbox container (and SwiftData store)
+# The dev bundle uses com.bearstouch.reqs.dev, so its sandbox container (and SwiftData store)
 # stays apart from an installed Reqs.
 set -eu
 cd "$(dirname "$0")/.."
@@ -38,7 +38,7 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>com.bearstouch.postwoman.dev</string>
+<key>CFBundleIdentifier</key><string>com.bearstouch.reqs.dev</string>
 <key>CFBundleName</key><string>Reqs Dev</string>
 <key>CFBundleExecutable</key><string>Reqs</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
@@ -55,15 +55,15 @@ cp Design/AppIcon/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
 # The SwiftPM command-line signature does not seal an app's Info.plist/resources or carry entitlements.
 # Sign the completed development bundle; no certificate or account is required.
 # Nested code is signed first, then the bundle seals it. The CLI is not sandboxed: it runs in the user's shell.
-/usr/bin/codesign --force --sign - --identifier com.bearstouch.postwoman.dev.cli "$bundle/Contents/Helpers/reqs"
+/usr/bin/codesign --force --sign - --identifier com.bearstouch.reqs.dev.cli "$bundle/Contents/Helpers/reqs"
 scripts/sign-sparkle.sh "$bundle" -
-/usr/bin/codesign --force --entitlements release/Reqs.entitlements --sign - --identifier com.bearstouch.postwoman.dev "$bundle"
+/usr/bin/codesign --force --entitlements release/Reqs.entitlements --sign - --identifier com.bearstouch.reqs.dev "$bundle"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"
 # `open` only re-activates an app that is already running, so quit the old dev build first.
 # Ask politely (a normal quit, so SwiftData saves) and never force-kill it.
 if [ "$launch" = true ] && pgrep -f "$destination/Contents/MacOS/Reqs" >/dev/null; then
     printf 'Quitting the running Reqs Dev…\n'
-    /usr/bin/osascript -e 'tell application id "com.bearstouch.postwoman.dev" to quit' >/dev/null
+    /usr/bin/osascript -e 'tell application id "com.bearstouch.reqs.dev" to quit' >/dev/null
     waited=0
     while pgrep -f "$destination/Contents/MacOS/Reqs" >/dev/null; do
         if [ "$waited" -ge 150 ]; then

@@ -40,13 +40,13 @@ final class CLIConnectionResolverTests: XCTestCase {
             apps,
             [
                 AppLocation(
-                    name: "Reqs", tokenPath: "/Users/test/Library/Containers/com.bearstouch.postwoman/Data/Library/Application Support/PostWoman/remote-agent-token",
-                    preferencesPath: "/Users/test/Library/Containers/com.bearstouch.postwoman/Data/Library/Preferences/com.bearstouch.postwoman.plist"),
+                    name: "Reqs", tokenPath: "/Users/test/Library/Containers/com.bearstouch.reqs/Data/Library/Application Support/Reqs/remote-agent-token",
+                    preferencesPath: "/Users/test/Library/Containers/com.bearstouch.reqs/Data/Library/Preferences/com.bearstouch.reqs.plist"),
                 AppLocation(
                     name: "Reqs Dev",
-                    tokenPath: "/Users/test/Library/Containers/com.bearstouch.postwoman.dev/Data/Library/Application Support/PostWoman/remote-agent-token",
-                    preferencesPath: "/Users/test/Library/Containers/com.bearstouch.postwoman.dev/Data/Library/Preferences/com.bearstouch.postwoman.dev.plist"),
-                AppLocation(name: "Reqs (swift run)", tokenPath: "/Users/test/Library/Application Support/PostWoman Dev/remote-agent-token", preferencesPath: nil)
+                    tokenPath: "/Users/test/Library/Containers/com.bearstouch.reqs.dev/Data/Library/Application Support/Reqs/remote-agent-token",
+                    preferencesPath: "/Users/test/Library/Containers/com.bearstouch.reqs.dev/Data/Library/Preferences/com.bearstouch.reqs.dev.plist"),
+                AppLocation(name: "Reqs (swift run)", tokenPath: "/Users/test/Library/Application Support/Reqs Dev/remote-agent-token", preferencesPath: nil)
             ])
     }
 
@@ -138,21 +138,6 @@ final class CLIConnectionResolverTests: XCTestCase {
             failure(tokenFile: "/tmp/missing", files: files, variables: ["REQS_TOKEN": "pwm_env"]), "Can't read the token file /tmp/missing.",
             "A token file flag is read even when REQS_TOKEN is set")
         XCTAssertEqual(try candidates(server: "http://flag:2", files: files, variables: ["REQS_URL": "http://env:1", "REQS_TOKEN": "pwm_env"]), ["http://flag:2/mcp pwm_env"])
-    }
-
-    func testTheVariablesFromBeforeTheRenameStillWorkAfterTheNewOnes() throws {
-        let files = FakeFiles()
-        files.files["/tmp/old-token"] = Data("pwm_oldfile".utf8)
-        files.files["/tmp/new-token"] = Data("pwm_newfile".utf8)
-        XCTAssertEqual(try candidates(variables: ["POSTWOMAN_URL": "http://old:1", "POSTWOMAN_TOKEN": "pwm_old"]), ["http://old:1/mcp pwm_old"])
-        XCTAssertEqual(try candidates(files: files, variables: ["POSTWOMAN_TOKEN_FILE": "/tmp/old-token"]), ["\(fallback) pwm_oldfile"])
-        XCTAssertEqual(
-            try candidates(variables: ["REQS_URL": "http://new:1", "POSTWOMAN_URL": "http://old:1", "REQS_TOKEN": "pwm_new", "POSTWOMAN_TOKEN": "pwm_old"]),
-            ["http://new:1/mcp pwm_new"])
-        XCTAssertEqual(
-            try candidates(files: files, variables: ["REQS_TOKEN_FILE": "/tmp/new-token", "POSTWOMAN_TOKEN": "pwm_old"]), ["\(fallback) pwm_newfile"],
-            "Either REQS_ variable beats both old ones")
-        XCTAssertEqual(try candidates(token: "pwm_x", variables: ["REQS_URL": " ", "POSTWOMAN_URL": "http://old:1"]), ["http://old:1/mcp pwm_x"], "A blank REQS_URL is no choice")
     }
 
     func testAnUnreadableTokenFileIsAnArgumentError() {

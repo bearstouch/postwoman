@@ -17,9 +17,9 @@ swift test                                     # XCTest suite
 swift test --filter ReqsTests.CURLGeneratorTests   # one test class
 swift format -i -r Sources Tests               # format (config: .swift-format)
 swift format lint --strict -r Sources Tests    # lint: must print nothing
-swift run Reqs                            # run unbundled (store: ~/Library/Application Support/PostWoman Dev)
+swift run Reqs                            # run unbundled (store: ~/Library/Application Support/Reqs Dev)
 swift run reqs-cli help                   # the CLI (bundled as Contents/Helpers/reqs); needs the app's MCP server on
-scripts/run-app.sh [--build-only]              # assemble, ad-hoc sign (sandboxed, com.bearstouch.postwoman.dev), verify (and open) .build/Reqs.app
+scripts/run-app.sh [--build-only]              # assemble, ad-hoc sign (sandboxed, com.bearstouch.reqs.dev), verify (and open) .build/Reqs.app
 scripts/package-release.sh                     # Universal 2 DMG; ad-hoc unless REQS_SIGN_IDENTITY / REQS_NOTARY_PROFILE
 scripts/package-thin-release.sh                # Apple silicon + Intel DMGs from dist/Reqs.app
 python3 -I scripts/test-update-appcast.py      # appcast generator checks (CI runs them)
@@ -39,26 +39,24 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   notarize when credentials exist, publish with `SHA256SUMS.txt` and `release-evidence.json`.
 - The app is signed with the hardened runtime and `release/Reqs.entitlements` (App Sandbox,
   network client, user-selected files). The SwiftData store lives in that container, which is keyed by
-  the bundle identifier `com.bearstouch.postwoman`: changing it orphans users' data. Releases up
-  to 0.9.0 used `com.postwoman.app`.
-- The app was called PostWoman until 0.11. The rename to Reqs kept every data identifier, so existing users keep their
-  data, settings and updates: the bundle IDs, Sparkle's `-spks`/`-spki` names, the feed URL and GitHub repo, the token folder
-  `Application Support/PostWoman`, the `swift run` store `PostWoman Dev/PostWoman.store`, `PostWomanIncludeBetaUpdates`
-  and the theme IDs `postwoman-light`/`-dark`. Don't rename them. The CLI still reads `POSTWOMAN_*` variables after
-  `REQS_*`, `AppVersion` falls back to the `PostWomanVersion` key, and `reqs cli install-link` removes the old `postwoman` link.
+  the bundle identifier `com.bearstouch.reqs`: changing it orphans users' data. Releases up
+  to 0.9.0 used `com.postwoman.app`, then `com.bearstouch.postwoman` as PostWoman.
+- The app was called PostWoman (bundle ID `com.bearstouch.postwoman`) up to 0.11.0. Reqs has its own bundle ID, so it is
+  a separate app with its own container: PostWoman's data stays with PostWoman (users move collections with Export/Import),
+  and PostWoman can't update itself into Reqs.
 - SwiftPM has no asset catalog: the icon is `Design/AppIcon/AppIcon.icns` (copied into the bundle)
   and the accent (electric blue by default; pink, the old default, is still a choice) is `Color.appAccent`, applied with `.themedScene()` at each scene root.
   Use it instead of `Color.accentColor`.
 
 ### Updates (Sparkle)
 - Ported from Trellis. `Services/Updates/`: `UpdateFeed` (needs an HTTPS `SUFeedURL` and an `SUPublicEDKey` in Info.plist), `UpdatePreferences`
-  (beta opt-in, `PostWomanIncludeBetaUpdates`), the `SoftwareUpdater` protocol and `UpdateSettingsModel`; `SparkleUpdater` is the only Sparkle code.
+  (beta opt-in, `ReqsIncludeBetaUpdates`), the `SoftwareUpdater` protocol and `UpdateSettingsModel`; `SparkleUpdater` is the only Sparkle code.
   Builds without a feed (`swift run`, `scripts/run-app.sh`, tests) get no updater: no menu item, no Settings → Updates, no network.
 - `scripts/package-release.sh` writes the feed keys only when `release/manifest.json` has `sparklePublicKey`. The feed is
   `appcast.xml` on the orphan `appcast` branch, which `release.yml` updates (`scripts/update-appcast.py`, tested by
   `scripts/test-update-appcast.py`) for notarized tag builds when the `SPARKLE_ED_PRIVATE_KEY` secret is set.
 - Unlike Trellis, Reqs is sandboxed: Sparkle installs through `Installer.xpc` (`SUEnableInstallerLauncherService`, and the
-  `com.bearstouch.postwoman-spks`/`-spki` mach-lookup exceptions in the entitlements). `scripts/sign-sparkle.sh` drops `Downloader.xpc`
+  `com.bearstouch.reqs-spks`/`-spki` mach-lookup exceptions in the entitlements). `scripts/sign-sparkle.sh` drops `Downloader.xpc`
   (the app has network.client), thins and signs the framework inside-out. Ad-hoc package builds add `disable-library-validation`.
 - `CFBundleShortVersionString` is the numeric `X.Y.Z`, `CFBundleVersion` `X.Y.Z.<build>` (alpha.N = N, beta.N = 30+N, rc.N = 60+N,
   release = 100; Sparkle compares it), and `ReqsVersion` the full version that `AppVersion.current` shows.

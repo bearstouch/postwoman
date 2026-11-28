@@ -2,10 +2,10 @@
 
 A native macOS REST API client built with SwiftUI and SwiftData: a lightweight Postman alternative with collections, environments, streamed responses and code generation, which agents and scripts can drive too. Formerly PostWoman.
 
-[Website](https://bearstouch.com/postwoman/) · [Download](https://github.com/bearstouch/postwoman/releases/latest) · [Changelog](CHANGELOG.md)
+[Website](https://bearstouch.com/postwoman/) · [Download](https://github.com/bearstouch/reqs/releases/latest) · [Changelog](CHANGELOG.md)
 
-[![CI](https://github.com/bearstouch/postwoman/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bearstouch/postwoman/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bearstouch/postwoman)](https://github.com/bearstouch/postwoman/releases/latest)
+[![CI](https://github.com/bearstouch/reqs/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bearstouch/reqs/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bearstouch/reqs)](https://github.com/bearstouch/reqs/releases/latest)
 ![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.2-orange)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
@@ -75,7 +75,7 @@ reqs history list --limit 10
 reqs help                                       # every command; add --json for machine-readable output
 ```
 
-- It finds the agent token and endpoint from the app itself; override with `--server` / `--agent-token` or `REQS_URL` / `REQS_TOKEN` (the older `POSTWOMAN_URL` / `POSTWOMAN_TOKEN` still work). Exit statuses are stable (for example 3 for a refused token, 4 for not found, 7 when the app isn't reachable, 22 for `--fail` on a 4xx/5xx response).
+- It finds the agent token and endpoint from the app itself; override with `--server` / `--agent-token` or `REQS_URL` / `REQS_TOKEN`. Exit statuses are stable (for example 3 for a refused token, 4 for not found, 7 when the app isn't reachable, 22 for `--fail` on a 4xx/5xx response).
 
 ## Installation
 
@@ -98,14 +98,14 @@ Download the latest DMG installer from the [Releases](../../releases) page:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/bearstouch/postwoman.git
+   git clone https://github.com/bearstouch/reqs.git
    cd reqs
    ```
 
 2. Build and run:
    ```bash
    swift run Reqs            # unbundled, uses its own dev store
-   scripts/run-app.sh             # sandboxed .build/Reqs.app (com.bearstouch.postwoman.dev)
+   scripts/run-app.sh             # sandboxed .build/Reqs.app (com.bearstouch.reqs.dev)
    ```
    Or open `Package.swift` in Xcode (or the folder in VS Code with the Swift extension) and run the `Reqs` scheme.
 
@@ -201,7 +201,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ```bash
 # Fork and clone
-git clone https://github.com/YOUR_USERNAME/postwoman.git
+git clone https://github.com/YOUR_USERNAME/reqs.git
 cd reqs
 
 # Create a feature branch

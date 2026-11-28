@@ -15,10 +15,10 @@ SIGNATURE = "A" * 86 + "=="
 
 
 def run(appcast, version, bundle, url=None, check=True):
-    url = url or f"https://github.com/bearstouch/postwoman/releases/download/v{version}/Reqs-{version}.dmg"
+    url = url or f"https://github.com/bearstouch/reqs/releases/download/v{version}/Reqs-{version}.dmg"
     command = [sys.executable, "-I", str(SCRIPT), str(appcast), "--version", version, "--bundle-version", bundle, "--minimum-macos", "14.0",
                "--url", url, "--length", "1234", "--signature", SIGNATURE,
-               "--notes-url", f"https://github.com/bearstouch/postwoman/releases/tag/v{version}", "--date", "Sat, 24 Oct 2026 12:00:00 GMT"]
+               "--notes-url", f"https://github.com/bearstouch/reqs/releases/tag/v{version}", "--date", "Sat, 24 Oct 2026 12:00:00 GMT"]
     return subprocess.run(command, capture_output=True, text=True, check=check)
 
 

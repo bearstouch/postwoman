@@ -22,7 +22,7 @@ final class SoftwareUpdateTests: XCTestCase {
     private let key = Data(repeating: 1, count: 32).base64EncodedString()
 
     func testFeedNeedsHTTPSURLAndPublicKey() {
-        let url = "https://raw.githubusercontent.com/bearstouch/postwoman/appcast/appcast.xml"
+        let url = "https://raw.githubusercontent.com/bearstouch/reqs/appcast/appcast.xml"
         XCTAssertEqual(UpdateFeed(info: ["SUFeedURL": url, "SUPublicEDKey": key])?.url.absoluteString, url)
         XCTAssertNil(UpdateFeed(info: [:]), "SwiftPM and development builds have no updater")
         XCTAssertNil(UpdateFeed(info: ["SUFeedURL": url]), "A feed without a key could never verify an update")

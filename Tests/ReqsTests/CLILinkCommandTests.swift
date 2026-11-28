@@ -128,40 +128,6 @@ final class CLILinkCommandTests: XCTestCase {
         XCTAssertEqual(disk.links[link], helper)
     }
 
-    func testInstallRemovesTheLinkTheAppMadeBeforeTheRename() async throws {
-        let disk = LinkDisk()
-        let old = "/Users/test/.local/bin/postwoman"
-        disk.links[old] = "/Applications/PostWoman.app/Contents/Helpers/postwoman"
-        let result = await runLink(["cli", "install-link", "--json"], disk)
-        XCTAssertEqual(result.status, 0)
-        XCTAssertEqual(disk.links, [link: helper])
-        XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: Data(result.stdout.utf8))["result"]?["removedOldLink"], .string(old))
-        disk.links = [old: "/Applications/PostWoman.app/Contents/Helpers/postwoman"]
-        let text = await runLink(["cli", "install-link"], disk, path: "/Users/test/.local/bin")
-        XCTAssertEqual(text.stderr, "Removed \(old), the command's name before the rename to Reqs.")
-        disk.links[old] = "/Applications/PostWoman.app/Contents/Helpers/postwoman"
-        let again = await runLink(["cli", "install-link"], disk, path: "/Users/test/.local/bin")
-        XCTAssertEqual(again.stdout, "\(link) already links here.")
-        XCTAssertNil(disk.links[old], "also when the reqs link was already there")
-    }
-
-    func testInstallLeavesAnyOtherPostwomanAlone() async {
-        let disk = LinkDisk()
-        let other = "/Users/test/.local/bin/postwoman"
-        disk.links[other] = "/opt/tools/postwoman"
-        _ = await runLink(["cli", "install-link"], disk)
-        XCTAssertEqual(disk.links[other], "/opt/tools/postwoman", "not one the app made")
-        let kept = LinkDisk()
-        kept.links[other] = "/Applications/PostWoman.app/Contents/Helpers/postwoman"
-        kept.files.insert("/Applications/PostWoman.app/Contents/Helpers/postwoman")
-        _ = await runLink(["cli", "install-link"], kept)
-        XCTAssertEqual(kept.links[other], "/Applications/PostWoman.app/Contents/Helpers/postwoman", "an old copy of the app that still works")
-        let file = LinkDisk()
-        file.files.insert(other)
-        _ = await runLink(["cli", "install-link"], file)
-        XCTAssertTrue(file.files.contains(other), "a real file is never removed")
-    }
-
     func testARealFileIsNeverReplacedOrRemoved() async {
         let disk = LinkDisk()
         disk.files = [link]

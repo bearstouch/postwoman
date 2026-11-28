@@ -21,7 +21,7 @@ struct UpdateFeed: Equatable, Sendable {
 
 /// Update choices Sparkle doesn't store itself. Automatic checks live in Sparkle's own defaults, off until turned on.
 struct UpdatePreferences {
-    static let includeBetasKey = "PostWomanIncludeBetaUpdates"
+    static let includeBetasKey = "ReqsIncludeBetaUpdates"
     private let defaults: UserDefaults
     private let version: String
 

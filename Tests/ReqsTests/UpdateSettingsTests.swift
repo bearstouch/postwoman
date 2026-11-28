@@ -88,7 +88,7 @@ final class UpdateSettingsTests: XCTestCase {
         try withDefaults { defaults in
             XCTAssertNil(defaults.object(forKey: UpdatePreferences.includeBetasKey), "nothing is saved until chosen")
             UpdatePreferences(defaults: defaults, version: "1.0.0").includeBetas = true
-            XCTAssertEqual(defaults.object(forKey: "PostWomanIncludeBetaUpdates") as? Bool, true)
+            XCTAssertEqual(defaults.object(forKey: "ReqsIncludeBetaUpdates") as? Bool, true)
             XCTAssertTrue(UpdatePreferences(defaults: defaults, version: "2.0.0").includeBetas)
         }
     }

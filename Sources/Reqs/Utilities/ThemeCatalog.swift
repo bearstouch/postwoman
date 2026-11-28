@@ -8,7 +8,7 @@ extension ThemePalette {
     /// Themes for Light mode, and for System mode while macOS is light. The first is the default.
     static let lightThemes: [ThemePalette] = [
         ThemePalette(
-            id: "postwoman-light", name: "Reqs", isDark: false,
+            id: "reqs-light", name: "Reqs", isDark: false,
             background: 0xFFFFFF,
             sidebar: 0xFFFFFF,
             surface: 0xFFFFFF,
@@ -265,7 +265,7 @@ extension ThemePalette {
     /// Themes for Dark mode, and for System mode while macOS is dark. The first is the default.
     static let darkThemes: [ThemePalette] = [
         ThemePalette(
-            id: "postwoman-dark", name: "Reqs", isDark: true,
+            id: "reqs-dark", name: "Reqs", isDark: true,
             background: 0x121216,
             sidebar: 0x0E0E11,
             surface: 0x17171C,

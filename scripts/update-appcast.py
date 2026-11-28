@@ -35,7 +35,7 @@ def load(path):
         rss = ET.Element("rss", {"version": "2.0"})
         channel = ET.SubElement(rss, "channel")
         ET.SubElement(channel, "title").text = "Reqs"
-        ET.SubElement(channel, "link").text = "https://github.com/bearstouch/postwoman"
+        ET.SubElement(channel, "link").text = "https://github.com/bearstouch/reqs"
         ET.SubElement(channel, "description").text = "Reqs updates"
         ET.SubElement(channel, "language").text = "en"
         return ET.ElementTree(rss)

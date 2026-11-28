@@ -173,7 +173,7 @@ final class CLIConnectionTests: XCTestCase {
                 Connection(url: URL(string: "http://127.0.0.1:9001/mcp")!, token: "pwm_release"),
                 Connection(url: URL(string: "http://127.0.0.1:7778/mcp")!, token: "pwm_dev")
             ])
-        XCTAssertTrue(apps[0].tokenPath.contains("/Library/Containers/com.bearstouch.postwoman/Data/Library/Application Support/PostWoman/"))
+        XCTAssertTrue(apps[0].tokenPath.contains("/Library/Containers/com.bearstouch.reqs/Data/Library/Application Support/Reqs/"))
     }
 
     func testFlagsAndEnvironmentWin() throws {

@@ -12,8 +12,8 @@
 	<true/>
 	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 	<array>
-		<string>com.bearstouch.postwoman-spks</string>
-		<string>com.bearstouch.postwoman-spki</string>
+		<string>com.bearstouch.reqs-spks</string>
+		<string>com.bearstouch.reqs-spki</string>
 	</array>
 </dict>
 </plist>

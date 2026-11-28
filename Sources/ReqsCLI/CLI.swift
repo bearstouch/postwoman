@@ -82,7 +82,6 @@ public enum CLI {
             environment.stdout(removed == .bool(true) ? "Removed \(link)." : "There is no link at \(link).")
         } else {
             environment.stdout(result["changed"] == .bool(true) ? "Linked \(link) → \(CLIOutput.text(result["target"]))" : "\(link) already links here.")
-            if let old = result["removedOldLink"]?.string { environment.stderr("Removed \(old), the command's name before the rename to Reqs.") }
             if let hint = result["hint"]?.string { environment.stderr(hint) }
         }
         return 0

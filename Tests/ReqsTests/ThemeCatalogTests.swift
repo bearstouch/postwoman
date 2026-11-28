@@ -96,10 +96,10 @@ final class ThemeCatalogTests: XCTestCase {
     }
 
     func testLookupNeverCrossesAppearances() {
-        XCTAssertEqual(ThemePalette.light(id: "dracula-dark").id, "postwoman-light")
-        XCTAssertEqual(ThemePalette.dark(id: "dracula-light").id, "postwoman-dark")
-        XCTAssertEqual(ThemePalette.light(id: "").id, "postwoman-light")
-        XCTAssertEqual(ThemePalette.dark(id: "Nord-Dark").id, "postwoman-dark", "ids match exactly")
+        XCTAssertEqual(ThemePalette.light(id: "dracula-dark").id, "reqs-light")
+        XCTAssertEqual(ThemePalette.dark(id: "dracula-light").id, "reqs-dark")
+        XCTAssertEqual(ThemePalette.light(id: "").id, "reqs-light")
+        XCTAssertEqual(ThemePalette.dark(id: "Nord-Dark").id, "reqs-dark", "ids match exactly")
     }
 
     func testHexColorsConvertToSRGBComponents() throws {

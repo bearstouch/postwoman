@@ -4,9 +4,7 @@
 # packaged, and notarized/stapled with the same REQS_SIGN_IDENTITY / REQS_NOTARY_PROFILE.
 set -eu
 cd "$(dirname "$0")/.."
-identity="${REQS_SIGN_IDENTITY:-${POSTWOMAN_SIGN_IDENTITY:--}}"
-# The POSTWOMAN_* names from before the rename to Reqs still work.
-REQS_NOTARY_PROFILE="${REQS_NOTARY_PROFILE:-${POSTWOMAN_NOTARY_PROFILE:-}}"
+identity="${REQS_SIGN_IDENTITY:--}"
 manifest() { python3 -c 'import json,sys;print(json.load(open("release/manifest.json"))[sys.argv[1]])' "$1"; }
 version=$(manifest version)
 bundle_id=$(manifest bundleIdentifier)

@@ -41,10 +41,9 @@ struct ReqsApp: App {
         if Bundle.main.bundleURL.pathExtension == "app" {
             modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         } else {
-            // Named before the rename to Reqs; kept so existing dev stores are found.
-            let directory = URL.applicationSupportDirectory.appending(path: "PostWoman Dev", directoryHint: .isDirectory)
+            let directory = URL.applicationSupportDirectory.appending(path: "Reqs Dev", directoryHint: .isDirectory)
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            modelConfiguration = ModelConfiguration(schema: schema, url: directory.appending(path: "PostWoman.store"))
+            modelConfiguration = ModelConfiguration(schema: schema, url: directory.appending(path: "Reqs.store"))
         }
 
         do {

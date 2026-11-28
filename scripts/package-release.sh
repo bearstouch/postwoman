@@ -7,9 +7,7 @@
 #   REQS_NOTARY_PROFILE  notarytool keychain profile; notarization is skipped when unset
 set -eu
 cd "$(dirname "$0")/.."
-identity="${REQS_SIGN_IDENTITY:-${POSTWOMAN_SIGN_IDENTITY:--}}"
-# The POSTWOMAN_* names from before the rename to Reqs still work.
-REQS_NOTARY_PROFILE="${REQS_NOTARY_PROFILE:-${POSTWOMAN_NOTARY_PROFILE:-}}"
+identity="${REQS_SIGN_IDENTITY:--}"
 manifest() { python3 -c 'import json,sys;print(json.load(open("release/manifest.json"))[sys.argv[1]])' "$1"; }
 version=$(manifest version)
 minimum=$(manifest minimumMacOS)
@@ -19,7 +17,7 @@ copyright=$(manifest copyright)
 entitlements=$(manifest entitlements)
 # A build gets an update feed only when the manifest records the Sparkle public key (as in Trellis).
 sparkle_key=$(python3 -c 'import json;print(json.load(open("release/manifest.json")).get("sparklePublicKey") or "")')
-feed_url="https://raw.githubusercontent.com/bearstouch/postwoman/appcast/appcast.xml"
+feed_url="https://raw.githubusercontent.com/bearstouch/reqs/appcast/appcast.xml"
 # macOS wants numeric bundle versions: CFBundleShortVersionString is the X.Y.Z core, and CFBundleVersion adds a build
 # that orders pre-releases before the release (alpha.N = N, beta.N = 30+N, rc.N = 60+N, release = 100). Sparkle
 # compares CFBundleVersion. The full version, label included, goes to ReqsVersion for the app to show.

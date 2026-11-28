@@ -301,9 +301,9 @@ var folder: Folder?
 ### View the SwiftData Database
 The database is stored at:
 ```
-~/Library/Containers/com.bearstouch.postwoman/Data/Library/Application Support/       # installed app
-~/Library/Containers/com.bearstouch.postwoman.dev/Data/Library/Application Support/   # scripts/run-app.sh
-~/Library/Application Support/PostWoman Dev/                                   # swift run
+~/Library/Containers/com.bearstouch.reqs/Data/Library/Application Support/       # installed app
+~/Library/Containers/com.bearstouch.reqs.dev/Data/Library/Application Support/   # scripts/run-app.sh
+~/Library/Application Support/Reqs Dev/                                   # swift run
 ```
 
 ### Common Issues

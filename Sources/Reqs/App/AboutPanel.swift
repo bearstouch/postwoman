@@ -3,7 +3,7 @@ import AppKit
 /// The standard macOS About panel, laid out like Trellis's: name, icon and version, then credits that link the
 /// license and the owner.
 enum AboutPanel {
-    static let licenseURL = URL(string: "https://github.com/bearstouch/postwoman/blob/master/LICENSE")!
+    static let licenseURL = URL(string: "https://github.com/bearstouch/reqs/blob/master/LICENSE")!
     static let ownerURL = URL(string: "https://github.com/bearstouch")!
 
     /// The credits text. The standard Copyright option is plain text, so the linked copyright line lives here.

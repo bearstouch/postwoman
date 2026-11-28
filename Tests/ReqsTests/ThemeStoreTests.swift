@@ -23,8 +23,8 @@ final class ThemeStoreTests: XCTestCase {
         XCTAssertEqual(Set(all.map(\.id)).count, all.count)
         XCTAssertTrue(ThemePalette.lightThemes.allSatisfy { !$0.isDark })
         XCTAssertTrue(ThemePalette.darkThemes.allSatisfy(\.isDark))
-        XCTAssertEqual(ThemePalette.lightThemes.first?.id, "postwoman-light")
-        XCTAssertEqual(ThemePalette.darkThemes.first?.id, "postwoman-dark")
+        XCTAssertEqual(ThemePalette.lightThemes.first?.id, "reqs-light")
+        XCTAssertEqual(ThemePalette.darkThemes.first?.id, "reqs-dark")
     }
 
     /// Body text and JSON colors stay readable on each theme's fields (WCAG AA for normal text).
@@ -42,8 +42,8 @@ final class ThemeStoreTests: XCTestCase {
     func testDefaultsWhenNothingIsSaved() {
         let store = ThemeStore(defaults: defaults)
         XCTAssertEqual(store.mode, .system)
-        XCTAssertEqual(store.light.id, "postwoman-light")
-        XCTAssertEqual(store.dark.id, "postwoman-dark")
+        XCTAssertEqual(store.light.id, "reqs-light")
+        XCTAssertEqual(store.dark.id, "reqs-dark")
         XCTAssertEqual(store.accent, .blue)
         XCTAssertEqual(store.codeFontSize, ThemeStore.defaultCodeFontSize)
     }
@@ -74,8 +74,8 @@ final class ThemeStoreTests: XCTestCase {
         defaults.set(99.0, forKey: ThemeStore.Key.codeFontSize)
         let store = ThemeStore(defaults: defaults)
         XCTAssertEqual(store.mode, .system)
-        XCTAssertEqual(store.lightThemeID, "postwoman-light")
-        XCTAssertEqual(store.darkThemeID, "postwoman-dark")
+        XCTAssertEqual(store.lightThemeID, "reqs-light")
+        XCTAssertEqual(store.darkThemeID, "reqs-dark")
         XCTAssertEqual(store.accent, .blue)
         XCTAssertEqual(store.codeFontSize, ThemeStore.defaultCodeFontSize)
     }

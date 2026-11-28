@@ -42,7 +42,7 @@ enum CLILinkCommands {
         let target = environment.executablePath
         guard target.hasPrefix("/") else { throw CLIFailure(code: "LINK_FAILED", message: "Can't tell where this reqs command is.", exitStatus: 1) }
         if environment.links.exists(path) {
-            if environment.links.destination(path) == target { return withLegacyLinkRemoved(result(path, target, changed: false, environment: environment), directory, environment) }
+            if environment.links.destination(path) == target { return result(path, target, changed: false, environment: environment) }
             guard environment.links.destination(path) != nil else {
                 throw CLIFailure(code: "LINK_FAILED", message: "\(path) exists and is not a link. Remove it, or choose another --directory.", exitStatus: 1)
             }
@@ -57,25 +57,7 @@ enum CLILinkCommands {
         } catch {
             throw CLIFailure(code: "LINK_FAILED", message: "Can't create \(path): \(error.localizedDescription)", exitStatus: 1)
         }
-        return withLegacyLinkRemoved(result(path, target, changed: true, environment: environment), directory, environment)
-    }
-
-    /// The result, noting the link from before the rename to Reqs when `removeLegacyLink` took it away.
-    private static func withLegacyLinkRemoved(_ value: JSONValue, _ directory: String, _ environment: CLIEnvironment) -> JSONValue {
-        guard let old = removeLegacyLink(in: directory, environment: environment), case .object(var fields) = value else { return value }
-        fields["removedOldLink"] = .string(old)
-        return .object(fields)
-    }
-
-    /// The command was `postwoman` before the rename to Reqs. An update renames the bundled command, so a `postwoman` link in the
-    /// same directory that pointed at it (`…/Contents/Helpers/postwoman`) now leads nowhere and goes. A link that still works (an
-    /// older copy of the app kept somewhere) and anything else named `postwoman` stay.
-    static func removeLegacyLink(in directory: String, environment: CLIEnvironment) -> String? {
-        let path = "\(directory)/postwoman"
-        guard let destination = environment.links.destination(path), destination.hasSuffix("/Contents/Helpers/postwoman"),
-            !environment.links.exists(destination)
-        else { return nil }
-        return (try? environment.links.remove(path)) != nil ? path : nil
+        return result(path, target, changed: true, environment: environment)
     }
 
     static func remove(_ arguments: ToolArguments, environment: CLIEnvironment) throws(CLIFailure) -> JSONValue {

@@ -178,9 +178,8 @@ enum RemoteAgentToken {
         return prefix + base64
     }
 
-    /// Keeps the folder names from before the rename to Reqs, so existing tokens (and the CLI that reads them) still work.
     static var defaultURL: URL {
-        let folder = Bundle.main.bundleURL.pathExtension == "app" ? "PostWoman" : "PostWoman Dev"
+        let folder = Bundle.main.bundleURL.pathExtension == "app" ? "Reqs" : "Reqs Dev"
         return URL.applicationSupportDirectory.appending(path: folder, directoryHint: .isDirectory).appending(path: "remote-agent-token")
     }
 

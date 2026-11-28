@@ -31,7 +31,7 @@ final class AppVersionSchemeTests: XCTestCase {
     }
 
     func testBundleIdentifierIsTheOneThatOwnsUsersData() throws {
-        XCTAssertEqual(try manifest()["bundleIdentifier"] as? String, "com.bearstouch.postwoman", "changing it orphans the sandbox container")
+        XCTAssertEqual(try manifest()["bundleIdentifier"] as? String, "com.bearstouch.reqs", "changing it orphans the sandbox container")
     }
 
     func testMinimumMacOSMatchesThePackage() throws {
@@ -48,7 +48,7 @@ final class AppVersionSchemeTests: XCTestCase {
     func testSparklePublicKeyIsAnEd25519Key() throws {
         let key = try XCTUnwrap(manifest()["sparklePublicKey"] as? String)
         XCTAssertEqual(Data(base64Encoded: key)?.count, 32)
-        XCTAssertNotNil(UpdateFeed(info: ["SUFeedURL": "https://raw.githubusercontent.com/bearstouch/postwoman/appcast/appcast.xml", "SUPublicEDKey": key]))
+        XCTAssertNotNil(UpdateFeed(info: ["SUFeedURL": "https://raw.githubusercontent.com/bearstouch/reqs/appcast/appcast.xml", "SUPublicEDKey": key]))
     }
 
     func testSparkleDependencyMatchesTheResolvedPackage() throws {
