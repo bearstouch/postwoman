@@ -60,6 +60,14 @@ private func pair(_ key: String, _ value: String) -> JSONValue { .object(["key":
 final class CLIParsingTests: XCTestCase {
     // MARK: Commands
 
+    func testGlobalOptionsAcceptTheEqualsSpellingToo() throws {
+        let global = try parsed(["collection", "list", "--server=http://h:1/mcp?x=1", "--agent-token=pwm=x", "--agent-token-file=/tmp/f"]).global
+        XCTAssertEqual(global.server, "http://h:1/mcp?x=1")
+        XCTAssertEqual(global.token, "pwm=x", "Split at the first = only")
+        XCTAssertEqual(global.tokenFile, "/tmp/f")
+        XCTAssertEqual(try parsed(["--server=", "collection", "list"]).global.server, "")
+    }
+
     func testAnOptionBeforeTheCommandIsAnErrorNotTheOverview() {
         // It used to print the overview and exit 0, so a script with a misplaced flag "succeeded" without doing anything.
         XCTAssertEqual(

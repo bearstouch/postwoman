@@ -363,8 +363,15 @@ enum CLIArguments {
         var index = 0
         // Globals first, wherever they appear; everything else keeps its order.
         while index < arguments.count {
-            let argument = arguments[index]
+            var argument = arguments[index]
+            // `--server=URL`, as every command flag can be written.
+            var inline: String?
+            if let equals = argument.firstIndex(of: "="), ["--server", "--agent-token", "--agent-token-file"].contains(String(argument[..<equals])) {
+                inline = String(argument[argument.index(after: equals)...])
+                argument = String(argument[..<equals])
+            }
             func next() throws(CLIFailure) -> String {
+                if let inline { return inline }
                 index += 1
                 guard index < arguments.count else { throw .arguments("\(argument) needs a value.") }
                 return arguments[index]
