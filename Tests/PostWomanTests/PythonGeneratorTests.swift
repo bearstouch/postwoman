@@ -194,8 +194,24 @@ final class PythonGeneratorTests: XCTestCase {
         for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             let request = body("a=1&b=2\nsecond", type)
             XCTAssertTrue(code(request).contains("data = \"\"\"a=1&b=2\nsecond\"\"\"\n"), type.rawValue)
-            XCTAssertEqual(call(request), "response = requests.post(url, data=data)", type.rawValue)
+            XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)", type.rawValue)
         }
+    }
+
+    func testTextBodiesCarryTheContentTypeTheAppSends() throws {
+        // requests sets no Content-Type for a str body, and the app always sends the body type's.
+        for type in [ContentType.xml, .text, .urlEncoded] {
+            let request = body("<a/>", type)
+            let received = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual((received["headers"] as? [String: String])?["Content-Type"], type.mimeType, type.rawValue)
+            request.headers = [KeyValuePair(key: "content-type", value: "application/vnd.custom")]
+            let own = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual(own["headers"] as? [String: String], ["content-type": "application/vnd.custom"], "The request's own Content-Type is the only one")
+        }
+        XCTAssertFalse(code(body("ignored", .none)).contains("Content-Type"))
+        let head = body("<a/>", .xml)
+        head.method = .head
+        XCTAssertFalse(code(head).contains("Content-Type"), "No body, no Content-Type")
     }
 
     func testNoBodyForTheNoneTypeOrEmptyContent() {

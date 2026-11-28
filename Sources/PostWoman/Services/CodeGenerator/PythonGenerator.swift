@@ -35,9 +35,11 @@ struct PythonGenerator {
         // written with `data=`, and the Content-Type the app would send.
         let hasBody = request.sendsBody
         let jsonLiteral = hasBody && request.bodyType == .json ? PythonLiteral(json: request.bodyContent) : nil
-        let addsJSONContentType =
-            hasBody && request.bodyType == .json && jsonLiteral == nil && !enabledHeaders.contains { $0.key.lowercased() == "content-type" }
-        if addsJSONContentType { hasHeaders = true }
+        // requests writes the Content-Type itself for `json=` and for multipart `files=`, and none for a `data=` string, so
+        // that one gets the body type's, as the app sends it.
+        let sendsData = hasBody && jsonLiteral == nil && MultipartForm.fields(of: request) == nil
+        let addedContentType = sendsData && !enabledHeaders.contains { $0.key.lowercased() == "content-type" } ? request.bodyType.mimeType : nil
+        if addedContentType != nil { hasHeaders = true }
 
         if request.authenticationType == .bearer, let token = request.authBearerToken, !token.isEmpty {
             hasHeaders = true
@@ -49,8 +51,8 @@ struct PythonGenerator {
                 code += "    \(PythonLiteral.string(header.key)): \(PythonLiteral.string(header.value)),\n"
             }
 
-            if addsJSONContentType, let mimeType = ContentType.json.mimeType {
-                code += "    \"Content-Type\": \(PythonLiteral.string(mimeType)),\n"
+            if let addedContentType {
+                code += "    \"Content-Type\": \(PythonLiteral.string(addedContentType)),\n"
             }
 
             if request.authenticationType == .bearer,
