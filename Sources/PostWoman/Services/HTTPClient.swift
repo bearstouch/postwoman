@@ -291,7 +291,7 @@ final class HTTPClient {
     /// A response body as text: in the charset its Content-Type declares, else UTF-8, else, for `text/*`, Latin-1 (what such
     /// a body is when it isn't UTF-8). Nil when the bytes aren't text (an image, say).
     nonisolated static func text(_ data: Data, charset: String?, contentType: String?) -> String? {
-        if let charset {
+        if let charset = charset?.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")), !charset.isEmpty {
             let encoding = CFStringConvertIANACharSetNameToEncoding(charset as CFString)
             if encoding != kCFStringEncodingInvalidId, let text = String(data: data, encoding: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))) {
                 return text

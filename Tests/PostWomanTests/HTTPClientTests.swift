@@ -175,6 +175,9 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertNil(HTTPClient.text(Data([0x89, 0x50, 0x4E, 0x47, 0xFF, 0xFE]), charset: nil, contentType: "image/png"), "Bytes that aren't text have no text")
         XCTAssertNil(HTTPClient.text(cafe, charset: nil, contentType: nil))
         XCTAssertEqual(HTTPClient.text(Data(), charset: nil, contentType: nil), "")
+        // `charset="windows-1252"`: URLSession hands the name over with its quotes.
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "\"windows-1252\"", contentType: "application/json; charset=\"windows-1252\""), "café")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "\"\"", contentType: "application/json"), "café")
     }
 
     func testTheTimeoutChosenInSettingsIsUsed() async throws {
