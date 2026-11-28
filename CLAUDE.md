@@ -127,6 +127,16 @@ Located in `Sources/Reqs/Services/`:
   `multipart/form-data` parts, unless the request sets its own Content-Type (then the body goes as written)
 - **`RequestTimeout`** - The timeout from Settings → General (`defaultTimeout`, 1…600 s), read by `HTTPClient` at each send. Requests
   also bypass URLCache (`.reloadIgnoringLocalCacheData`), and response text follows the declared charset (`HTTPClient.text`)
+- **`ExportImportService`** - Reqs's own files: one collection (`ExportContainer`) or all of them (`BackupContainer`, File → Export
+  All Collections…). `insert(_:context:sortOrder:)` is the one path that stores an `ExportableFolder`, whatever file it came from
+- **`Import/`** - File → Import… opens `ImportView` (`Views/Import/`; its decisions are in `ImportPreview`). `CollectionImport.read`
+  detects the format (`ImportFormat`) and converts it into `ImportedFile` (Reqs export shapes + standalone environments + user-facing
+  notes) without touching the store; `commit` saves pending edits, inserts the whole batch (or throws before inserting anything) and
+  rolls back only the import if the save fails. It takes the selected collection by `PersistentIdentifier`: reading a model an agent
+  deleted traps. One importer per app (`PostmanImporter`, `HoppscotchImporter`, `InsomniaImporter`, `OpenAPIImporter`) sharing
+  `RequestDraft`/`AuthDraft`/`ImportSupport`; folders flatten into request names, OAuth 2.0 becomes Bearer. YAML is read by
+  `YAMLReader` (a subset, no dependency). Hostile files must fail, not hang: keep the limits (`maximumRequests`, `aliasBudget`,
+  `maximumDepth`, the OpenAPI sample budget, Insomnia's visited folders) and scan multi-line YAML incrementally (`ImportHardeningTests`)
 - **`CodeGenerator/`** - Generates cURL, Swift, Python code from requests
 - **`Streaming/`** - Streamed responses. `HTTPClient.execute(request:onProgress:)` runs a data task with a per-task
   `StreamingTaskDelegate` (chunks + metrics). For `text/event-stream`/NDJSON (`StreamKind`) it feeds `StreamEventParser`
@@ -154,6 +164,7 @@ Menu commands use `NotificationCenter` to communicate with views:
 - `.saveRequest`
 - `.duplicateRequest`
 - `.generateCode`
+- `.importCollections` (opens the Import sheet), `.exportAllCollections`
 
 Every window hears these, so each view checks `commandWindow.acceptsCommands` (`App/CommandTarget.swift`: only the frontmost
 main window acts) before handling one. `ContentDetailView` gives the editor `.id(request.id)`: its `@State` must never carry

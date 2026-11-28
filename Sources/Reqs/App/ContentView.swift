@@ -27,6 +27,9 @@ struct ContentView: View {
     /// The window this view is in: menu commands are handled by the front window only.
     @State private var commandWindow = CommandWindow()
 
+    /// Whether the Import sheet is open (File → Import…, or + → Import… in the sidebar).
+    @State private var showingImport = false
+
     /// Controls the visibility of the NavigationSplitView columns.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -60,13 +63,15 @@ struct ContentView: View {
                         Button(action: createFolder) {
                             Label("New Folder", systemImage: "folder.badge.plus")
                         }
-                        Button(action: importCollection) {
-                            Label("Import Collection...", systemImage: "square.and.arrow.down")
+                        Button {
+                            showingImport = true
+                        } label: {
+                            Label("Import…", systemImage: "square.and.arrow.down")
                         }
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .help("New Folder or Import Collection")
+                    .help("New Folder or Import")
                     .accessibilityLabel("Add Collection")
                 }
             }
@@ -109,6 +114,19 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
             guard commandWindow.acceptsCommands else { return }
             createFolder()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .importCollections)) { _ in
+            guard commandWindow.acceptsCommands else { return }
+            showingImport = true
+        }
+        .sheet(isPresented: $showingImport) {
+            ImportView(selectedCollection: currentFolder) { folder in
+                if let folder { selection.sidebar = .folder(folder.id) }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportAllCollections)) { _ in
+            guard commandWindow.acceptsCommands else { return }
+            ExportImportService.exportAllWithDialog(folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewRequest)) { _ in
             guard commandWindow.acceptsCommands else { return }
@@ -154,18 +172,6 @@ struct ContentView: View {
     /// Deletes the folders at the specified indices.
     private func deleteFolders(at offsets: IndexSet) {
         for folder in offsets.map({ folders[$0] }) { SidebarActions.deleteFolder(folder, context: modelContext) }
-    }
-
-    /// Imports a collection from a JSON file.
-    private func importCollection() {
-        ExportImportService.importFolderWithDialog(
-            context: modelContext,
-            existingFolderCount: Folder.nextSortOrder(after: folders)
-        ) { importedFolder in
-            if let folder = importedFolder {
-                selection.sidebar = .folder(folder.id)
-            }
-        }
     }
 }
 

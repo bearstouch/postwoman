@@ -36,6 +36,21 @@ struct AppCommands: Commands {
             Divider()
         }
 
+        // Import from Reqs, Postman, Hoppscotch, Insomnia and OpenAPI files; export every collection to one file.
+        CommandGroup(after: .newItem) {
+            Button("Import…") {
+                NotificationCenter.default.post(name: .importCollections, object: nil)
+            }
+            .keyboardShortcut("o", modifiers: .command)
+
+            Button("Export All Collections…") {
+                NotificationCenter.default.post(name: .exportAllCollections, object: nil)
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+
+            Divider()
+        }
+
         // Request menu with actions for working with API requests
         CommandMenu("Request") {
             Button("Send Request") {
@@ -126,6 +141,12 @@ extension Notification.Name {
 
     /// Posted when the user wants to generate code for the current request.
     static let generateCode = Notification.Name("generateCode")
+
+    /// Posted when the user wants to import collections or environments (File → Import…): the front window opens its Import sheet.
+    static let importCollections = Notification.Name("Reqs.importCollections")
+
+    /// Posted when the user wants to export every collection to one file (File → Export All Collections…).
+    static let exportAllCollections = Notification.Name("Reqs.exportAllCollections")
 
     /// Posted when a folder should be expanded (e.g., when a request is added to it).
     static let expandFolder = Notification.Name("expandFolder")
