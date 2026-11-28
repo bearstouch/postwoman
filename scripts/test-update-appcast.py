@@ -15,7 +15,7 @@ SIGNATURE = "A" * 86 + "=="
 
 
 def run(appcast, version, bundle, url=None, check=True):
-    url = url or f"https://github.com/bearstouch/postwoman/releases/download/v{version}/PostWoman-{version}.dmg"
+    url = url or f"https://github.com/bearstouch/postwoman/releases/download/v{version}/Reqs-{version}.dmg"
     command = [sys.executable, "-I", str(SCRIPT), str(appcast), "--version", version, "--bundle-version", bundle, "--minimum-macos", "14.0",
                "--url", url, "--length", "1234", "--signature", SIGNATURE,
                "--notes-url", f"https://github.com/bearstouch/postwoman/releases/tag/v{version}", "--date", "Sat, 24 Oct 2026 12:00:00 GMT"]
@@ -27,7 +27,7 @@ def items(appcast):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="postwoman appcast ") as temporary:
+    with tempfile.TemporaryDirectory(prefix="reqs appcast ") as temporary:
         appcast = Path(temporary) / "appcast.xml"
         run(appcast, "1.0.0-beta.2", "1.0.0.32")
         run(appcast, "1.0.0", "1.0.0.100")
@@ -43,8 +43,8 @@ def main():
         run(appcast, "1.0.0", "1.0.0.100")
         assert appcast.read_bytes() == before, "re-running a release must not change the feed"
 
-        run(appcast, "1.0.1", "1.0.1.100", url="https://example.com/PostWoman.dmg?a=1&b=<2>")
-        assert items(appcast)[0].find("enclosure").get("url") == "https://example.com/PostWoman.dmg?a=1&b=<2>", "URLs are escaped, not injected"
+        run(appcast, "1.0.1", "1.0.1.100", url="https://example.com/Reqs.dmg?a=1&b=<2>")
+        assert items(appcast)[0].find("enclosure").get("url") == "https://example.com/Reqs.dmg?a=1&b=<2>", "URLs are escaped, not injected"
         assert len(items(appcast)) == 4
 
         for bad in (["1.0.2", "1.0.2.100", "http://example.com/x.dmg"], ["1.0", "1.0.0.100", None], ["1.0.3", "1.0.3-beta", None]):

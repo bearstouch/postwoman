@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add one release to PostWoman's Sparkle appcast.
+"""Add one release to the Reqs Sparkle appcast.
 
 Usage: python3 -I scripts/update-appcast.py <appcast.xml> --version 1.0.0-beta.2 --bundle-version 1.0.0.32
          --minimum-macos 14.0 --url <dmg url> --length <bytes> --signature <EdDSA> --notes-url <release page> [--date <RFC 2822>]
@@ -34,9 +34,9 @@ def load(path):
     if not os.path.exists(path):
         rss = ET.Element("rss", {"version": "2.0"})
         channel = ET.SubElement(rss, "channel")
-        ET.SubElement(channel, "title").text = "PostWoman"
+        ET.SubElement(channel, "title").text = "Reqs"
         ET.SubElement(channel, "link").text = "https://github.com/bearstouch/postwoman"
-        ET.SubElement(channel, "description").text = "PostWoman updates"
+        ET.SubElement(channel, "description").text = "Reqs updates"
         ET.SubElement(channel, "language").text = "en"
         return ET.ElementTree(rss)
     tree = ET.parse(path)
@@ -51,7 +51,7 @@ def update(tree, args):
         if item.findtext(tag("version")) == args.bundle_version:
             channel.remove(item)
     item = ET.Element("item")
-    ET.SubElement(item, "title").text = f"PostWoman {args.version}"
+    ET.SubElement(item, "title").text = f"Reqs {args.version}"
     ET.SubElement(item, "pubDate").text = args.date or email.utils.formatdate(usegmt=True)
     ET.SubElement(item, tag("version")).text = args.bundle_version
     ET.SubElement(item, tag("shortVersionString")).text = args.version

@@ -1,12 +1,18 @@
 # Changelog
 
-All notable changes to PostWoman are documented in this file.
+All notable changes to Reqs (formerly PostWoman) are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
 ### Changed
+- PostWoman is now **Reqs**, with an electric blue accent and a new icon (a list of saved requests). Collections, History,
+  environments, settings and the agent token carry over, and updates keep arriving. The command-line tool is now `reqs`:
+  its `cli install-link` command (copy it from Settings → Remote Agent) adds it to PATH and removes the old `postwoman` link, which stops working once the app updates. `REQS_URL`, `REQS_TOKEN` and
+  `REQS_TOKEN_FILE` replace the `POSTWOMAN_*` variables, which still work. MCP clients see the server as `reqs`, so update
+  the name in your agent's config if you like (the old entry keeps working). Pink is still available in Settings → Appearance
+- The Reqs theme's JSON keys are blue and literals (`true`, `null`) violet; the Pink environment color stays pink whatever the accent
 - A request or History entry with a body and no query parameters opens on the Body tab instead of an empty Params tab
 - A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
 - Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `postwoman request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)

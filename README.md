@@ -1,6 +1,6 @@
-# PostWoman
+# Reqs
 
-A native macOS REST API client built with SwiftUI and SwiftData: a lightweight Postman alternative with collections, environments, streamed responses and code generation, which agents and scripts can drive too.
+A native macOS REST API client built with SwiftUI and SwiftData: a lightweight Postman alternative with collections, environments, streamed responses and code generation, which agents and scripts can drive too. Formerly PostWoman.
 
 [Website](https://bearstouch.com/postwoman/) · [Download](https://github.com/bearstouch/postwoman/releases/latest) · [Changelog](CHANGELOG.md)
 
@@ -11,8 +11,8 @@ A native macOS REST API client built with SwiftUI and SwiftData: a lightweight P
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Design/Screenshots/postwoman-dark.png">
-  <img src="Design/Screenshots/postwoman-light.png" alt="PostWoman's window: the Shop API collection and its requests, a GET request with {{variables}} and query parameters, and the 200 OK JSON response" width="900">
+  <source media="(prefers-color-scheme: dark)" srcset="Design/Screenshots/reqs-dark.png">
+  <img src="Design/Screenshots/reqs-light.png" alt="The Reqs window: the Shop API collection and its requests, a GET request with {{variables}} and query parameters, and the 200 OK JSON response" width="900">
 </picture>
 
 ## Features
@@ -51,31 +51,31 @@ Export a request as code, with its variables resolved:
 
 ### Themes and updates
 - Light and dark color themes, chosen in **Settings → Appearance**
-- **PostWoman → Check for Updates…** installs new releases in place (Sparkle). Nothing reaches the network until you check or turn automatic checks on
+- **Reqs → Check for Updates…** installs new releases in place (Sparkle). Nothing reaches the network until you check or turn automatic checks on
 
 ### Remote Agent (MCP)
 - An optional [Model Context Protocol](https://modelcontextprotocol.io) server, so agents such as Claude Code can create, update and delete collections, requests and history, and send requests
 - Off by default. Turn it on in **Settings → Remote Agent**, press Apply, then use **Copy Client Setup** and the access token on the same page:
 
 ```sh
-claude mcp add --transport http postwoman http://127.0.0.1:7778/mcp \
+claude mcp add --transport http reqs http://127.0.0.1:7778/mcp \
   --header "Authorization: Bearer pwm_…"
 ```
 
 ### Command line
-- `postwoman` drives the running app through the same MCP server, from your shell or scripts. It ships inside the app; link it onto your PATH once (or use **Copy Client Setup → Command-line tool** in Settings):
+- `reqs` drives the running app through the same MCP server, from your shell or scripts. It ships inside the app; link it onto your PATH once (or use **Copy Client Setup → Command-line tool** in Settings):
 
 ```sh
-/Applications/PostWoman.app/Contents/Helpers/postwoman cli install-link   # → ~/.local/bin/postwoman
-postwoman collection list
-postwoman request create --collection ID --name "Get user" --url https://api.example.com/users/1
-postwoman request execute --id ID --include          # body on stdout, status and timing on stderr
-postwoman request execute -X POST --url https://httpbin.org/post -H "Accept: application/json" -d '{"a":1}'
-postwoman history list --limit 10
-postwoman help                                       # every command; add --json for machine-readable output
+/Applications/Reqs.app/Contents/Helpers/reqs cli install-link   # → ~/.local/bin/reqs
+reqs collection list
+reqs request create --collection ID --name "Get user" --url https://api.example.com/users/1
+reqs request execute --id ID --include          # body on stdout, status and timing on stderr
+reqs request execute -X POST --url https://httpbin.org/post -H "Accept: application/json" -d '{"a":1}'
+reqs history list --limit 10
+reqs help                                       # every command; add --json for machine-readable output
 ```
 
-- It finds the agent token and endpoint from the app itself; override with `--server` / `--agent-token` or `POSTWOMAN_URL` / `POSTWOMAN_TOKEN`. Exit statuses are stable (for example 3 for a refused token, 4 for not found, 7 when the app isn't reachable, 22 for `--fail` on a 4xx/5xx response).
+- It finds the agent token and endpoint from the app itself; override with `--server` / `--agent-token` or `REQS_URL` / `REQS_TOKEN` (the older `POSTWOMAN_URL` / `POSTWOMAN_TOKEN` still work). Exit statuses are stable (for example 3 for a refused token, 4 for not found, 7 when the app isn't reachable, 22 for `--fail` on a 4xx/5xx response).
 
 ## Installation
 
@@ -83,10 +83,10 @@ postwoman help                                       # every command; add --json
 
 Download the latest DMG installer from the [Releases](../../releases) page:
 
-1. Download `PostWoman-X.Y.Z.dmg` (Universal), or the `-apple-silicon` / `-intel` variant
+1. Download `Reqs-X.Y.Z.dmg` (Universal), or the `-apple-silicon` / `-intel` variant
 2. Open the DMG file
-3. Drag PostWoman to your Applications folder
-4. Eject the DMG and launch PostWoman from Applications
+3. Drag Reqs to your Applications folder
+4. Eject the DMG and launch Reqs from Applications
 
 ### Build from Source
 
@@ -99,15 +99,15 @@ Download the latest DMG installer from the [Releases](../../releases) page:
 1. Clone the repository:
    ```bash
    git clone https://github.com/bearstouch/postwoman.git
-   cd postwoman
+   cd reqs
    ```
 
 2. Build and run:
    ```bash
-   swift run PostWoman            # unbundled, uses its own dev store
-   scripts/run-app.sh             # sandboxed .build/PostWoman.app (com.bearstouch.postwoman.dev)
+   swift run Reqs            # unbundled, uses its own dev store
+   scripts/run-app.sh             # sandboxed .build/Reqs.app (com.bearstouch.postwoman.dev)
    ```
-   Or open `Package.swift` in Xcode (or the folder in VS Code with the Swift extension) and run the `PostWoman` scheme.
+   Or open `Package.swift` in Xcode (or the folder in VS Code with the Swift extension) and run the `Reqs` scheme.
 
 3. Test and lint:
    ```bash
@@ -122,8 +122,8 @@ scripts/package-release.sh       # Universal 2 DMG in dist/ (+ dist/release-evid
 scripts/package-thin-release.sh  # Apple silicon and Intel DMGs from the Universal app
 ```
 
-Builds are ad-hoc signed unless `POSTWOMAN_SIGN_IDENTITY` (Developer ID) is set; set
-`POSTWOMAN_NOTARY_PROFILE` (a `notarytool` keychain profile) to notarize and staple.
+Builds are ad-hoc signed unless `REQS_SIGN_IDENTITY` (Developer ID) is set; set
+`REQS_NOTARY_PROFILE` (a `notarytool` keychain profile) to notarize and staple.
 The version comes from `release/manifest.json`.
 
 ## Usage
@@ -153,7 +153,7 @@ The version comes from `release/manifest.json`.
 
 ```
 Package.swift               # SwiftPM manifest (app, CLI and tests)
-Sources/PostWoman/
+Sources/Reqs/
 ├── App/                    # App entry point, root view and menu commands
 ├── Models/                 # SwiftData models
 ├── Views/
@@ -173,8 +173,8 @@ Sources/PostWoman/
 │   ├── Variables/         # {{variable}} resolution
 │   └── Updates/           # Sparkle updater
 └── Utilities/             # JSON formatting, themes
-Sources/PostWomanCLI/       # the postwoman command (MCP client); PostWomanCLIMain is its entry point
-Tests/PostWomanTests/       # XCTest suite
+Sources/ReqsCLI/       # the reqs command (MCP client); ReqsCLIMain is its entry point
+Tests/ReqsTests/       # XCTest suite
 release/                    # manifest.json (version, bundle id) and entitlements
 scripts/                    # app bundle, DMG and release packaging
 Design/                     # app icon, DMG background and README screenshots
@@ -202,7 +202,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ```bash
 # Fork and clone
 git clone https://github.com/YOUR_USERNAME/postwoman.git
-cd postwoman
+cd reqs
 
 # Create a feature branch
 git checkout -b feature/your-feature
