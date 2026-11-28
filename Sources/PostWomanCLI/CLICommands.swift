@@ -372,7 +372,9 @@ enum CLIArguments {
             switch argument {
             case "--json": global.json = true
             case "--help", "-h": wantsHelp = true
-            case "--version": if words.isEmpty, rest.isEmpty { return .version }
+            case "--version":
+                if words.isEmpty, rest.isEmpty { return .version }
+                rest.append(argument)
             case "--server": global.server = try next()
             case "--agent-token": global.token = try next()
             case "--agent-token-file": global.tokenFile = try next()
@@ -385,7 +387,11 @@ enum CLIArguments {
             let topic = Array(words.dropFirst()) + rest
             return .help(noun: topic.first, verb: topic.dropFirst().first)
         }
-        guard let noun = words.first else { return .help(noun: nil, verb: nil) }
+        guard let noun = words.first else {
+            // Not the overview with exit 0: a script with a misplaced or mistyped option must not look as if it had run.
+            if !wantsHelp, let stray = rest.first { throw .arguments("Unknown option \(stray) before the command. Options go after it: postwoman NOUN VERB [options].") }
+            return .help(noun: nil, verb: nil)
+        }
         if noun == "tools", words.count == 1 { words.append("list") }
         // `call TOOL`: the tool name is the second word.
         var positional: String?

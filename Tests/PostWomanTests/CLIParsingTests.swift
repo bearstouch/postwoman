@@ -60,6 +60,21 @@ private func pair(_ key: String, _ value: String) -> JSONValue { .object(["key":
 final class CLIParsingTests: XCTestCase {
     // MARK: Commands
 
+    func testAnOptionBeforeTheCommandIsAnErrorNotTheOverview() {
+        // It used to print the overview and exit 0, so a script with a misplaced flag "succeeded" without doing anything.
+        XCTAssertEqual(
+            message(["-X", "POST", "request", "execute", "--url", "http://x"]), "Unknown option -X before the command. Options go after it: postwoman NOUN VERB [options].")
+        XCTAssertEqual(message(["--jsno", "collection", "list"]), "Unknown option --jsno before the command. Options go after it: postwoman NOUN VERB [options].")
+        XCTAssertEqual(message(["--nope"]), "Unknown option --nope before the command. Options go after it: postwoman NOUN VERB [options].")
+        XCTAssertEqual(message(["collection", "list", "--version"]), "collection list has no option --version.")
+        // Still fine: nothing at all, help, the version, and global options before the command.
+        for words in [[], ["--help"], ["-h"], ["--nope", "--help"], ["--json"]] {
+            guard case .help(nil, nil)? = try? parse(words) else { return XCTFail("\(words) shows the overview") }
+        }
+        guard case .version? = try? parse(["--version"]) else { return XCTFail("--version prints the version") }
+        XCTAssertNoThrow(try parsed(["--json", "--server", "h:1", "collection", "list"]))
+    }
+
     func testEveryCommandParsesFromItsWords() {
         for command in CLICommands.all {
             let expected = command.noun == "call" ? "run call tool some_tool" : "run \(command.name)"
