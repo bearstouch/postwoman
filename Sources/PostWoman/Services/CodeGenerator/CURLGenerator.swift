@@ -30,24 +30,29 @@ struct CURLGenerator {
 
         parts.append(quoted(urlWithParams(request)))
 
-        // Add HTTP headers
-        for header in request.headers where header.isEnabled && !header.key.isEmpty {
-            parts.append("-H " + quoted("\(header.key): \(header.value)"))
-        }
-
-        // Add authentication
+        // Authentication, as the app applies it: a bearer token or Basic credentials replace an Authorization header.
+        var authentication: String?
         switch request.authenticationType {
         case .bearer:
-            if let token = request.authBearerToken, !token.isEmpty {
-                parts.append("-H " + quoted("Authorization: Bearer \(token)"))
-            }
+            if let token = request.authBearerToken, !token.isEmpty { authentication = "-H " + quoted("Authorization: Bearer \(token)") }
         case .basic:
             if let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword) {
-                parts.append("-u " + quoted("\(username):\(password)"))
+                authentication = "-u " + quoted("\(username):\(password)")
             }
         default:
             break
         }
+
+        // The app sends each header name once, with its last value; curl would send every -H line, and with a written
+        // Authorization header would ignore -u.
+        let enabledHeaders = request.headers.filter { $0.isEnabled && !$0.key.isEmpty }
+        for (index, header) in enabledHeaders.enumerated() {
+            let name = header.key.lowercased()
+            if enabledHeaders[(index + 1)...].contains(where: { $0.key.lowercased() == name }) { continue }
+            if authentication != nil, name == "authorization" { continue }
+            parts.append("-H " + quoted("\(header.key): \(header.value)"))
+        }
+        if let authentication { parts.append(authentication) }
 
         // Add request body if present
         if hasBody, let fields = MultipartForm.fields(of: request) {

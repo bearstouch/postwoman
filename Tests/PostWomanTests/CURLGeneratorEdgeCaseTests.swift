@@ -266,6 +266,32 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testARepeatedHeaderIsSentOnceWithItsLastValueAsTheAppSendsIt() {
+        let request = APIRequest(name: "h", url: "https://h")
+        request.headers = [
+            KeyValuePair(key: "X-A", value: "1"), KeyValuePair(key: "Accept", value: "*/*"), KeyValuePair(key: "x-a", value: "2"),
+            KeyValuePair(key: "X-A", value: "off", isEnabled: false)
+        ]
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-H 'x-a: 2'"])
+    }
+
+    func testTheChosenAuthenticationReplacesAnAuthorizationHeader() {
+        let request = APIRequest(name: "a", url: "https://h")
+        request.headers = [KeyValuePair(key: "authorization", value: "Custom x"), KeyValuePair(key: "Accept", value: "*/*")]
+        request.authenticationType = .basic
+        request.authBasicUsername = "user"
+        request.authBasicPassword = "pass"
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-u 'user:pass'"], "curl would send the header instead of -u")
+        request.authenticationType = .bearer
+        request.authBearerToken = "tok"
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-H 'Authorization: Bearer tok'"], "Not both Authorization lines")
+        // Authentication that sends nothing leaves the header, as in the app.
+        request.authBearerToken = ""
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'authorization: Custom x'", "-H 'Accept: */*'"])
+        request.authenticationType = .none
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'authorization: Custom x'", "-H 'Accept: */*'"])
+    }
+
     func testBasicAuthUsesDashUAndNeedsBothFields() {
         let cases: [(String?, String?, String?)] = [("user", "pass", "-u 'user:pass'"), ("user", "", "-u 'user:'"), ("", "", "-u ':'"), ("user", nil, "-u 'user:'"), (nil, "pass", "-u ':pass'"), (nil, nil, nil)]
         // A field never typed in (nil) counts as empty; with neither there is nothing to send.
