@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - PostWoman is now **Reqs**, a new app with its own bundle identifier (`com.bearstouch.reqs`), an electric blue accent and
-  a new icon (a list of saved requests that looks back at you). Because it is a new app, it starts empty: in PostWoman, right-click each collection and
+  a new flat icon (a list of saved requests on electric blue). Because it is a new app, it starts empty: in PostWoman, right-click each collection and
   choose Export Collection…, then import each file in Reqs with + → Import Collection…. PostWoman doesn't update to Reqs: its update check says Reqs is available
   and links to https://github.com/bearstouch/reqs/releases. The command-line tool is now `reqs` (`REQS_URL`, `REQS_TOKEN`,
   `REQS_TOKEN_FILE`), and MCP clients see the server as `reqs`, with a new agent token. Pink is still available in

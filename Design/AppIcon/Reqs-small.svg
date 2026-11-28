@@ -1,12 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>Reqs (16–32 px)</title>
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DDE5F4"/></linearGradient>
-    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A88FF"/><stop offset="0.6" stop-color="#2A64F6"/><stop offset="1" stop-color="#6A45F0"/></linearGradient>
-  </defs>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" stroke="#B9C6E0" stroke-width="12"/>
-  <rect x="200" y="230" width="624" height="600" rx="130" fill="url(#card)"/>
-  <ellipse cx="420" cy="430" rx="72" ry="90" fill="#FFFFFF"/><ellipse cx="604" cy="430" rx="72" ry="90" fill="#FFFFFF"/>
-  <circle cx="432" cy="410" r="40" fill="#0B1436"/><circle cx="616" cy="410" r="40" fill="#0B1436"/>
-  <rect x="280" y="630" width="160" height="90" rx="30" fill="#3FC27A"/><rect x="470" y="652" width="270" height="46" rx="23" fill="#FFFFFF" opacity="0.9"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A64F6"/>
+  <rect x="200" y="250" width="170" height="110" rx="26" fill="#FFF4DC"/><rect x="400" y="270" width="424" height="70" rx="22" fill="#FFF4DC" fill-opacity="0.6"/>
+  <rect x="160" y="425" width="704" height="174" rx="40" fill="#FFFFFF" fill-opacity="0.2"/>
+  <rect x="200" y="457" width="170" height="110" rx="26" fill="#FFFFFF"/><rect x="400" y="477" width="384" height="70" rx="22" fill="#FFFFFF"/>
+  <rect x="200" y="664" width="170" height="110" rx="26" fill="#FFF4DC"/><rect x="400" y="684" width="310" height="70" rx="22" fill="#FFF4DC" fill-opacity="0.6"/>
 </svg>
