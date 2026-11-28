@@ -15,7 +15,7 @@ enum SidebarActions {
     /// A new "New Request" at the end of `folder`.
     static func createRequest(in folder: Folder, context: ModelContext) -> APIRequest {
         let request = APIRequest(name: "New Request", folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
+        request.sortOrder = folder.nextRequestSortOrder(excluding: request)
         context.insert(request)
         return request
     }
@@ -32,7 +32,7 @@ enum SidebarActions {
         newRequest.authBasicUsername = request.authBasicUsername
         newRequest.authBasicPassword = request.authBasicPassword
         newRequest.authOAuthConfig = request.authOAuthConfig
-        newRequest.sortOrder = (folder.requests?.count ?? 0)
+        newRequest.sortOrder = folder.nextRequestSortOrder(excluding: newRequest)
         context.insert(newRequest)
         return newRequest
     }

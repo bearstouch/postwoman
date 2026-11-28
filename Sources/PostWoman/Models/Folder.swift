@@ -31,6 +31,13 @@ final class Folder {
     @Relationship(deleteRule: .cascade, inverse: \CollectionEnvironment.folder)
     var environments: [CollectionEnvironment]?
 
+    /// Where a request added to this collection goes: after the last one, so it never ties with another, even after
+    /// deletions. `request` (one that already joined, or is moving in) is left out of the count.
+    func nextRequestSortOrder(excluding request: APIRequest? = nil) -> Int {
+        let orders = (requests ?? []).filter { $0 !== request }.map(\.sortOrder)
+        return (orders.max() ?? -1) + 1
+    }
+
     /// The environment requests resolve `{{variables}}` with, on top of Default. Nil means Default only.
     var selectedEnvironmentID: UUID?
 

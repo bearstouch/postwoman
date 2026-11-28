@@ -62,7 +62,7 @@ struct ContentSelection {
         }
 
         let request = APIRequest(name: "New Request", folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
+        request.sortOrder = folder.nextRequestSortOrder(excluding: request)
         context.insert(request)
         self.request = request
         return request
@@ -81,7 +81,7 @@ struct ContentSelection {
             folder.ensureDefaultEnvironment()
         }
         let request = history.makeRequest(folder: folder)
-        request.sortOrder = folder.requests?.count ?? 0
+        request.sortOrder = folder.nextRequestSortOrder(excluding: request)
         context.insert(request)
         self.history = nil
         self.request = request

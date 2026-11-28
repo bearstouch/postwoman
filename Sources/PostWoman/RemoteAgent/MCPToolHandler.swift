@@ -80,17 +80,15 @@ final class MCPToolHandler {
             return Self.json(try request(args.uuid("id")!))
         case "request_create":
             let folder = try args.uuid("collectionId").map(folder) ?? (try defaultFolder())
-            // Counted before the request joins the folder: 0-based, as moves are.
-            let order = folder.requests?.count ?? 0
             let request = APIRequest(name: "New Request", folder: folder)
-            request.sortOrder = order
+            request.sortOrder = folder.nextRequestSortOrder(excluding: request)
             try Self.apply(args, to: request)
             context.insert(request)
             return Self.json(request)
         case "request_update":
             let request = try request(args.uuid("id")!)
             if let target = try args.uuid("collectionId").map(folder), target.id != request.folder?.id {
-                request.sortOrder = target.requests?.count ?? 0
+                request.sortOrder = target.nextRequestSortOrder(excluding: request)
                 request.folder = target
             }
             try Self.apply(args, to: request)

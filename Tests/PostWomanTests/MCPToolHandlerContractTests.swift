@@ -569,6 +569,34 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(list(read["requests"]).map { $0["id"] }, [id(first), id(second), id(moving)])
     }
 
+    func testRequestsMadeInTheAppAndByAnAgentNeverTie() async throws {
+        let collection = try await call("collection_create", ["name": .string("Mixed")])
+        let folder = try XCTUnwrap(try context.fetch(FetchDescriptor<Folder>()).first { .string($0.id.uuidString) == id(collection) })
+        let inApp = SidebarActions.createRequest(in: folder, context: context)
+        let byAgent = try await call("request_create", ["collectionId": id(collection)])
+        let copy = SidebarActions.duplicate(inApp, in: folder, context: context)
+        var selection = ContentSelection()
+        selection.sidebar = .folder(folder.id)
+        let fromMenu = selection.createRequest(in: [folder], context: context)
+        let restored = selection.restore(RequestHistory(request: inApp), in: [folder], context: context)
+        XCTAssertEqual(inApp.sortOrder, 0)
+        XCTAssertEqual(byAgent["sortOrder"], .number(1))
+        XCTAssertEqual([copy, fromMenu, restored].map(\.sortOrder), [2, 3, 4], "Each path puts the request after the last, whoever made the others")
+        let orders = (folder.requests ?? []).map(\.sortOrder)
+        XCTAssertEqual(Set(orders).count, orders.count, "No two requests share a place")
+    }
+
+    func testANewRequestGoesAfterTheLastEvenAfterDeletions() async throws {
+        let collection = try await call("collection_create", ["name": .string("Gaps")])
+        let made = try await [call("request_create", ["collectionId": id(collection)]), call("request_create", ["collectionId": id(collection)]), call("request_create", ["collectionId": id(collection)])]
+        _ = try await call("request_delete", ["id": id(made[0])])
+        let next = try await call("request_create", ["collectionId": id(collection)])
+        XCTAssertEqual(next["sortOrder"], .number(3), "Two requests left (1 and 2): counting them would tie with the last")
+        let folder = try XCTUnwrap(try context.fetch(FetchDescriptor<Folder>()).first { .string($0.id.uuidString) == id(collection) })
+        XCTAssertEqual(folder.nextRequestSortOrder(), 4)
+        XCTAssertEqual(Folder(name: "Empty").nextRequestSortOrder(), 0)
+    }
+
     func testRequestUpdateReplacesListsAndMovesToTheEnd() async throws {
         let fixture = try await fixture()
         let other = try await call("collection_create", ["name": .string("Other")])
