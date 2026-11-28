@@ -35,6 +35,13 @@ enum ExportImportService {
         let folder: ExportableFolder
     }
 
+    /// Every collection at once (File → Export All Collections…), in the same shape as one collection's file.
+    struct BackupContainer: Codable {
+        let version: String
+        let exportDate: Date
+        let collections: [ExportableFolder]
+    }
+
     /// Codable representation of a Folder.
     struct ExportableFolder: Codable {
         let name: String
@@ -75,6 +82,24 @@ enum ExportImportService {
     /// - Parameter folder: The folder to export
     /// - Returns: JSON data representing the folder and its requests
     static func exportFolder(_ folder: Folder) throws -> Data {
+        try encoder.encode(ExportContainer(version: formatVersion, exportDate: Date(), folder: exportable(folder)))
+    }
+
+    /// Exports every collection, in sidebar order, to one file. Secret values are exported empty, as for one collection.
+    static func exportAll(_ folders: [Folder]) throws -> Data {
+        let ordered = folders.sorted { ($0.sortOrder, $0.createdAt) < ($1.sortOrder, $1.createdAt) }
+        return try encoder.encode(BackupContainer(version: formatVersion, exportDate: Date(), collections: ordered.map(exportable)))
+    }
+
+    private static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    /// A collection as it is written to a file.
+    static func exportable(_ folder: Folder) -> ExportableFolder {
         let requests = (folder.requests ?? [])
             .sorted { $0.sortOrder < $1.sortOrder }
             .map { request in
@@ -104,24 +129,7 @@ enum ExportImportService {
                 })
         }
 
-        let exportableFolder = ExportableFolder(
-            name: folder.name,
-            requests: requests,
-            environments: environments,
-            selectedEnvironment: folder.selectedEnvironment?.name
-        )
-
-        let container = ExportContainer(
-            version: formatVersion,
-            exportDate: Date(),
-            folder: exportableFolder
-        )
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
-        return try encoder.encode(container)
+        return ExportableFolder(name: folder.name, requests: requests, environments: environments, selectedEnvironment: folder.selectedEnvironment?.name)
     }
 
     /// Shows a save panel and exports the folder to a JSON file.
@@ -136,18 +144,44 @@ enum ExportImportService {
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else { return }
-
-            do {
-                let data = try exportFolder(folder)
-                try data.write(to: url)
-            } catch {
-                let alert = NSAlert()
-                alert.messageText = "Export Failed"
-                alert.informativeText = error.localizedDescription
-                alert.alertStyle = .critical
-                alert.runModal()
-            }
+            write({ try exportFolder(folder) }, to: url)
         }
+    }
+
+    /// Shows a save panel and exports every collection to one file, which Import reads back.
+    @MainActor
+    static func exportAllWithDialog(_ folders: [Folder]) {
+        guard !folders.isEmpty else {
+            showAlert("Nothing to Export", "There are no collections yet.", style: .informational)
+            return
+        }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.json]
+        savePanel.nameFieldStringValue = "Reqs Collections.json"
+        savePanel.title = "Export All Collections"
+        savePanel.message = "Saves \(folders.count == 1 ? "the collection" : "all \(folders.count) collections") and their environments. Secret values are saved empty."
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else { return }
+            write({ try exportAll(folders) }, to: url)
+        }
+    }
+
+    @MainActor
+    private static func write(_ data: () throws -> Data, to url: URL) {
+        do {
+            try data().write(to: url, options: .atomic)
+        } catch {
+            showAlert("Export Failed", error.localizedDescription, style: .critical)
+        }
+    }
+
+    @MainActor
+    static func showAlert(_ title: String, _ text: String, style: NSAlert.Style) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        alert.alertStyle = style
+        alert.runModal()
     }
 
     // MARK: - Import
@@ -160,25 +194,38 @@ enum ExportImportService {
     ///     of existing folders only while none was deleted
     /// - Returns: The newly created Folder
     static func importFolder(from data: Data, context: ModelContext, existingFolderCount: Int) throws -> Folder {
+        insert(try decodeFolder(from: data), context: context, sortOrder: existingFolderCount)
+    }
+
+    /// The collection of a file written by ``exportFolder(_:)``.
+    static func decodeFolder(from data: Data) throws -> ExportableFolder {
+        try decode(ExportContainer.self, from: data).folder
+    }
+
+    /// The collections of a file written by ``exportAll(_:)``.
+    static func backupCollections(from data: Data) throws -> [ExportableFolder] {
+        try decode(BackupContainer.self, from: data).collections
+    }
+
+    /// A Reqs file, its version checked first, so a newer file is reported as newer even when the rest of it has a shape
+    /// this app doesn't know.
+    private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        try checkVersion(try decoder.decode(VersionHeader.self, from: data).version)
+        return try decoder.decode(type, from: data)
+    }
 
-        // The version first, so a newer file is reported as newer even when the rest of it has a shape this app doesn't know.
-        let version = try decoder.decode(VersionHeader.self, from: data).version
-        try checkVersion(version)
-        let container = try decoder.decode(ExportContainer.self, from: data)
-
-        // Create the folder
-        let folder = Folder(
-            name: container.folder.name,
-            sortOrder: existingFolderCount
-        )
+    /// Stores a collection read from a file (Reqs's own or converted from another app's) as a new collection at `sortOrder`.
+    @discardableResult
+    static func insert(_ file: ExportableFolder, context: ModelContext, sortOrder: Int) -> Folder {
+        let folder = Folder(name: file.name, sortOrder: sortOrder)
         context.insert(folder)
 
         // Environments: Default's name and variables, then the others in order; files from before environments get an empty Default.
         // A blank Default name keeps "Default", as a rename to a blank name would.
         let defaultEnvironment = folder.ensureDefaultEnvironment()
-        for exported in container.folder.environments ?? [] {
+        for exported in file.environments ?? [] {
             if exported.isDefault {
                 if !exported.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { defaultEnvironment.name = exported.name }
                 defaultEnvironment.variables = fresh(exported.variables)
@@ -186,12 +233,12 @@ enum ExportImportService {
                 let environment = folder.addEnvironment(
                     named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: fresh(exported.variables))
                 // The first of that name: names aren't unique, and the last match would pick another environment.
-                if folder.selectedEnvironment == nil, exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
+                if folder.selectedEnvironment == nil, exported.name == file.selectedEnvironment { folder.selectedEnvironment = environment }
             }
         }
 
         // Create all requests
-        for (index, exportedRequest) in container.folder.requests.enumerated() {
+        for (index, exportedRequest) in file.requests.enumerated() {
             let request = APIRequest(
                 name: exportedRequest.name,
                 url: exportedRequest.url,
@@ -220,11 +267,9 @@ enum ExportImportService {
         let version: String
     }
 
-    /// Accepts a dotted number whose major part is at most ``formatVersion``'s (every file so far says "1.0").
-    /// Minor versions only add optional fields, which older apps ignore.
     /// The rows of a file with identities of their own: the file's IDs would be shared with the collection it was exported
     /// from (or with a second import of it), and a hand-edited file can repeat one, so deleting a row would delete its twin.
-    private static func fresh(_ variables: [Variable]) -> [Variable] {
+    static func fresh(_ variables: [Variable]) -> [Variable] {
         variables.map { Variable(key: $0.key, value: $0.value, isEnabled: $0.isEnabled, isSecret: $0.isSecret) }
     }
 
@@ -232,6 +277,8 @@ enum ExportImportService {
         pairs.map { KeyValuePair(key: $0.key, value: $0.value, isEnabled: $0.isEnabled) }
     }
 
+    /// Accepts a dotted number whose major part is at most ``formatVersion``'s (every file so far says "1.0").
+    /// Minor versions only add optional fields, which older apps ignore.
     private static func checkVersion(_ version: String) throws {
         let parts = version.split(separator: ".", omittingEmptySubsequences: false)
         guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else {
@@ -240,43 +287,5 @@ enum ExportImportService {
         let current = Int(formatVersion.prefix { $0 != "." }) ?? 1
         // A major part too long for an Int is newer than any this app knows.
         guard let major = Int(parts[0]), major <= current else { throw ImportError.newerVersion(version) }
-    }
-
-    /// Shows an open panel and imports a folder from a JSON file.
-    /// - Parameters:
-    ///   - context: The SwiftData model context
-    ///   - existingFolderCount: The count of existing folders
-    ///   - completion: Called with the imported folder on success
-    @MainActor
-    static func importFolderWithDialog(
-        context: ModelContext,
-        existingFolderCount: Int,
-        completion: @escaping (Folder?) -> Void
-    ) {
-        let openPanel = NSOpenPanel()
-        openPanel.allowedContentTypes = [.json]
-        openPanel.allowsMultipleSelection = false
-        openPanel.title = "Import Collection"
-        openPanel.message = "Select a collection file to import"
-
-        openPanel.begin { response in
-            guard response == .OK, let url = openPanel.url else {
-                completion(nil)
-                return
-            }
-
-            do {
-                let data = try Data(contentsOf: url)
-                let folder = try importFolder(from: data, context: context, existingFolderCount: existingFolderCount)
-                completion(folder)
-            } catch {
-                let alert = NSAlert()
-                alert.messageText = "Import Failed"
-                alert.informativeText = error.localizedDescription
-                alert.alertStyle = .critical
-                alert.runModal()
-                completion(nil)
-            }
-        }
     }
 }
