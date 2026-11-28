@@ -166,14 +166,15 @@ struct ContentDetailView: View {
     let onRestore: (RequestHistory) -> Void
 
     var body: some View {
-        if selection.sidebar == .history, let history = selection.history, !history.isDeleted {
+        switch selection.detail {
+        case .history(let history):
             HistoryDetailView(history: history, onRestore: onRestore)
-        } else if let request = selection.request, !request.isDeleted {
+        case .request(let request):
             // One editor per request: without the identity, selecting another request would keep the first one's response,
             // send in flight, open tab and form fields, and an edit would then write those fields into the other request.
             RequestEditorView(request: request)
                 .id(request.id)
-        } else {
+        case .empty:
             EmptyStateView()
         }
     }

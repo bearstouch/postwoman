@@ -674,8 +674,29 @@ final class ContentViewTests: XCTestCase {
 
     func testHistoryHasNoCurrentCollection() throws {
         let fixture = try SidebarFixture()
-        let selection = ContentSelection(sidebar: .history, request: fixture.listOrders)
+        let selection = ContentSelection(sidebar: .history, request: fixture.listOrders, history: fixture.success)
         XCTAssertNil(selection.currentFolder(in: try fixture.folders()), "Even with a request still selected")
+        XCTAssertNil(ContentSelection(sidebar: .history).currentFolder(in: try fixture.folders()))
+    }
+
+    func testTheEnvironmentShownIsTheOneTheRequestOnScreenIsSentWith() throws {
+        // History with no entry chosen keeps showing the request editor, and Send resolves with its collection's environment.
+        let fixture = try SidebarFixture()
+        let folders = try fixture.folders()
+        let editing = ContentSelection(sidebar: .history, request: fixture.listOrders)
+        guard case .request(let shown) = editing.detail else { return XCTFail("The editor is shown") }
+        XCTAssertEqual(shown.id, fixture.listOrders.id)
+        XCTAssertEqual(editing.currentFolder(in: folders)?.id, fixture.shop.id, "Not \"No Environment\" over a request sent with one")
+
+        let reading = ContentSelection(sidebar: .history, request: fixture.listOrders, history: fixture.success)
+        guard case .history(let entry) = reading.detail else { return XCTFail("The History entry is shown") }
+        XCTAssertEqual(entry.id, fixture.success.id)
+        XCTAssertNil(reading.currentFolder(in: folders))
+
+        guard case .empty = ContentSelection(sidebar: .history).detail else { return XCTFail("Nothing to show") }
+        guard case .request = ContentSelection(sidebar: .folder(fixture.shop.id), request: fixture.listOrders, history: fixture.success).detail else {
+            return XCTFail("An entry chosen earlier doesn't hide the editor outside History")
+        }
     }
 
     func testTheEditedRequestsCollectionComesBeforeTheSelectedOne() throws {

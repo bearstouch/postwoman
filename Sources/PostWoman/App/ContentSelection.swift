@@ -21,10 +21,23 @@ struct ContentSelection {
     /// The collection the New Environment sheet adds to.
     var newEnvironmentFolder: Folder?
 
-    /// The collection of the request being edited, else the selected collection. Its environment is the one the
-    /// toolbar shows and the Environment menu changes.
+    /// What the detail column shows.
+    enum Detail {
+        case history(RequestHistory), request(APIRequest), empty
+    }
+
+    /// The chosen History entry while History is selected, else the request being edited, else nothing.
+    var detail: Detail {
+        if sidebar == .history, let history, !history.isDeleted { return .history(history) }
+        if let request, !request.isDeleted { return .request(request) }
+        return .empty
+    }
+
+    /// The collection of the request on screen, else the selected collection. Its environment is the one the toolbar
+    /// shows and the Environment menu changes, so it must be the one that request is sent with: also in History, which
+    /// keeps showing the editor until an entry is chosen.
     func currentFolder(in folders: [Folder]) -> Folder? {
-        if sidebar != .history, let request, !request.isDeleted, let folder = request.folder { return folder }
+        if case .request(let request) = detail, let folder = request.folder { return folder }
         if case .folder(let folderID) = sidebar { return folders.first { $0.id == folderID } }
         return nil
     }
