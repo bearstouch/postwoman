@@ -225,32 +225,14 @@ struct RequestEditorView: View {
         try? modelContext.save()
     }
 
+    /// ⌘D: the same copy as the request list's Duplicate ("<name> Copy", credentials kept, after the last request).
     private func duplicateRequest() {
-        modelContext.insert(Self.duplicate(of: request))
+        guard let folder = request.folder else { return }
+        _ = SidebarActions.duplicate(request, in: folder, context: modelContext)
     }
 
     /// Whether Send (button, ⌘↩ or the menu) starts a request: there is a URL and none is in flight.
     static func canSend(url: String, isSending: Bool) -> Bool { !url.isEmpty && !isSending }
-
-    /// A copy of `request` named "… (Copy)", in the same collection, with its params, headers, body and auth. Not inserted.
-    static func duplicate(of request: APIRequest) -> APIRequest {
-        let duplicate = APIRequest(
-            name: "\(request.name) (Copy)",
-            url: request.url,
-            method: request.method,
-            folder: request.folder
-        )
-        duplicate.headers = request.headers
-        duplicate.queryParams = request.queryParams
-        duplicate.bodyType = request.bodyType
-        duplicate.bodyContent = request.bodyContent
-        duplicate.authenticationType = request.authenticationType
-        duplicate.authBearerToken = request.authBearerToken
-        duplicate.authBasicUsername = request.authBasicUsername
-        duplicate.authBasicPassword = request.authBasicPassword
-        duplicate.authOAuthConfig = request.authOAuthConfig
-        return duplicate
-    }
 }
 
 /// The notice after a send that used `{{variables}}` no environment defines.

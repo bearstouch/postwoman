@@ -541,15 +541,19 @@ final class RequestEditorViewTests: XCTestCase {
         XCTAssertFalse(MissingVariablesNotice.isShown(missing: [], isLoading: false))
     }
 
-    func testDuplicateCopiesEverythingButTheIdentityIntoTheSameCollection() throws {
-        let (_, folder, request) = try EditorHosting.store()
+    func testCommandDDuplicatesLikeTheRequestListWithEverythingButTheIdentity() throws {
+        let (container, folder, request) = try EditorHosting.store()
         request.authBasicUsername = "ada"
         request.authBasicPassword = "pw"
         request.authOAuthConfig = OAuthConfig(clientID: "app")
-        let copy = RequestEditorView.duplicate(of: request)
-        XCTAssertEqual(copy.name, "List Users (Copy)")
-        XCTAssertNotEqual(copy.id, request.id)
-        XCTAssertTrue(copy.folder === folder)
+        let last = (folder.requests ?? []).map(\.sortOrder).max() ?? 0
+        let hosting = ViewHosting.host(RequestEditorView(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        NotificationCenter.default.post(name: .duplicateRequest, object: nil)
+        ViewHosting.settle()
+        let copy = try XCTUnwrap((folder.requests ?? []).first { $0.id != request.id && $0.name.hasPrefix(request.name) })
+        XCTAssertEqual(copy.name, "List Users Copy", "Named as the request list's Duplicate names it")
+        XCTAssertEqual(copy.sortOrder, last + 1, "After the last request")
         XCTAssertEqual(copy.url, request.url)
         XCTAssertEqual(copy.method, .post)
         XCTAssertEqual(copy.headers, request.headers)
