@@ -4,6 +4,34 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
+- Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30)
+- Basic authentication is sent when only the username or only the password was typed (an API key as the username, say); the other part is empty
+- `postwoman` fails with exit status 2 on an option placed before the command (`postwoman -X POST request execute …`) or a mistyped global option, instead of printing the overview and exiting 0
+
+### Fixed
+- Selecting another request no longer shows the previous request's response, missing-variables notice or form fields, no longer keeps Send blocked by the previous request's send, and an edit in a form body no longer writes the previous request's fields into the newly selected one
+- A failed tool call from an agent (an unknown ID, a bad argument, a request that got no response) no longer discards what you had just created or edited in the app but autosave hadn't stored yet
+- A GET whose body was typed for another method is sent, instead of failing with "resource exceeds maximum size"
+- Send always asks the server: a response that allowed caching is no longer shown again from the local cache as if it were fresh
+- Form Data bodies are sent as `multipart/form-data` parts with a boundary (they went out URL-encoded under a multipart label no server could parse). Generated cURL uses `--form-string`, generated Python `files=`, and generated Swift builds the parts
+- Generated cURL passes the body with `--data-raw`, so a body starting with `@` is sent as text instead of being read from a file
+- Generated cURL sends each header once with its last value, and the request's Bearer or Basic authentication replaces a written `Authorization` header, as in the app
+- Generated Python sends the body type's `Content-Type` for XML, plain text and URL-encoded bodies, and keeps repeated query parameters (`id=1&id=2` was sent as `id=2`)
+- Opening the Body tab of a form body no longer respells it (`name=John+Doe` became `name=John%2BDoe`, a literal plus), choosing a form body type by mistake no longer replaces a JSON body, and the fields follow a body an agent changes while the tab is open
+- A response in another charset (`charset=ISO-8859-1`, UTF-16) is decoded with it instead of being reported as "isn't UTF-8 text"
+- History records no request body when the body type is None (it kept the text left from another type), and the Body tab no longer counts it
+- History shows a bearer token as dots, like the Basic password and the editor's token field
+- With History selected and no entry chosen, the toolbar shows the environment the request on screen is sent with, instead of "No Environment"
+- With more than one window open, a menu command (New Request, Send, Duplicate, Save, Generate Code, the Environment menu) acts in the front window only
+- `environment_update` keeps a saved secret whose name was typed with a leading or trailing space when an agent sends it back without a value
+- `history_create` refuses (`NOT_ALLOWED`) an entry older than everything a full History keeps, instead of reporting an ID for an entry that was deleted at once
+- `postwoman` tables no longer cut a name with an emoji or a combining accent in the middle
+- `postwoman` tries the app whose Remote Agent is on first, so a leftover token from another PostWoman build no longer uses up the server's failed sign-in limit after a few commands
+
 ## [0.11.0] - 2026-11-27
 
 ### Added

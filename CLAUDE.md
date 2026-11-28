@@ -73,7 +73,8 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
 - `RemoteAgent/` ports Trellis's `TrellisMCP`: `MCPHTTP.swift` (bounded HTTP/1.1 parser), `MCPListener.swift` (TCP, one thread
   per connection, 16 connections), `MCPEndpoint.swift` (Streamable HTTP at `/mcp`: Origin and loopback Host checks, sessions,
   bearer token on every request, auth rate limit) and `MCPTools.swift` (the tool catalog: names, closed schemas, annotations).
-- `MCPToolHandler` runs every tool on the main actor against the main SwiftData context, so the windows update at once. Before an
+- `MCPToolHandler` runs every tool on the main actor against the main SwiftData context, so the windows update at once. It saves
+  pending changes before a tool runs, so the rollback after a tool error undoes only the tool's own writes, never the user's. Before an
   agent deletes models it posts `.remoteAgentWillDelete` so `ContentView` drops selections of them. Credentials are write-only.
 - Settings live in UserDefaults (`remoteAgent.settings`); the token (`pwm_…`) is a 0600 file in Application Support.
   `RemoteAgentController` (environment object of the Settings scene) applies them; it is started in `PostWomanApp.init`.
@@ -115,7 +116,11 @@ All models are in `Sources/PostWoman/Models/`:
 Located in `Sources/PostWoman/Services/`:
 
 - **`HTTPClient`** - `@MainActor` URLSession wrapper for executing requests (it reads SwiftData models, which belong to the main context; never pass `@Model` objects to other actors)
-- **`AuthenticationHandler`** - Applies Bearer/Basic auth to requests
+- **`AuthenticationHandler`** - Applies Bearer/Basic auth to requests (`basicCredentials`: a field never typed counts as empty; the generators use it too)
+- **`MultipartForm`** - A Form Data body keeps its fields as `a=1&b=2` (`FormBody`); sending and generated code turn them into
+  `multipart/form-data` parts, unless the request sets its own Content-Type (then the body goes as written)
+- **`RequestTimeout`** - The timeout from Settings → General (`defaultTimeout`, 1…600 s), read by `HTTPClient` at each send. Requests
+  also bypass URLCache (`.reloadIgnoringLocalCacheData`), and response text follows the declared charset (`HTTPClient.text`)
 - **`CodeGenerator/`** - Generates cURL, Swift, Python code from requests
 - **`Streaming/`** - Streamed responses. `HTTPClient.execute(request:onProgress:)` runs a data task with a per-task
   `StreamingTaskDelegate` (chunks + metrics). For `text/event-stream`/NDJSON (`StreamKind`) it feeds `StreamEventParser`
@@ -143,6 +148,10 @@ Menu commands use `NotificationCenter` to communicate with views:
 - `.saveRequest`
 - `.duplicateRequest`
 - `.generateCode`
+
+Every window hears these, so each view checks `commandWindow.acceptsCommands` (`App/CommandTarget.swift`: only the frontmost
+main window acts) before handling one. `ContentDetailView` gives the editor `.id(request.id)`: its `@State` must never carry
+over to another request.
 
 ### SwiftData Relationships
 - `Folder` has cascade delete rules for its `requests` and `environments`
