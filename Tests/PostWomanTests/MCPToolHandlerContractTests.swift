@@ -121,6 +121,44 @@ final class MCPToolHandlerContractTests: XCTestCase {
 
     // MARK: - Invalid params
 
+    // MARK: The user's unsaved work
+
+    func testAFailedToolCallKeepsTheUsersUnsavedWork() async throws {
+        // As the windows do: inserted and edited on the main context, saved later by autosave.
+        let folder = Folder(name: "Typed by the user")
+        context.insert(folder)
+        let request = APIRequest(name: "Draft", url: "https://draft.test")
+        context.insert(request)
+        request.folder = folder
+
+        let missing = await failure("request_get", ["id": .string(UUID().uuidString)])
+        XCTAssertEqual(missing?.code, "NOT_FOUND")
+        let invalid = await failure("collection_create", [:])
+        XCTAssertEqual(invalid?.code, "INVALID_PARAMS")
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed by the user"], "A tool's rollback undoes only what the tool did")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<APIRequest>()).map(\.url), ["https://draft.test"])
+    }
+
+    func testAFailedToolCallStillUndoesItsOwnChanges() async throws {
+        let fixture = try await fixture()
+        let folders = try context.fetchCount(FetchDescriptor<Folder>())
+        let error = await failure("request_update", ["id": id(fixture.request), "name": .string("Renamed"), "method": .string("NOPE")])
+        XCTAssertEqual(error?.code, "INVALID_PARAMS")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Folder>()), folders)
+        let unchanged = try await call("request_get", ["id": id(fixture.request)])
+        XCTAssertEqual(text(unchanged["name"]), text(fixture.request["name"]))
+    }
+
+    func testAFailedSendKeepsWhatTheUserDidWhileItWasOnItsWay() async throws {
+        let folder = Folder(name: "Typed before the send")
+        context.insert(folder)
+        // Nothing listens on port 1, so the send fails; without History nothing else saves.
+        let error = await failure("request_execute", ["request": .object(["url": .string("http://127.0.0.1:1/")]), "recordHistory": .bool(false)])
+        XCTAssertEqual(error?.code, "REQUEST_FAILED")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed before the send"])
+    }
+
     func testAnUnknownToolIsInvalidParams() async {
         let error = await failure("collection_drop")
         XCTAssertEqual(error?.code, "INVALID_PARAMS")

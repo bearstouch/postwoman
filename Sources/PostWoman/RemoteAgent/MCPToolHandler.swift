@@ -28,6 +28,9 @@ final class MCPToolHandler {
 
     func call(_ name: String, _ arguments: [String: JSONValue]) async -> Result<JSONValue, MCPToolError> {
         guard let tool = MCPTools.byName[name] else { return .failure(.invalidParams("Unknown tool \(name).")) }
+        // The windows edit this same context and leave saving to autosave. Saving first makes a failed tool's rollback undo
+        // only what the tool did, not what the user typed a moment ago (and paging then sees every entry: `fetchOffset`).
+        if context.hasChanges { try? context.save() }
         do {
             let args = try Arguments(arguments, tool: tool)
             let value = try await run(tool.name, args)
@@ -244,8 +247,9 @@ final class MCPToolHandler {
             if record {
                 context.insert(history)
                 HistoryRetention.trim(context)
-                try? context.save()
             }
+            // Saved before the rollback that follows this error: the History entry, and whatever the user did during the send.
+            try? context.save()
             throw MCPToolError(
                 code: "REQUEST_FAILED", message: error.localizedDescription,
                 details: record ? .object(["historyId": .string(history.id.uuidString)]) : nil)
