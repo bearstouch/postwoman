@@ -149,7 +149,8 @@ final class StreamingTaskDelegateTests: XCTestCase {
         let delegate = StreamingTaskDelegate()
         let terminated = expectation(description: "onTermination")
         delegate.onTermination { terminated.fulfill() }
-        let consumer = Task { await Self.describe(delegate) }
+        // The task returns nothing: Swift 6.3's isolation checker crashes on a task returning the (non-Sendable) Error tuple.
+        let consumer = Task { _ = await Self.describe(delegate) }
         consumer.cancel()
         await fulfillment(of: [terminated], timeout: 2)
         _ = await consumer.value
