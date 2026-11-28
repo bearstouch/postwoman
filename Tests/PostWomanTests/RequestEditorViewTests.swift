@@ -413,6 +413,60 @@ final class BodyTabViewTests: XCTestCase {
         XCTAssertEqual(request.bodyContent, "q=a%26b&n=1%2B1")
     }
 
+    func testAPlusInAFormBodyIsASpace() {
+        let pairs = FormBody.pairs(from: "full+name=John+Doe&sum=1%2B1")
+        XCTAssertEqual(pairs.map(\.key), ["full name", "sum"])
+        XCTAssertEqual(pairs.map(\.value), ["John Doe", "1+1"], "An encoded plus stays a plus")
+    }
+
+    func testOpeningAFormBodyDoesNotRewriteIt() throws {
+        // Written by an import, an agent or the CLI: valid, though not spelled the way the editor would.
+        for body in ["name=John+Doe&flag", "a=1&&b=%7e", "q=caf%C3%A9&q=2"] {
+            let (container, _, request) = try EditorHosting.store()
+            request.bodyType = .urlEncoded
+            request.bodyContent = body
+            let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+            defer { ViewHosting.close(hosting) }
+            ViewHosting.settle()
+            XCTAssertEqual(request.bodyContent, body, "Looking at the fields changes nothing")
+        }
+    }
+
+    func testChoosingAFormTypeByMistakeKeepsTheBodyThatWasThere() throws {
+        let (container, _, request) = try EditorHosting.store()
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        request.bodyType = .urlEncoded
+        ViewHosting.settle()
+        XCTAssertEqual(request.bodyContent, #"{"name":"Ada"}"#, "Nothing is rewritten until a field is edited")
+        request.bodyType = .json
+        ViewHosting.settle()
+        XCTAssertTrue(ViewHosting.elements(in: hosting).contains { $0.role == .textArea && $0.label == #"{"name":"Ada"}"# })
+    }
+
+    func testFormFieldsFollowABodyChangedFromOutsideTheEditor() throws {
+        // As an agent's request_update does while the Body tab is open.
+        let (container, _, request) = try EditorHosting.store()
+        request.bodyType = .urlEncoded
+        request.bodyContent = "a=1"
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        request.bodyContent = "b=2&c=3"
+        ViewHosting.settle()
+        XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value), ["b", "2", "c", "3"])
+        XCTAssertEqual(request.bodyContent, "b=2&c=3")
+    }
+
+    func testAnEditedFieldIsWrittenAndOnlyThenIsTheBodyRespelled() {
+        let opened = FormBody.pairs(from: "name=John+Doe&flag")
+        XCTAssertNil(FormBody.edited(opened, from: "name=John+Doe&flag"), "The fields as parsed are not an edit")
+        var edited = opened
+        edited[1].value = "on"
+        XCTAssertEqual(FormBody.edited(edited, from: "name=John+Doe&flag"), "name=John%20Doe&flag=on")
+        edited[1].isEnabled = false
+        XCTAssertEqual(FormBody.edited(edited, from: "name=John+Doe&flag"), "name=John%20Doe")
+    }
+
     func testAJSONBodyShowsItsTextAndAPrettifyButton() throws {
         let (container, _, request) = try EditorHosting.store()
         EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
