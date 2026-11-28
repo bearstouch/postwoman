@@ -151,6 +151,8 @@ final class PythonGeneratorTests: XCTestCase {
         XCTAssertTrue(lines(request).contains(#"auth = ("u\"1", "p\\2")"#))
         XCTAssertEqual(call(request), "response = requests.get(url, auth=auth)")
         request.authBasicPassword = nil
+        XCTAssertTrue(lines(request).contains(#"auth = ("u\"1", "")"#), "A password never typed is an empty one")
+        request.authBasicUsername = nil
         XCTAssertFalse(code(request).contains("auth"))
     }
 

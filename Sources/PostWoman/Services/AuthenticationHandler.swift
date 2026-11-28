@@ -12,6 +12,13 @@ class AuthenticationHandler {
     ///   - basicUsername: Username for Basic authentication
     ///   - basicPassword: Password for Basic authentication
     ///   - request: The URLRequest to modify (inout parameter)
+    /// The Basic credentials to send, or nil when neither was ever entered. A field left untouched is stored as nil and
+    /// counts as empty: an API key as the username with no password is common, and is sent as `key:`.
+    static func basicCredentials(username: String?, password: String?) -> (username: String, password: String)? {
+        guard username != nil || password != nil else { return nil }
+        return (username ?? "", password ?? "")
+    }
+
     func apply(
         authenticationType: AuthenticationType,
         bearerToken: String?,
@@ -31,9 +38,7 @@ class AuthenticationHandler {
 
         case .basic:
             // Apply HTTP Basic authentication: Authorization: Basic <base64(username:password)>
-            guard let username = basicUsername,
-                let password = basicPassword
-            else { return }
+            guard let (username, password) = Self.basicCredentials(username: basicUsername, password: basicPassword) else { return }
             let credentials = "\(username):\(password)"
             guard let data = credentials.data(using: .utf8) else { return }
             let base64Credentials = data.base64EncodedString()

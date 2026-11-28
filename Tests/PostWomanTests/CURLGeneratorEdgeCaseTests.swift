@@ -267,7 +267,8 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testBasicAuthUsesDashUAndNeedsBothFields() {
-        let cases: [(String?, String?, String?)] = [("user", "pass", "-u 'user:pass'"), ("user", "", "-u 'user:'"), ("", "", "-u ':'"), ("user", nil, nil), (nil, "pass", nil)]
+        let cases: [(String?, String?, String?)] = [("user", "pass", "-u 'user:pass'"), ("user", "", "-u 'user:'"), ("", "", "-u ':'"), ("user", nil, "-u 'user:'"), (nil, "pass", "-u ':pass'"), (nil, nil, nil)]
+        // A field never typed in (nil) counts as empty; with neither there is nothing to send.
         for (username, password, expected) in cases {
             let request = APIRequest(name: "a", url: "https://h")
             request.authenticationType = .basic

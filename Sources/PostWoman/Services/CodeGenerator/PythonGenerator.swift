@@ -64,8 +64,7 @@ struct PythonGenerator {
 
         var authParam = ""
         if request.authenticationType == .basic,
-            let username = request.authBasicUsername,
-            let password = request.authBasicPassword
+            let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword)
         {
             code += "auth = (\(PythonLiteral.string(username)), \(PythonLiteral.string(password)))\n\n"
             authParam = ", auth=auth"

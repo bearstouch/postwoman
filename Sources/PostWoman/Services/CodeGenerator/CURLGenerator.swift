@@ -42,9 +42,7 @@ struct CURLGenerator {
                 parts.append("-H " + quoted("Authorization: Bearer \(token)"))
             }
         case .basic:
-            if let username = request.authBasicUsername,
-                let password = request.authBasicPassword
-            {
+            if let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword) {
                 parts.append("-u " + quoted("\(username):\(password)"))
             }
         default:

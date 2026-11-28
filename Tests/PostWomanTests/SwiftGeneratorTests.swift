@@ -184,12 +184,16 @@ final class SwiftGeneratorTests: XCTestCase {
     func testBasicAuthNeedsBothFieldsAndOtherTypesAddNothing() {
         let request = APIRequest(name: "a", url: "https://h")
         request.authBearerToken = "token"
-        request.authBasicUsername = "user"
+        request.authBasicUsername = nil
         request.authBasicPassword = nil
         for type in [AuthenticationType.basic, .none, .oauth2] {
             request.authenticationType = type
             XCTAssertFalse(code(request).contains("Authorization"), type.rawValue)
         }
+        // One field is enough: the one never typed is empty.
+        request.authBasicUsername = "user"
+        request.authenticationType = .basic
+        XCTAssertTrue(code(request).contains(#"let credentials = "user:""#))
     }
 
     func testJSONBodyGoesInAMultilineLiteral() {

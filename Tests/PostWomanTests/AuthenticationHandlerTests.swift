@@ -36,9 +36,28 @@ final class AuthenticationHandlerTests: XCTestCase {
     }
 
     func testBasicAuthNeedsBothUsernameAndPassword() {
-        XCTAssertNil(authorization(.basic, username: "user", password: nil))
-        XCTAssertNil(authorization(.basic, username: nil, password: "pass"))
+        XCTAssertNil(authorization(.basic, username: nil, password: nil))
         XCTAssertNil(authorization(.basic, token: "abc"), "A bearer token is not used for Basic")
+    }
+
+    func testBasicAuthWithOnlyAUsernameSendsAnEmptyPassword() {
+        // The password field was never touched (nil), as with an API key used as the username.
+        XCTAssertEqual(authorization(.basic, username: "user", password: nil), "Basic dXNlcjo=")
+        XCTAssertEqual(authorization(.basic, username: "user", password: nil), authorization(.basic, username: "user", password: ""), "Untouched is the same as emptied")
+        XCTAssertEqual(authorization(.basic, username: nil, password: "pass"), "Basic OnBhc3M=")
+    }
+
+    func testGeneratedCodeSendsTheSameBasicCredentialsWhenThePasswordWasNeverTyped() {
+        let request = APIRequest(name: "k", url: "https://h")
+        request.authenticationType = .basic
+        request.authBasicUsername = "sk_test_123"
+        XCTAssertTrue(CURLGenerator().generate(from: request).contains("-u 'sk_test_123:'"))
+        XCTAssertTrue(PythonGenerator().generate(from: request).contains(#"auth = ("sk_test_123", "")"#))
+        XCTAssertTrue(SwiftGenerator().generate(from: request).contains(#"let credentials = "sk_test_123:""#))
+        request.authBasicUsername = nil
+        for code in [CURLGenerator().generate(from: request), PythonGenerator().generate(from: request), SwiftGenerator().generate(from: request)] {
+            XCTAssertFalse(code.contains("-u ") || code.contains("auth") || code.contains("credentials"), code)
+        }
     }
 
     func testBearerTokenIsSentExactlyAsTyped() {

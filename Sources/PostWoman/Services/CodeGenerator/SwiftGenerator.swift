@@ -61,9 +61,7 @@ struct SwiftGenerator {
                 code += "request.setValue(\(SwiftLiteral.string("Bearer " + token)), forHTTPHeaderField: \"Authorization\")\n"
             }
         case .basic:
-            if let username = request.authBasicUsername,
-                let password = request.authBasicPassword
-            {
+            if let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword) {
                 code += """
 
                     let credentials = \(SwiftLiteral.string(username + ":" + password))

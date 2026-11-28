@@ -270,7 +270,7 @@ final class HTTPClientRequestTests: XCTestCase {
 
     func testIncompleteAuthenticationLeavesTheAuthorizationHeader() async throws {
         let cases: [(AuthenticationType, String?, String?, String?)] = [
-            (.bearer, nil, nil, nil), (.bearer, "", nil, nil), (.basic, nil, "ana", nil), (.basic, nil, nil, "secret"), (.oauth2, "tok", nil, nil), (.none, "tok", "a", "b")
+            (.bearer, nil, nil, nil), (.bearer, "", nil, nil), (.basic, "tok", nil, nil), (.oauth2, "tok", nil, nil), (.none, "tok", "a", "b")
         ]
         for (type, token, username, password) in cases {
             let received = try await send(
