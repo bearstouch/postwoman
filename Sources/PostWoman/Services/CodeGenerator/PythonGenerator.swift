@@ -72,7 +72,13 @@ struct PythonGenerator {
         }
 
         var bodyParam = ""
-        if hasBody {
+        if hasBody, let fields = MultipartForm.fields(of: request) {
+            // `files=` makes requests send multipart/form-data with its own boundary; (None, value) is a field, not a file.
+            code += "files = [\n"
+            for field in fields { code += "    (\(PythonLiteral.string(field.key)), (None, \(PythonLiteral.string(field.value)))),\n" }
+            code += "]\n\n"
+            bodyParam = ", files=files"
+        } else if hasBody {
             if let jsonLiteral {
                 code += """
                     json_data = \(jsonLiteral.text)

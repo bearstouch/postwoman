@@ -158,6 +158,32 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertEqual(received.request.cachePolicy, .reloadIgnoringLocalCacheData)
     }
 
+    func testFormDataIsSentAsMultipartPartsWithTheirBoundary() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "a=1&b=x%20y"
+            })
+        let contentType = try XCTUnwrap(received.request.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="), contentType)
+        let boundary = String(contentType.dropFirst("multipart/form-data; boundary=".count))
+        XCTAssertFalse(boundary.isEmpty)
+        XCTAssertEqual(
+            String(decoding: received.body ?? Data(), as: UTF8.self),
+            "--\(boundary)\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\nx y\r\n--\(boundary)--\r\n")
+    }
+
+    func testFormDataWithItsOwnContentTypeIsSentAsWritten() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "--mine\r\n"
+                $0.headers = [KeyValuePair(key: "Content-Type", value: "multipart/form-data; boundary=mine")]
+            })
+        XCTAssertEqual(received.request.value(forHTTPHeaderField: "Content-Type"), "multipart/form-data; boundary=mine")
+        XCTAssertEqual(received.body, Data("--mine\r\n".utf8))
+    }
+
     func testUsesAThirtySecondTimeout() async throws {
         let received = try await send(makeRequest())
         XCTAssertEqual(received.request.timeoutInterval, 30)
@@ -165,8 +191,7 @@ final class HTTPClientRequestTests: XCTestCase {
 
     func testEachBodyTypeSendsItsContentType() async throws {
         let expected: [(ContentType, String)] = [
-            (.json, "application/json"), (.xml, "application/xml"), (.text, "text/plain"), (.urlEncoded, "application/x-www-form-urlencoded"),
-            (.formData, "multipart/form-data")
+            (.json, "application/json"), (.xml, "application/xml"), (.text, "text/plain"), (.urlEncoded, "application/x-www-form-urlencoded")
         ]
         for (type, mime) in expected {
             let received = try await send(

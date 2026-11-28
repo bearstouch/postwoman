@@ -77,6 +77,15 @@ final class PythonGeneratorTests: XCTestCase {
             """)
     }
 
+    func testFormDataFieldsGoAsMultipartFields() throws {
+        let request = body("name=Ana%20Lu&q=%22x%22&name=again", .formData)
+        XCTAssertEqual(call(request), "response = requests.post(url, files=files)")
+        XCTAssertFalse(code(request).contains("Content-Type"), "requests writes the multipart header with its boundary")
+        let received = try XCTUnwrap(try pythonCall(code(request)))
+        XCTAssertEqual(received["files"] as? NSArray, [["name", [NSNull(), "Ana Lu"]], ["q", [NSNull(), "\"x\""]], ["name", [NSNull(), "again"]]] as NSArray)
+        XCTAssertNil(received["data"])
+    }
+
     func testMethodsAreLowercasedRequestsFunctions() {
         for method in HTTPMethod.allCases {
             let redirects = method == .head ? ", allow_redirects=True" : ""
@@ -180,7 +189,7 @@ final class PythonGeneratorTests: XCTestCase {
     }
 
     func testOtherBodiesAreTripleQuotedData() {
-        for type in ContentType.allCases where type != .none && type != .json {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             let request = body("a=1&b=2\nsecond", type)
             XCTAssertTrue(code(request).contains("data = \"\"\"a=1&b=2\nsecond\"\"\"\n"), type.rawValue)
             XCTAssertEqual(call(request), "response = requests.post(url, data=data)", type.rawValue)
@@ -276,7 +285,7 @@ final class PythonGeneratorTests: XCTestCase {
             #"path C:\new\table \\ done"#, #"say """hi""" there"#, "ends with a quote\"", "\"starts with a quote", "crlf\r\nline\ttab\u{1}ctl \u{85}", "a=1&b=\\n2",
             "<x>\n  naïve 💅\n</x>\n"
         ]
-        for type in ContentType.allCases where type != .none && type != .json {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             for content in contents {
                 let captured = try XCTUnwrap(try pythonCall(code(body(content, type))), "\(type.rawValue): \(content.debugDescription) should run")
                 XCTAssertEqual(captured["data"] as? String, content, type.rawValue)

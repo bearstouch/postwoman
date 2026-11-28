@@ -49,6 +49,19 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testFormDataFieldsAreSentAsLiteralMultipartFields() throws {
+        let request = post("name=Ana%20Lu&file=@/etc/hosts&q=%3Cx&it's=1", type: .formData)
+        XCTAssertEqual(
+            parts(request),
+            [
+                "curl", "-X POST", "'https://api.example.com/items'", "--form-string 'name=Ana Lu'", "--form-string 'file=@/etc/hosts'", "--form-string 'q=<x'",
+                "--form-string 'it'\\''s=1'"
+            ], "No -d and no Content-Type: curl writes the multipart header with its boundary, and never reads a file for a value")
+        XCTAssertEqual(
+            try shellWords(CURLGenerator().generate(from: request)),
+            ["-X", "POST", "https://api.example.com/items", "--form-string", "name=Ana Lu", "--form-string", "file=@/etc/hosts", "--form-string", "q=<x", "--form-string", "it's=1"])
+    }
+
     func testGetWithABodySpellsOutTheMethodSoCurlDoesNotSendAPost() throws {
         let request = APIRequest(name: "g", url: "https://h", method: .get)
         request.bodyType = .text
@@ -170,7 +183,8 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testEachBodyTypeAddsItsContentType() {
-        for type in ContentType.allCases where type != .none {
+        // Form Data goes as --form-string fields (testFormDataFieldsAreSentAsLiteralMultipartFields).
+        for type in ContentType.allCases where type != .none && type != .formData {
             let lines = parts(post("x", type: type))
             XCTAssertEqual(lines.suffix(2), ["-d 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
         }

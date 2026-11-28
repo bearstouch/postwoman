@@ -52,7 +52,11 @@ struct CURLGenerator {
         }
 
         // Add request body if present
-        if hasBody {
+        if hasBody, let fields = MultipartForm.fields(of: request) {
+            // --form-string, not -F: a value starting with @ or < is sent as written, not read from a file. curl adds the
+            // multipart Content-Type and its boundary.
+            for field in fields { parts.append("--form-string " + quoted("\(field.key)=\(field.value)")) }
+        } else if hasBody {
             parts.append("-d " + quoted(request.bodyContent))
 
             // Add Content-Type header if not already specified

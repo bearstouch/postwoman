@@ -76,7 +76,22 @@ struct SwiftGenerator {
             break
         }
 
-        if request.sendsBody {
+        if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+            let literals = fields.map { "(\(SwiftLiteral.string(MultipartForm.escapedName($0.key))), \(SwiftLiteral.string($0.value)))" }
+            code += """
+
+                let boundary = "Boundary-\\(UUID().uuidString)"
+                let fields: [(name: String, value: String)] = [\(literals.joined(separator: ", "))]
+                var form = ""
+                for field in fields {
+                    form += "--\\(boundary)\\r\\nContent-Disposition: form-data; name=\\"\\(field.name)\\"\\r\\n\\r\\n\\(field.value)\\r\\n"
+                }
+                form += "--\\(boundary)--\\r\\n"
+                request.httpBody = Data(form.utf8)
+                request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")
+
+                """
+        } else if request.sendsBody {
             if request.bodyType == .json {
                 code += """
 

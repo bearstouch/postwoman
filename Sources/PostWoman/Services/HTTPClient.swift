@@ -246,7 +246,11 @@ final class HTTPClient {
         )
 
         // Set request body if present
-        if request.sendsBody {
+        if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+            let boundary = MultipartForm.makeBoundary()
+            urlRequest.httpBody = MultipartForm.body(fields, boundary: boundary)
+            urlRequest.setValue(MultipartForm.contentType(boundary: boundary), forHTTPHeaderField: "Content-Type")
+        } else if request.sendsBody {
             urlRequest.httpBody = request.bodyContent.data(using: .utf8)
 
             // Set Content-Type header if not already set

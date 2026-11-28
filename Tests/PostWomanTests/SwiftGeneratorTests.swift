@@ -98,6 +98,19 @@ final class SwiftGeneratorTests: XCTestCase {
         }
     }
 
+    func testFormDataIsBuiltAsMultipartPartsWithABoundary() throws {
+        let request = APIRequest(name: "f", url: "https://h/upload", method: .post)
+        request.bodyType = .formData
+        request.bodyContent = "name=Ana%20Lu&quo%22te=a%5C(b)%0Ac"
+        let sent = try XCTUnwrap(try runGenerated(code(request)))
+        let contentType = try XCTUnwrap((sent["headers"] as? [String: String])?["Content-Type"])
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary=Boundary-"), contentType)
+        let boundary = String(contentType.dropFirst("multipart/form-data; boundary=".count))
+        XCTAssertEqual(
+            String(decoding: sent["body"] as? Data ?? Data(), as: UTF8.self),
+            "--\(boundary)\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nAna Lu\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"quo%22te\"\r\n\r\na\\(b)\nc\r\n--\(boundary)--\r\n")
+    }
+
     func testHeadSetsNoBodyAndPatchDoes() throws {
         let request = APIRequest(name: "h", url: "https://h", method: .head)
         request.bodyType = .json
@@ -188,7 +201,7 @@ final class SwiftGeneratorTests: XCTestCase {
     }
 
     func testOtherBodiesAreEscapedSingleLineLiterals() {
-        for type in ContentType.allCases where type != .none && type != .json {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             let request = APIRequest(name: "b", url: "https://h", method: .post)
             request.bodyType = type
             request.bodyContent = "say \"hi\"\n\tdone \\"
