@@ -287,7 +287,7 @@ final class ExportImportRoundTripTests: XCTestCase {
             ("bad date", Data(#"{"version":"1.0","exportDate":"yesterday","folder":{"name":"X","requests":[]}}"#.utf8)),
             ("no requests", Data(#"{"version":"1.0","exportDate":"2026-01-01T00:00:00Z","folder":{"name":"X"}}"#.utf8)),
             ("name not a string", Data(#"{"version":"1.0","exportDate":"2026-01-01T00:00:00Z","folder":{"name":5,"requests":[]}}"#.utf8)),
-            ("unknown method", file(requests: "[\(request.replacingOccurrences(of: "\"GET\"", with: "\"PATCH\""))]")),
+            ("unknown method", file(requests: "[\(request.replacingOccurrences(of: "\"GET\"", with: "\"TRACE\""))]")),
             ("unknown body type", file(requests: "[\(request.replacingOccurrences(of: "\"bodyType\":\"None\"", with: "\"bodyType\":\"YAML\""))]")),
             ("unknown auth", file(requests: "[\(request.replacingOccurrences(of: "\"authenticationType\":\"None\"", with: "\"authenticationType\":\"Digest\""))]")),
             ("environment without variables", file(environments: #"[{"name":"S","isDefault":false,"color":"red"}]"#)),

@@ -92,7 +92,7 @@ final class CLIHelpTextTests: XCTestCase {
             text.hasPrefix("Usage: postwoman request execute --id ID [output options]\nUsage: postwoman request execute --url URL [request fields] [output options]\n\n"))
         let lines = text.components(separatedBy: "\n")
         for (start, end) in [
-            ("  -X, --method METHOD", "GET, POST, PUT or DELETE."), ("  -H, --header 'NAME: VALUE'", "(repeatable)"), ("  --query NAME=VALUE", "(repeatable)"),
+            ("  -X, --method METHOD", "GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS."), ("  -H, --header 'NAME: VALUE'", "(repeatable)"), ("  --query NAME=VALUE", "(repeatable)"),
             ("  -d, --body TEXT", "The body text."), ("  -u, --basic USER:PASSWORD", "Basic authentication."), ("  -i, --include", "before the body."),
             ("  -f, --fail", "400 or more."), ("  --env ID|default", "(default: the one it uses).")
         ] {

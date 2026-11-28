@@ -787,6 +787,35 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(entry["response"]?["status"], .number(404))
     }
 
+    func testExecuteSendsPatchAndOptionsWithTheirBody() async throws {
+        let (target, port) = try echoServer()
+        defer { target.stop() }
+        for method in ["PATCH", "OPTIONS"] {
+            let result = try await call(
+                "request_execute",
+                ["request": .object(["url": .string("http://127.0.0.1:\(port)/items/1"), "method": .string(method), "body": .string(#"{"a":1}"#)]), "recordHistory": .bool(false)])
+            let echoed = try JSONDecoder().decode(JSONValue.self, from: Data(try XCTUnwrap(text(result["response"]?["body"])).utf8))
+            XCTAssertEqual(echoed["method"], .string(method))
+            XCTAssertEqual(echoed["body"], .string(#"{"a":1}"#), method)
+        }
+    }
+
+    func testExecutingAHeadRequestWithABodySendsNoBodyAndRecordsNone() async throws {
+        let (target, port) = try echoServer(extraHeaders: [("X-Seen", "yes")])
+        defer { target.stop() }
+        let request = try await call("request_create", ["url": .string("http://127.0.0.1:\(port)/items"), "method": .string("head"), "body": .string(#"{"a":1}"#)])
+        XCTAssertEqual(request["method"], .string("HEAD"))
+        XCTAssertEqual(request["body"], .string(#"{"a":1}"#), "The saved request keeps its body")
+        let result = try await call("request_execute", ["id": id(request)])
+        XCTAssertEqual(result["response"]?["status"], .number(200), "A HEAD with a body would time out if the body were sent")
+        XCTAssertEqual(result["response"]?["body"], .string(""), "A HEAD response has no body")
+        XCTAssertTrue(list(result["response"]?["headers"]).contains { $0["key"] == .string("X-Seen") })
+        let entry = try await call("history_get", ["id": try XCTUnwrap(result["historyId"])])
+        XCTAssertEqual(entry["request"]?["method"], .string("HEAD"))
+        XCTAssertEqual(entry["request"]?["body"], .null, "History records what was sent")
+        XCTAssertEqual(entry["request"]?["bodyType"], .string("none"))
+    }
+
     func testExecuteCutsLongBodiesOnRequest() async throws {
         let (target, port) = try echoServer(body: String(repeating: "é", count: 100))
         defer { target.stop() }

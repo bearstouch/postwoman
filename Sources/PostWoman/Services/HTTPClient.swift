@@ -158,7 +158,8 @@ final class HTTPClient {
                         guard let response = response as? HTTPURLResponse else { throw HTTPClientError.invalidResponse }
                         httpResponse = response
                         data = Data()
-                        if let kind = StreamKind(contentType: response.value(forHTTPHeaderField: "Content-Type")) {
+                        // A HEAD response describes a stream it doesn't carry, so it isn't one.
+                        if request.method != .head, let kind = StreamKind(contentType: response.value(forHTTPHeaderField: "Content-Type")) {
                             stream = StreamInfo(kind: kind)
                             parser = StreamEventParser(kind: kind)
                             assembler = StreamTextAssembler()
@@ -243,7 +244,7 @@ final class HTTPClient {
         )
 
         // Set request body if present
-        if request.bodyType != .none && !request.bodyContent.isEmpty {
+        if request.sendsBody {
             urlRequest.httpBody = request.bodyContent.data(using: .utf8)
 
             // Set Content-Type header if not already set

@@ -19,9 +19,12 @@ struct CURLGenerator {
             parts.append("-N")
         }
 
-        // cURL defaults to GET, but switches to POST for -d, so a GET with a body is spelled out too
-        let hasBody = request.bodyType != .none && !request.bodyContent.isEmpty
-        if request.method != .get || hasBody {
+        // cURL defaults to GET, but switches to POST for -d, so a GET with a body is spelled out too. HEAD is -I:
+        // with -X HEAD, curl waits for a body that never comes.
+        let hasBody = request.sendsBody
+        if request.method == .head {
+            parts.append("-I")
+        } else if request.method != .get || hasBody {
             parts.append("-X \(request.method.rawValue)")
         }
 

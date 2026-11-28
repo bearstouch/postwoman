@@ -16,6 +16,11 @@ protocol RequestFields {
 
 extension APIRequest: RequestFields {}
 
+extension RequestFields {
+    /// Whether the body goes out with the request: a body type, some content, and a method that sends a body (not HEAD).
+    var sendsBody: Bool { method.sendsBody && bodyType != .none && !bodyContent.isEmpty }
+}
+
 /// A copy of a request's fields as plain values, so it can be resolved, sent and recorded without touching the model.
 struct RequestSnapshot: RequestFields, Sendable, Equatable {
     var url: String
@@ -70,7 +75,7 @@ struct RequestSnapshot: RequestFields, Sendable, Equatable {
     var sentText: [String] {
         var texts = [url]
         for pair in headers + queryParams where pair.isEnabled { texts += [pair.key, pair.value] }
-        if bodyType != .none { texts.append(bodyContent) }
+        if bodyType != .none && method.sendsBody { texts.append(bodyContent) }
         switch authenticationType {
         case .bearer: texts.append(authBearerToken ?? "")
         case .basic: texts += [authBasicUsername ?? "", authBasicPassword ?? ""]

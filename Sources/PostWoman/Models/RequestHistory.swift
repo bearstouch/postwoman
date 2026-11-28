@@ -110,11 +110,11 @@ final class RequestHistory {
             url: sent.url,
             method: sent.method,
             requestHeaders: sent.headers,
-            requestBody: sent.bodyContent.isEmpty ? nil : sent.bodyContent
+            requestBody: sent.bodyContent.isEmpty || !sent.method.sendsBody ? nil : sent.bodyContent
         )
         requestName = request.name
         queryParams = sent.queryParams
-        bodyType = sent.bodyType
+        bodyType = sent.method.sendsBody ? sent.bodyType : ContentType.none
         authenticationType = sent.authenticationType
         authBearerToken = sent.authBearerToken
         authBasicUsername = sent.authBasicUsername

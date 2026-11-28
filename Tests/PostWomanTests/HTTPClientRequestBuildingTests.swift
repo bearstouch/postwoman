@@ -228,6 +228,32 @@ final class HTTPClientRequestBuildingTests: XCTestCase {
         }
     }
 
+    func testPatchAndOptionsSendTheirBodyAndContentType() async throws {
+        for method in [HTTPMethod.patch, .options] {
+            CapturingURLProtocol.sent.withLock { $0.removeAll() }
+            let request = APIRequest(name: "b", url: "https://api.example.com/items/1", method: method)
+            request.bodyType = .json
+            request.bodyContent = #"{"name":"Ada"}"#
+            let sent = try await send(request)
+            XCTAssertEqual(sent.httpMethod, method.rawValue)
+            XCTAssertEqual(sent.httpBody, Data(#"{"name":"Ada"}"#.utf8), method.rawValue)
+            XCTAssertEqual(sent.value(forHTTPHeaderField: "Content-Type"), "application/json", method.rawValue)
+        }
+    }
+
+    func testHeadIsSentWithoutTheBodyOrItsContentTypeButKeepsTheRequestsBody() async throws {
+        let request = APIRequest(name: "h", url: "https://api.example.com/items", method: .head)
+        request.bodyType = .json
+        request.bodyContent = #"{"name":"Ada"}"#
+        request.headers = [KeyValuePair(key: "Accept", value: "application/json")]
+        let sent = try await send(request)
+        XCTAssertEqual(sent.httpMethod, "HEAD")
+        XCTAssertTrue(sent.httpBody?.isEmpty ?? true, "URLSession times out on a HEAD with a body")
+        XCTAssertNil(sent.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Accept"), "application/json", "Headers still go")
+        XCTAssertEqual(request.bodyContent, #"{"name":"Ada"}"#, "The saved body is kept for another method")
+    }
+
     func testUnparseableURLThrowsInvalidURLAndSendsNothing() async {
         let request = APIRequest(name: "bad", url: "http://exa mple.com/a b")
         do {

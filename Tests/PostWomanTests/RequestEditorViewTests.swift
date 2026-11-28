@@ -224,6 +224,14 @@ final class RequestTabViewTests: XCTestCase {
         XCTAssertEqual(RequestTab.auth.badge(for: request), 1)
     }
 
+    func testAHeadRequestsBodyTabHasNoBadgeBecauseTheBodyIsNotSent() throws {
+        let (_, _, request) = try EditorHosting.store()
+        request.method = .head
+        XCTAssertNil(RequestTab.body.badge(for: request))
+        request.method = .patch
+        XCTAssertEqual(RequestTab.body.badge(for: request), 1)
+    }
+
     func testTabsWithNothingInThemHaveNoBadge() {
         let request = APIRequest(name: "Empty")
         request.queryParams = [KeyValuePair(key: "a", value: "1", isEnabled: false), KeyValuePair(key: "", value: "2")]
@@ -317,7 +325,7 @@ final class HeadersTabViewTests: XCTestCase {
 /// The body tab bound to a request, as the editor shows it, so tests can change the body type.
 private struct BodyTabHost: View {
     @Bindable var request: APIRequest
-    var body: some View { BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent) }
+    var body: some View { BodyTabView(bodyType: $request.bodyType, bodyContent: $request.bodyContent, method: request.method) }
 }
 
 @MainActor
@@ -336,6 +344,22 @@ final class BodyTabViewTests: XCTestCase {
         XCTAssertFalse(BodyEditing.hasContent(""))
         XCTAssertFalse(BodyEditing.hasContent(" \n\t "))
         XCTAssertTrue(BodyEditing.hasContent(" {} "))
+    }
+
+    func testOnlyAHeadRequestWithABodyTypeGetsTheNotSentNotice() {
+        XCTAssertEqual(BodyEditing.notice(method: .head, bodyType: .json), "HEAD requests are sent without a body. It is kept for when you choose another method.")
+        XCTAssertNil(BodyEditing.notice(method: .head, bodyType: .none), "Nothing to warn about without a body")
+        for method in HTTPMethod.allCases where method != .head { XCTAssertNil(BodyEditing.notice(method: method, bodyType: .json), method.rawValue) }
+    }
+
+    func testAHeadRequestShowsTheNoticeAndKeepsTheEditor() throws {
+        let (container, _, request) = try EditorHosting.store()
+        request.method = .head
+        EditorHosting.eachVariant(BodyTabHost(request: request), sizes: sizes, container: container) { hosting, variant in
+            let elements = ViewHosting.elements(in: hosting)
+            XCTAssertTrue(elements.contains { $0.label.hasPrefix("HEAD requests are sent without a body") }, variant)
+            XCTAssertTrue(elements.contains { $0.role == .textArea && $0.label == #"{"name":"Ada"}"# }, variant)
+        }
     }
 
     func testPrettifyIndentsJSONAndXML() throws {

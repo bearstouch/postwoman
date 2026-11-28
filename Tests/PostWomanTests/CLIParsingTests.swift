@@ -189,7 +189,7 @@ final class CLIParsingTests: XCTestCase {
         XCTAssertEqual(try built(["request", "create", "--query", "flag="])["queryParams"], .array([pair("flag", "")]))
         XCTAssertEqual(try built(["history", "update", "--id", "H", "--error", ""])["errorMessage"], .string(""), "An empty --error clears it")
         XCTAssertEqual(try built(["environment", "update", "--id", "E", "--var", "k="])["variables"]?.array?.first?["value"], .string(""))
-        XCTAssertEqual(message(["request", "create", "-X", ""]), "--method must be one of GET, POST, PUT, DELETE.")
+        XCTAssertEqual(message(["request", "create", "-X", ""]), "--method must be one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.")
         XCTAssertEqual(message(["history", "list", "--limit", ""]), "--limit must be a whole number of 0 or more.")
     }
 
@@ -200,11 +200,11 @@ final class CLIParsingTests: XCTestCase {
     }
 
     func testMethodsAreCaseInsensitiveAndSentUppercase() throws {
-        for (given, sent) in [("get", "GET"), ("post", "POST"), ("Put", "PUT"), ("DELETE", "DELETE")] {
+        for (given, sent) in [("get", "GET"), ("post", "POST"), ("Put", "PUT"), ("patch", "PATCH"), ("DELETE", "DELETE"), ("Head", "HEAD"), ("options", "OPTIONS")] {
             XCTAssertEqual(try built(["request", "create", "-X", given])["method"], .string(sent))
         }
-        for rejected in ["PATCH", "HEAD", "OPTIONS", "GET "] {
-            XCTAssertEqual(message(["request", "create", "--method", rejected]), "--method must be one of GET, POST, PUT, DELETE.", rejected)
+        for rejected in ["TRACE", "CONNECT", "GET "] {
+            XCTAssertEqual(message(["request", "create", "--method", rejected]), "--method must be one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.", rejected)
         }
     }
 

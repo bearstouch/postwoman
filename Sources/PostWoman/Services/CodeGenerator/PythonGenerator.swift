@@ -33,7 +33,7 @@ struct PythonGenerator {
 
         // A JSON body that doesn't parse can't go as `json=` (requests would send it as a JSON string), so it is sent as
         // written with `data=`, and the Content-Type the app would send.
-        let hasBody = request.bodyType != .none && !request.bodyContent.isEmpty
+        let hasBody = request.sendsBody
         let jsonLiteral = hasBody && request.bodyType == .json ? PythonLiteral(json: request.bodyContent) : nil
         let addsJSONContentType =
             hasBody && request.bodyType == .json && jsonLiteral == nil && !enabledHeaders.contains { $0.key.lowercased() == "content-type" }
@@ -87,10 +87,12 @@ struct PythonGenerator {
 
         let paramsArg = enabledParams.isEmpty ? "" : ", params=params"
         let headersArg = hasHeaders ? ", headers=headers" : ""
+        // requests follows redirects for every method but HEAD; the app follows them for HEAD too.
+        let redirectsArg = request.method == .head ? ", allow_redirects=True" : ""
 
         let methodName = request.method.rawValue.lowercased()
         code += """
-            response = requests.\(methodName)(url\(paramsArg)\(headersArg)\(bodyParam)\(authParam))
+            response = requests.\(methodName)(url\(paramsArg)\(headersArg)\(bodyParam)\(authParam)\(redirectsArg))
 
             print(f"Status Code: {response.status_code}")
             print(f"Headers: {dict(response.headers)}")

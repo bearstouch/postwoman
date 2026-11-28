@@ -47,6 +47,19 @@ final class RequestHistoryTests: XCTestCase {
         XCTAssertEqual(restored.authBearerToken, "secret")
     }
 
+    func testAHeadEntryRecordsNoBodyBecauseNoneWasSent() {
+        let request = makeRequest()
+        request.method = .head
+        let history = RequestHistory(request: request)
+        container.mainContext.insert(history)
+        XCTAssertEqual(history.method, .head)
+        XCTAssertNil(history.requestBody)
+        XCTAssertEqual(history.bodyType, ContentType.none, "No body type for a body that wasn't sent")
+        XCTAssertEqual(history.makeRequest().bodyType, ContentType.none)
+        XCTAssertEqual(history.makeRequest().bodyContent, "", "Open as Request gives back what was sent")
+        XCTAssertEqual(request.bodyContent, #"{"a":1}"#, "The saved request keeps its body")
+    }
+
     func testRecordsTheResponseAndRebuildsIt() {
         let history = RequestHistory(request: makeRequest())
         container.mainContext.insert(history)

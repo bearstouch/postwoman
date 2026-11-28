@@ -4,6 +4,8 @@ import SwiftUI
 struct BodyTabView: View {
     @Binding var bodyType: ContentType
     @Binding var bodyContent: String
+    /// The request's method; a HEAD request's body is kept but not sent, and the tab says so.
+    var method: HTTPMethod = .get
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,6 +37,17 @@ struct BodyTabView: View {
             .background(Theme.bar)
 
             HairlineDivider()
+
+            if let notice = BodyEditing.notice(method: method, bodyType: bodyType) {
+                Label(notice, systemImage: "info.circle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.bar)
+                HairlineDivider()
+            }
 
             switch BodyEditing.Editor(bodyType) {
             case .none:
@@ -111,6 +124,12 @@ enum BodyEditing {
             case .json, .xml, .text: self = .code
             }
         }
+    }
+
+    /// The note above the editor when the method doesn't send a body (HEAD) and a body type is chosen, or nil.
+    static func notice(method: HTTPMethod, bodyType: ContentType) -> String? {
+        guard !method.sendsBody, bodyType != .none else { return nil }
+        return "\(method.rawValue) requests are sent without a body. It is kept for when you choose another method."
     }
 
     /// Whether the body type has a Prettify button (JSON and XML).

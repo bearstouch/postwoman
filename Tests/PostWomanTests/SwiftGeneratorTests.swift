@@ -98,6 +98,16 @@ final class SwiftGeneratorTests: XCTestCase {
         }
     }
 
+    func testHeadSetsNoBodyAndPatchDoes() throws {
+        let request = APIRequest(name: "h", url: "https://h", method: .head)
+        request.bodyType = .json
+        request.bodyContent = #"{"a":1}"#
+        XCTAssertFalse(code(request).contains("httpBody"), "URLSession times out on a HEAD with a body")
+        XCTAssertFalse(code(request).contains("Content-Type"))
+        request.method = .patch
+        XCTAssertTrue(code(request).contains("request.httpBody"))
+    }
+
     func testEnabledParamsBecomeQueryItems() {
         let request = APIRequest(name: "q", url: "https://api.example.com/search")
         request.queryParams = [

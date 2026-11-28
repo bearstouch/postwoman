@@ -9,14 +9,29 @@ private func roundTrip<T: Codable>(_ value: T) throws -> T { try JSONDecoder().d
 @MainActor
 final class ModelBehaviorTests: XCTestCase {
     func testHTTPMethodRawValuesAreStableAndOrdered() throws {
-        XCTAssertEqual(HTTPMethod.allCases.map(\.rawValue), ["GET", "POST", "PUT", "DELETE"], "Raw values are stored and exported; the order is the menu order")
+        XCTAssertEqual(HTTPMethod.allCases.map(\.rawValue), ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], "Raw values are stored and exported; the order is the menu order")
         for method in HTTPMethod.allCases {
             XCTAssertEqual(method.id, method.rawValue, method.rawValue)
             XCTAssertEqual(try roundTrip(method), method, method.rawValue)
             XCTAssertEqual(String(decoding: try JSONEncoder().encode(method), as: UTF8.self), "\"\(method.rawValue)\"", method.rawValue)
         }
         XCTAssertNil(HTTPMethod(rawValue: "get"), "Raw values are case-sensitive")
-        XCTAssertThrowsError(try JSONDecoder().decode(HTTPMethod.self, from: Data(#""PATCH""#.utf8)))
+        XCTAssertThrowsError(try JSONDecoder().decode(HTTPMethod.self, from: Data(#""TRACE""#.utf8)))
+    }
+
+    func testOnlyHeadLeavesTheBodyOut() {
+        XCTAssertEqual(HTTPMethod.allCases.filter { !$0.sendsBody }, [.head])
+        let request = APIRequest(name: "h", url: "https://h", method: .head)
+        request.bodyType = .json
+        request.bodyContent = #"{"a":1}"#
+        XCTAssertFalse(request.sendsBody)
+        for method in [HTTPMethod.post, .patch, .options, .get] {
+            request.method = method
+            XCTAssertTrue(request.sendsBody, method.rawValue)
+        }
+        request.method = .patch
+        request.bodyContent = ""
+        XCTAssertFalse(request.sendsBody, "Empty content is no body for any method")
     }
 
     func testContentTypeRawValuesAndMimeTypes() throws {

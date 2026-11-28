@@ -35,7 +35,7 @@ private func pythonOutput(_ source: String) throws -> Data? {
                 captured.update(kw, method=method, url=url)
                 return types.SimpleNamespace(status_code=200, headers={}, text="")
             return f
-        sys.modules["requests"] = types.SimpleNamespace(**{m: call(m) for m in ["get", "post", "put", "delete"]})
+        sys.modules["requests"] = types.SimpleNamespace(**{m: call(m) for m in ["get", "post", "put", "patch", "delete", "head", "options"]})
         import builtins
         builtins.print = lambda *a, **k: None
         exec(compile(sys.stdin.read(), "generated.py", "exec"))
@@ -79,7 +79,9 @@ final class PythonGeneratorTests: XCTestCase {
 
     func testMethodsAreLowercasedRequestsFunctions() {
         for method in HTTPMethod.allCases {
-            XCTAssertEqual(call(APIRequest(name: "m", url: "https://h", method: method)), "response = requests.\(method.rawValue.lowercased())(url)", method.rawValue)
+            let redirects = method == .head ? ", allow_redirects=True" : ""
+            XCTAssertEqual(
+                call(APIRequest(name: "m", url: "https://h", method: method)), "response = requests.\(method.rawValue.lowercased())(url\(redirects))", method.rawValue)
         }
     }
 
@@ -222,6 +224,28 @@ final class PythonGeneratorTests: XCTestCase {
         XCTAssertEqual(json["admin"] as? Bool, false)
         XCTAssertEqual(json["tags"] as? [String], ["x"])
         XCTAssertTrue(json["boss"] is NSNull)
+    }
+
+    func testHeadFollowsRedirectsLikeTheAppAndSendsNoBody() throws {
+        let request = body(#"{"a":1}"#, .json)
+        request.method = .head
+        let captured = try XCTUnwrap(try pythonCall(code(request)), "The script should run")
+        XCTAssertEqual(captured["method"] as? String, "head")
+        XCTAssertEqual(captured["allow_redirects"] as? Bool, true, "requests.head doesn't follow redirects unless asked; the app does")
+        XCTAssertNil(captured["json"])
+        XCTAssertNil(captured["data"])
+        XCTAssertNil(captured["headers"], "No Content-Type for a body that isn't sent")
+    }
+
+    func testPatchAndOptionsRunAndSendTheirBody() throws {
+        for method in [HTTPMethod.patch, .options] {
+            let request = body(#"{"a":1}"#, .json)
+            request.method = method
+            let captured = try XCTUnwrap(try pythonCall(code(request)), method.rawValue)
+            XCTAssertEqual(captured["method"] as? String, method.rawValue.lowercased())
+            XCTAssertEqual(captured["json"] as? [String: Int], ["a": 1], method.rawValue)
+            XCTAssertNil(captured["allow_redirects"], "Other methods follow redirects by default")
+        }
     }
 
     func testJSONBodyStringsAreKeptAsWrittenInPython() throws {

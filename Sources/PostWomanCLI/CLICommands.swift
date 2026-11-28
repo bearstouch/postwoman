@@ -139,7 +139,7 @@ enum CLICommands {
 
     // MARK: Shared flag sets
 
-    static let methods = ["GET", "POST", "PUT", "DELETE"]
+    static let methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
     static let bodyTypes = ["none", "json", "form-data", "urlencoded", "xml", "text"]
     static let authTypes = ["none", "bearer", "basic", "oauth2"]
 
@@ -149,7 +149,7 @@ enum CLICommands {
         Flag(name: "url", value: "URL", help: "Target URL (query parameters can also go in --query).") { args, value, _ throws(CLIFailure) in
             args.fields["url"] = .string(value)
         },
-        Flag(name: "method", value: "METHOD", help: "GET, POST, PUT or DELETE.", short: "X") { args, value, _ throws(CLIFailure) in
+        Flag(name: "method", value: "METHOD", help: "GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS.", short: "X") { args, value, _ throws(CLIFailure) in
             guard methods.contains(value.uppercased()) else { throw .arguments("--method must be one of \(methods.joined(separator: ", ")).") }
             args.fields["method"] = .string(value.uppercased())
         },

@@ -142,6 +142,17 @@ final class RequestSnapshotTests: XCTestCase {
         }
     }
 
+    func testAHeadRequestsBodyIsNotSentTextAndDoesNotAskForAStream() {
+        let request = APIRequest(name: "h", url: "u", method: .head)
+        request.bodyType = .json
+        request.bodyContent = #"{"stream":true,"x":"{{bodyOnly}}"}"#
+        XCTAssertEqual(RequestSnapshot(request).sentText, ["u"])
+        XCTAssertEqual(RequestSnapshot(request).missingVariables(with: .empty), [], "Variables in a body that isn't sent are not reported")
+        XCTAssertFalse(request.expectsStream)
+        request.method = .patch
+        XCTAssertTrue(request.expectsStream)
+    }
+
     func testMissingVariablesAreOrderedDedupedAndOnlyFromSentText() {
         let request = APIRequest(name: "m", url: "https://h/{{b}}/{{a}}/{{b}}")
         request.headers = [KeyValuePair(key: "X", value: "{{c}}"), KeyValuePair(key: "Off", value: "{{offOnly}}", isEnabled: false)]

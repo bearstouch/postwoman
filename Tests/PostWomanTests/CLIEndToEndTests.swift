@@ -15,6 +15,10 @@ final class CLIContractTests: XCTestCase {
         for name in covered { XCTAssertNotNil(MCPTools.byName[name], "\(name) is not an app tool") }
     }
 
+    func testTheCLIAcceptsExactlyTheMethodsTheAppHas() {
+        XCTAssertEqual(CLICommands.methods, MCPTools.methods)
+    }
+
     /// Every flag, given a sample value, builds arguments the tool's schema accepts.
     func testEveryFlagBuildsArgumentsTheToolAccepts() throws {
         let input = CLIInput(readFile: { _ in Data("body".utf8) }, readStdin: { Data() })

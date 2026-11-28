@@ -41,6 +41,8 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
             let lines = parts(APIRequest(name: "m", url: "https://api.example.com", method: method))
             if method == .get {
                 XCTAssertEqual(lines, ["curl", "'https://api.example.com'"], method.rawValue)
+            } else if method == .head {
+                XCTAssertEqual(lines, ["curl", "-I", "'https://api.example.com'"], "HEAD is -I, since curl -X HEAD waits for a body")
             } else {
                 XCTAssertEqual(lines, ["curl", "-X \(method.rawValue)", "'https://api.example.com'"], method.rawValue)
             }
@@ -61,6 +63,24 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
             request.bodyType = type
             request.bodyContent = content
             XCTAssertEqual(parts(request), ["curl", "'https://h'"], type.rawValue)
+        }
+    }
+
+    func testHeadIsDashIAndLeavesTheBodyAndItsContentTypeOut() throws {
+        let request = post(#"{"a":1}"#)
+        request.method = .head
+        request.headers = [KeyValuePair(key: "Accept", value: "*/*")]
+        XCTAssertEqual(parts(request), ["curl", "-I", "'https://api.example.com/items'", "-H 'Accept: */*'"])
+        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-I", "https://api.example.com/items", "-H", "Accept: */*"])
+    }
+
+    func testPatchAndOptionsSpellOutTheMethodAndSendTheBody() throws {
+        for method in [HTTPMethod.patch, .options] {
+            let request = post(#"{"a":1}"#)
+            request.method = method
+            XCTAssertEqual(
+                try shellWords(CURLGenerator().generate(from: request)),
+                ["-X", method.rawValue, "https://api.example.com/items", "-d", #"{"a":1}"#, "-H", "Content-Type: application/json"], method.rawValue)
         }
     }
 

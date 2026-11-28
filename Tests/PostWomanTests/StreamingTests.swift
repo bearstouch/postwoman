@@ -187,6 +187,16 @@ final class HTTPClientStreamingTests: XCTestCase {
         XCTAssertEqual(progress.first?.stream?.events.count, 0)
     }
 
+    func testAHeadResponseWithAStreamContentTypeIsNotAStream() async throws {
+        StreamingStubProtocol.script = .init(contentType: "text/event-stream", chunks: [])
+        var head = request
+        head.method = .head
+        var progress: [HTTPResponse] = []
+        let response = try await client().execute(request: head) { progress.append($0) }
+        XCTAssertNil(response.stream, "No empty Events view for a HEAD to an event stream")
+        XCTAssertTrue(progress.isEmpty)
+    }
+
     func testStoppingAStreamKeepsWhatArrived() async throws {
         StreamingStubProtocol.script = .init(contentType: "text/event-stream", chunks: [(0.01, Self.chunk("partial"))], finishes: false)
         let client = client()

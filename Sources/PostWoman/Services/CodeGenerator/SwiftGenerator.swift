@@ -76,7 +76,7 @@ struct SwiftGenerator {
             break
         }
 
-        if request.bodyType != .none && !request.bodyContent.isEmpty {
+        if request.sendsBody {
             if request.bodyType == .json {
                 code += """
 

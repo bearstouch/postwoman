@@ -117,7 +117,7 @@ final class CLIArgumentTests: XCTestCase {
         XCTAssertEqual(code(["request", "get", "--idd", "x"]), "request get has no option --idd.")
         XCTAssertEqual(code(["request", "get", "--id"]), "--id needs a value (ID).")
         XCTAssertEqual(code(["request", "get", "--id", "a", "--id", "b"]), "--id is given twice.")
-        XCTAssertEqual(code(["request", "create", "-X", "PATCH"]), "--method must be one of GET, POST, PUT, DELETE.")
+        XCTAssertEqual(code(["request", "create", "-X", "TRACE"]), "--method must be one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.")
         XCTAssertEqual(code(["request", "create", "-H", "no colon"]), "--header must look like \"Name: value\".")
         XCTAssertEqual(code(["request", "create", "--body", "a", "--body-file", "b"]), "Pass --body or --body-file, not both.")
         XCTAssertEqual(code(["request"]), "Say what to do with request: list, get, create, update, delete, execute.")
