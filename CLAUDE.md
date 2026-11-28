@@ -174,6 +174,10 @@ Menu commands use `NotificationCenter` to communicate with views:
   - Network: a `URLProtocol` stub in an ephemeral `URLSessionConfiguration` passed to `HTTPClient(session:)`
     (`StreamingStubProtocol`), or an `MCPListener` on `127.0.0.1:0` as a real target server.
   - CLI: fake `CLIEnvironment` (no real files, sockets or stdout).
+  - Views: decisions live in internal types or `static func`s beside the view (`ResponseBodyFormat`, `SidebarActions`,
+    `EnvironmentActions`, `ContentSelection`, `RemoteAgentSettingsForm`…) and get unit tests; the view itself is hosted with
+    `ViewHosting` (`Tests/PostWomanTests/ViewHostingSupport.swift`) in light and dark, and tests assert what VoiceOver gets
+    (labels, help, values, `isSelected`) and that no secret is exposed. Toolbars and list rows need a titled window.
   - UserDefaults: a suite with a unique name (`"Area.\(UUID().uuidString)"`), removed afterwards; never a fixed name, which other runs share.
 - A bug fix comes with a test that fails without it (run it against the old code once). Generated code is checked by running it:
   cURL through `/bin/sh`, Python with `python3 -I -W error` against a stubbed `requests`, Swift compiled with `swiftc` behind a stub.

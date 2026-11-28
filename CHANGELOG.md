@@ -26,7 +26,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Generated Python keeps JSON strings as written (`"nullable"` became `"Noneable"`), keeps key order and numbers, and escapes every string, so bodies, URLs and header names with quotes or backslashes no longer break the script
 - Generated Swift escapes every string, so a JSON body containing `\n` or `\(`, or a URL or param with a quote, compiles and sends the same bytes, and it keeps the URL's own query
 - A response body that is a single JSON value (`true`, `42`, `"ok"`) is shown as JSON, and JSON with a trailing comma (`[1,]`) is no longer treated as valid
-- Timings round before choosing a unit: 9.96 ms reads "10 ms" instead of "10.0 ms", and 999.6 ms reads "1.00 s" instead of "1000 ms"
+- Timings round before choosing a unit: 9.96 ms reads "10 ms" instead of "10.0 ms", and 999.6 ms reads "1.00 s" instead of "1000 ms"; sizes just under a megabyte read "1.0 MB" instead of "1024.0 KB"
+- A URL with a space, braces or brackets after its host keeps the escapes already in it (`?q=%2F b` was sent as `q=%252F%20b`), and generated cURL for such a URL (for example with `{{name}}` or `filter[a]=1`) is no longer refused by curl
+- Opening the Body tab of a form body no longer rewrites it: `&`, `=` and `+` in a field are encoded, so `q=a%26b` stays one field instead of becoming `q=a&b`
+- Duplicate in the request list keeps the request's credentials (Bearer token, Basic username and password, OAuth settings), and ⌘D makes the same copy ("<name> Copy", after the last request)
+- New, duplicated and restored requests go after the last request of their collection, so two requests no longer share a place in the list
+- Deleting the selected collection clears the window instead of leaving "Folder not found" and its deleted request on screen
+- History shows "Failed", with the error as its tooltip, for a request that got no response
+- Generated Python sends a JSON body that doesn't parse as written, with `Content-Type: application/json`, instead of as a JSON string
+- A body the server labels only `; charset=utf-8` is no longer labelled "charset=utf-8", and a body that isn't UTF-8 text says why it isn't shown instead of "No response body"
+- VoiceOver: the selected request tab, response tab, code language and stream event are announced as selected; icon-only buttons are read by what they do (Prettify, Stop, Clear History, Copy, Delete, the environment editor's controls) instead of by their symbol names; key-value rows name their checkbox, fields and delete button; each response header row offers Copy Name, Copy Value and Copy Header as actions; and collection rows read their request count ("3 requests")
 
 ## [0.10.0] - 2026-11-27
 
