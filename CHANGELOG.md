@@ -9,18 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.12.0] - 2026-11-28
 
 ### Changed
-- PostWoman is now **Reqs**, a new app with its own bundle identifier (`com.bearstouch.reqs`), an electric blue accent and
-  a new flat icon (a list of saved requests on electric blue). Because it is a new app, it starts empty: in PostWoman, right-click each collection and
-  choose Export Collection…, then import each file in Reqs with + → Import Collection…. PostWoman doesn't update to Reqs: its update check says Reqs is available
-  and links to https://github.com/bearstouch/reqs/releases. The command-line tool is now `reqs` (`REQS_URL`, `REQS_TOKEN`,
-  `REQS_TOKEN_FILE`), and MCP clients see the server as `reqs`, with a new agent token. Pink is still available in
-  Settings → Appearance
+- PostWoman is now **Reqs**: a new name, a new flat icon (a list of saved requests on electric blue) and an electric blue accent. Pink is still available in Settings → Appearance
+- Reqs is a new app with its own bundle identifier (`com.bearstouch.reqs`), so it installs next to PostWoman and starts empty. To bring collections over, right-click each one in PostWoman, choose Export Collection…, and import the file in Reqs with + → Import Collection…. History, secret values and settings stay in PostWoman, and PostWoman keeps working
+- PostWoman doesn't update itself to Reqs: download Reqs from https://github.com/bearstouch/reqs/releases. Once Reqs releases publish an update feed, PostWoman's Check for Updates says Reqs is available and links there instead of offering an install
+- The command-line tool is now `reqs` (`REQS_URL`, `REQS_TOKEN`, `REQS_TOKEN_FILE`), and MCP clients see the server as `reqs`. Reqs has its own agent token: copy it from Settings → Remote Agent and update your agent configs
+- The project moved to https://github.com/bearstouch/reqs (the old address redirects) and its page to https://bearstouch.com/reqs
 - The Reqs theme's JSON keys are blue and literals (`true`, `null`) violet; the Pink environment color stays pink whatever the accent
 - A request or History entry with a body and no query parameters opens on the Body tab instead of an empty Params tab
 - A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
-- Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `postwoman request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)
+- Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `reqs request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)
 - Basic authentication is sent when only the username or only the password was typed (an API key as the username, say); the other part is empty
-- `postwoman` fails with exit status 2 on an option placed before the command (`postwoman -X POST request execute …`) or a mistyped global option, instead of printing the overview and exiting 0
+- `reqs` fails with exit status 2 on an option placed before the command (`reqs -X POST request execute …`) or a mistyped global option, instead of printing the overview and exiting 0
 
 ### Fixed
 - Selecting another request no longer shows the previous request's response, missing-variables notice or form fields, no longer keeps Send blocked by the previous request's send, and an edit in a form body no longer writes the previous request's fields into the newly selected one
@@ -44,9 +43,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Importing a collection gives its variables, headers and parameters IDs of their own (a second import, or a hand-edited file, could make two rows share one, so deleting one deleted both), and keeps the first environment selected when two share the selected one's name
 - Generated cURL sends a header with an empty value (`-H 'Name;'`); generated Python sends a JSON body of `null` instead of no body
 - `history_create` and `history_update` refuse a `timeMs` over a day (a huge one made the entry unreadable), and clearing an entry's `errorMessage` marks a 2xx entry successful again
-- `postwoman` accepts `--server=URL`, `--agent-token=…` and `--agent-token-file=…`, and ignores an empty `POSTWOMAN_URL`
-- `postwoman` tables no longer cut a name with an emoji or a combining accent in the middle
-- `postwoman` tries the app whose Remote Agent is on first, so a leftover token from another PostWoman build no longer uses up the server's failed sign-in limit after a few commands
+- `reqs` accepts `--server=URL`, `--agent-token=…` and `--agent-token-file=…`, and ignores an empty `REQS_URL`
+- `reqs` tables no longer cut a name with an emoji or a combining accent in the middle
+- `reqs` tries the app whose Remote Agent is on first, so a leftover token from another build no longer uses up the server's failed sign-in limit after a few commands
 
 ## [0.11.0] - 2026-11-27
 
