@@ -61,8 +61,8 @@ body:
   - type: input
     id: app-version
     attributes:
-      label: PostWoman Version
-      description: What version of PostWoman are you using?
+      label: Reqs Version
+      description: What version of Reqs are you using?
       placeholder: e.g., v1.0.0 or commit hash
     validations:
       required: true

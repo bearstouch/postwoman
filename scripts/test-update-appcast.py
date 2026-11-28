@@ -15,10 +15,10 @@ SIGNATURE = "A" * 86 + "=="
 
 
 def run(appcast, version, bundle, url=None, check=True):
-    url = url or f"https://github.com/bearstouch/postwoman/releases/download/v{version}/PostWoman-{version}.dmg"
+    url = url or f"https://github.com/bearstouch/reqs/releases/download/v{version}/Reqs-{version}.dmg"
     command = [sys.executable, "-I", str(SCRIPT), str(appcast), "--version", version, "--bundle-version", bundle, "--minimum-macos", "14.0",
                "--url", url, "--length", "1234", "--signature", SIGNATURE,
-               "--notes-url", f"https://github.com/bearstouch/postwoman/releases/tag/v{version}", "--date", "Sat, 24 Oct 2026 12:00:00 GMT"]
+               "--notes-url", f"https://github.com/bearstouch/reqs/releases/tag/v{version}", "--date", "Sat, 24 Oct 2026 12:00:00 GMT"]
     return subprocess.run(command, capture_output=True, text=True, check=check)
 
 
@@ -27,7 +27,7 @@ def items(appcast):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="postwoman appcast ") as temporary:
+    with tempfile.TemporaryDirectory(prefix="reqs appcast ") as temporary:
         appcast = Path(temporary) / "appcast.xml"
         run(appcast, "1.0.0-beta.2", "1.0.0.32")
         run(appcast, "1.0.0", "1.0.0.100")
@@ -36,6 +36,9 @@ def main():
         assert versions == ["1.0.0.100", "1.0.0.32", "1.0.0.31"], versions
         channels = {item.findtext(f"{SPARKLE}shortVersionString"): item.findtext(f"{SPARKLE}channel") for item in items(appcast)}
         assert channels == {"1.0.0": None, "1.0.0-beta.2": "beta", "1.0.0-beta.1": "beta"}, channels
+        for item in items(appcast):
+            assert item.findtext(f"{SPARKLE}informationalUpdate/{SPARKLE}belowVersion") == "0.11.1", "PostWoman is shown a link, not an update"
+            assert item.findtext("link") == item.findtext(f"{SPARKLE}fullReleaseNotesLink"), "the link PostWoman opens"
         enclosure = items(appcast)[0].find("enclosure")
         assert enclosure.get(f"{SPARKLE}edSignature") == SIGNATURE and enclosure.get("length") == "1234"
 
@@ -43,14 +46,27 @@ def main():
         run(appcast, "1.0.0", "1.0.0.100")
         assert appcast.read_bytes() == before, "re-running a release must not change the feed"
 
-        run(appcast, "1.0.1", "1.0.1.100", url="https://example.com/PostWoman.dmg?a=1&b=<2>")
-        assert items(appcast)[0].find("enclosure").get("url") == "https://example.com/PostWoman.dmg?a=1&b=<2>", "URLs are escaped, not injected"
+        run(appcast, "1.0.1", "1.0.1.100", url="https://example.com/Reqs.dmg?a=1&b=<2>")
+        assert items(appcast)[0].find("enclosure").get("url") == "https://example.com/Reqs.dmg?a=1&b=<2>", "URLs are escaped, not injected"
         assert len(items(appcast)) == 4
 
         for bad in (["1.0.2", "1.0.2.100", "http://example.com/x.dmg"], ["1.0", "1.0.0.100", None], ["1.0.3", "1.0.3-beta", None]):
             result = run(appcast, bad[0], bad[1], url=bad[2], check=False)
             assert result.returncode != 0, bad
         assert len(items(appcast)) == 4, "rejected input leaves the feed unchanged"
+
+        assert run(appcast, "0.11.0", "0.11.0.100", check=False).returncode != 0, "a PostWoman version is refused"
+        assert len(items(appcast)) == 4
+
+        legacy = Path(temporary) / "legacy.xml"
+        legacy.write_text(
+            '<?xml version="1.0"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel>'
+            '<title>PostWoman</title><link>https://github.com/bearstouch/postwoman</link><item><title>PostWoman 0.11.0</title>'
+            '<sparkle:version>0.11.0.100</sparkle:version></item></channel></rss>')
+        run(legacy, "0.12.0", "0.12.0.100")
+        channel = ET.parse(legacy).getroot().find("channel")
+        assert channel.findtext("title") == "Reqs" and channel.findtext("link") == "https://github.com/bearstouch/reqs", "the old feed is retitled"
+        assert [item.findtext(f"{SPARKLE}version") for item in items(legacy)] == ["0.12.0.100", "0.11.0.100"], "PostWoman's items are kept"
 
         other = Path(temporary) / "other.xml"
         other.write_text("<html/>")

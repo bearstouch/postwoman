@@ -1,6 +1,6 @@
-# Contributing to PostWoman
+# Contributing to Reqs
 
-Thank you for your interest in contributing to PostWoman! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Reqs! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -25,13 +25,13 @@ Thank you for your interest in contributing to PostWoman! This document provides
 
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/postwoman.git
-   cd postwoman
+   git clone https://github.com/YOUR_USERNAME/reqs.git
+   cd reqs
    ```
 
 3. **Add the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/bearstouch/postwoman.git
+   git remote add upstream https://github.com/bearstouch/reqs.git
    ```
 
 4. **Build, test and run**:
@@ -39,7 +39,7 @@ Thank you for your interest in contributing to PostWoman! This document provides
    swift build                                  # must be warning-free
    swift test
    swift format lint --strict -r Sources Tests  # must print nothing
-   swift run PostWoman                          # or scripts/run-app.sh for a sandboxed .app
+   swift run Reqs                          # or scripts/run-app.sh for a sandboxed .app
    ```
    You can also open `Package.swift` in Xcode. Format with `swift format -i -r Sources Tests`
    (config: `.swift-format`). CI runs the same lint, build, test and app-bundle steps.
@@ -119,7 +119,7 @@ Feature requests are welcome! Please provide:
 ### File Organization
 
 ```
-Sources/PostWoman/
+Sources/Reqs/
 ├── App/                    # App entry point and root views
 ├── Models/                 # SwiftData @Model classes
 ├── Views/
@@ -192,4 +192,4 @@ User Action → View → Service → Network/Storage → View Update
 
 ## Recognition
 
-Contributors will be recognized in our README and release notes. Thank you for helping make PostWoman better!
+Contributors will be recognized in our README and release notes. Thank you for helping make Reqs better!

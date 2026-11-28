@@ -1,13 +1,13 @@
 #!/bin/sh
-# Builds a Universal 2 release of PostWoman with SwiftPM, signs it with the hardened
+# Builds a Universal 2 release of Reqs with SwiftPM, signs it with the hardened
 # runtime and the app's entitlements, packages a DMG, optionally notarizes and
 # staples, verifies, and records evidence in dist/release-evidence.json.
 #
-#   POSTWOMAN_SIGN_IDENTITY   "Developer ID Application: …" (default "-" = ad-hoc, not distributable)
-#   POSTWOMAN_NOTARY_PROFILE  notarytool keychain profile; notarization is skipped when unset
+#   REQS_SIGN_IDENTITY   "Developer ID Application: …" (default "-" = ad-hoc, not distributable)
+#   REQS_NOTARY_PROFILE  notarytool keychain profile; notarization is skipped when unset
 set -eu
 cd "$(dirname "$0")/.."
-identity="${POSTWOMAN_SIGN_IDENTITY:--}"
+identity="${REQS_SIGN_IDENTITY:--}"
 manifest() { python3 -c 'import json,sys;print(json.load(open("release/manifest.json"))[sys.argv[1]])' "$1"; }
 version=$(manifest version)
 minimum=$(manifest minimumMacOS)
@@ -17,10 +17,10 @@ copyright=$(manifest copyright)
 entitlements=$(manifest entitlements)
 # A build gets an update feed only when the manifest records the Sparkle public key (as in Trellis).
 sparkle_key=$(python3 -c 'import json;print(json.load(open("release/manifest.json")).get("sparklePublicKey") or "")')
-feed_url="https://raw.githubusercontent.com/bearstouch/postwoman/appcast/appcast.xml"
+feed_url="https://raw.githubusercontent.com/bearstouch/reqs/appcast/appcast.xml"
 # macOS wants numeric bundle versions: CFBundleShortVersionString is the X.Y.Z core, and CFBundleVersion adds a build
 # that orders pre-releases before the release (alpha.N = N, beta.N = 30+N, rc.N = 60+N, release = 100). Sparkle
-# compares CFBundleVersion. The full version, label included, goes to PostWomanVersion for the app to show.
+# compares CFBundleVersion. The full version, label included, goes to ReqsVersion for the app to show.
 bundle_versions=$(python3 - "$version" <<'PY'
 import re, sys
 match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.([1-9]\d?))?", sys.argv[1])
@@ -39,18 +39,18 @@ mkdir -p "$dist"
 # Per-architecture native builds combined into Universal 2 with lipo. Each architecture gets its own scratch path:
 # the swiftbuild build system (SwiftPM's default since Swift 6.4) uses one bin path for every --triple.
 for arch in arm64 x86_64; do
-    swift build --configuration release --scratch-path ".build/release-$arch" --triple "$arch-apple-macosx$minimum" --product PostWoman
-    swift build --configuration release --scratch-path ".build/release-$arch" --triple "$arch-apple-macosx$minimum" --product postwoman-cli
+    swift build --configuration release --scratch-path ".build/release-$arch" --triple "$arch-apple-macosx$minimum" --product Reqs
+    swift build --configuration release --scratch-path ".build/release-$arch" --triple "$arch-apple-macosx$minimum" --product reqs-cli
 done
 arm=$(swift build --configuration release --scratch-path .build/release-arm64 --triple "arm64-apple-macosx$minimum" --show-bin-path)
 intel=$(swift build --configuration release --scratch-path .build/release-x86_64 --triple "x86_64-apple-macosx$minimum" --show-bin-path)
 
-app="$dist/PostWoman.app"
+app="$dist/Reqs.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Helpers" "$app/Contents/Frameworks"
-/usr/bin/lipo -create "$arm/PostWoman" "$intel/PostWoman" -output "$app/Contents/MacOS/PostWoman"
+/usr/bin/lipo -create "$arm/Reqs" "$intel/Reqs" -output "$app/Contents/MacOS/Reqs"
 # The command-line tool, which talks to the app's MCP server (Settings → Remote Agent).
-/usr/bin/lipo -create "$arm/postwoman-cli" "$intel/postwoman-cli" -output "$app/Contents/Helpers/postwoman"
-# The PostWoman_PostWoman.bundle resources only serve unbundled runs; the app icon comes from AppIcon.icns.
+/usr/bin/lipo -create "$arm/reqs-cli" "$intel/reqs-cli" -output "$app/Contents/Helpers/reqs"
+# The Reqs_Reqs.bundle resources only serve unbundled runs; the app icon comes from AppIcon.icns.
 cp Design/AppIcon/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 # Sparkle's framework is already Universal 2.
 /usr/bin/ditto "$arm/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
@@ -71,14 +71,14 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>$bundle_id</string>
-<key>CFBundleName</key><string>PostWoman</string>
+<key>CFBundleName</key><string>Reqs</string>
 <key>CFBundleDisplayName</key><string>$display_name</string>
-<key>CFBundleExecutable</key><string>PostWoman</string>
+<key>CFBundleExecutable</key><string>Reqs</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$short_version</string>
 <key>CFBundleVersion</key><string>$bundle_version</string>
-<key>PostWomanVersion</key><string>$version</string>
+<key>ReqsVersion</key><string>$version</string>
 <key>NSHumanReadableCopyright</key><string>$copyright</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -92,7 +92,7 @@ PLIST
 # The sandbox container (and its SwiftData store) is keyed by the bundle identifier.
 # Nested code first (hardened runtime, no sandbox: the CLI runs in the user's shell), then the app seals it.
 if [ "$identity" = "-" ]; then
-    /usr/bin/codesign --force --options runtime --sign - --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
+    /usr/bin/codesign --force --options runtime --sign - --identifier "$bundle_id.cli" "$app/Contents/Helpers/reqs"
     scripts/sign-sparkle.sh "$app" -
     # Ad-hoc signatures have no Team ID, so library validation would refuse the embedded Sparkle.framework. Only these
     # non-distributable builds relax it; Developer ID builds keep library validation.
@@ -101,7 +101,7 @@ if [ "$identity" = "-" ]; then
     /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$adhoc_entitlements"
     /usr/bin/codesign --force --options runtime --entitlements "$adhoc_entitlements" --sign - --identifier "$bundle_id" "$app"
 else
-    /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" --identifier "$bundle_id.cli" "$app/Contents/Helpers/postwoman"
+    /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" --identifier "$bundle_id.cli" "$app/Contents/Helpers/reqs"
     scripts/sign-sparkle.sh "$app" "$identity"
     /usr/bin/codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" --identifier "$bundle_id" "$app"
 fi
@@ -111,19 +111,19 @@ fi
 notarized=false
 stapled=false
 notary_requested=false
-dmg="$dist/PostWoman-$version.dmg"
-if [ -n "${POSTWOMAN_NOTARY_PROFILE:-}" ] && [ "$identity" != "-" ]; then
+dmg="$dist/Reqs-$version.dmg"
+if [ -n "${REQS_NOTARY_PROFILE:-}" ] && [ "$identity" != "-" ]; then
     notary_requested=true
-    zip="$dist/PostWoman-$version-notarize.zip"
+    zip="$dist/Reqs-$version-notarize.zip"
     /usr/bin/ditto -c -k --keepParent "$app" "$zip"
-    /usr/bin/xcrun notarytool submit "$zip" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait \
+    /usr/bin/xcrun notarytool submit "$zip" --keychain-profile "$REQS_NOTARY_PROFILE" --wait \
         && /usr/bin/xcrun stapler staple "$app" && app_stapled=true
     rm -f "$zip"
 fi
-scripts/make-dmg.sh "$app" "$dmg" "PostWoman $version"
+scripts/make-dmg.sh "$app" "$dmg" "Reqs $version"
 if [ "$identity" != "-" ]; then /usr/bin/codesign --force --timestamp --sign "$identity" "$dmg"; fi
 if [ "${app_stapled:-false}" = true ]; then
-    /usr/bin/xcrun notarytool submit "$dmg" --keychain-profile "$POSTWOMAN_NOTARY_PROFILE" --wait && notarized=true
+    /usr/bin/xcrun notarytool submit "$dmg" --keychain-profile "$REQS_NOTARY_PROFILE" --wait && notarized=true
     if [ "$notarized" = true ]; then
         /usr/bin/xcrun stapler staple "$dmg" && scripts/verify-dmg-staple.sh "$dmg" && stapled=true
     fi
@@ -148,15 +148,15 @@ archs = lambda p: sorted(subprocess.run(["lipo", "-archs", p], capture_output=Tr
 problems = []
 if info["LSMinimumSystemVersion"] != manifest["minimumMacOS"]: problems.append("minimum macOS mismatch")
 if info["CFBundleIdentifier"] != manifest["bundleIdentifier"]: problems.append("bundle identifier mismatch")
-if info.get("PostWomanVersion") != manifest["version"]: problems.append("version mismatch")
+if info.get("ReqsVersion") != manifest["version"]: problems.append("version mismatch")
 if info.get("SUPublicEDKey", "") != (manifest.get("sparklePublicKey") or ""): problems.append("SUPublicEDKey does not match the manifest")
 entitlements = subprocess.run(["codesign", "--display", "--entitlements", "-", app], capture_output=True, text=True).stdout
 if identity != "-" and "disable-library-validation" in entitlements: problems.append("a distributable build must keep library validation")
-if info.get("SUFeedURL") and "postwoman-spki" not in entitlements: problems.append("the sandboxed updater needs the -spks/-spki mach-lookup exceptions")
-missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/MacOS/PostWoman")))
-if missing: problems.append(f"Contents/MacOS/PostWoman lacks {sorted(missing)}")
-missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/Helpers/postwoman")))
-if missing: problems.append(f"Contents/Helpers/postwoman lacks {sorted(missing)}")
+if info.get("SUFeedURL") and manifest["bundleIdentifier"] + "-spki" not in entitlements: problems.append("the sandboxed updater needs the -spks/-spki mach-lookup exceptions")
+missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/MacOS/Reqs")))
+if missing: problems.append(f"Contents/MacOS/Reqs lacks {sorted(missing)}")
+missing = set(manifest["architectures"]) - set(archs(os.path.join(app, "Contents/Helpers/reqs")))
+if missing: problems.append(f"Contents/Helpers/reqs lacks {sorted(missing)}")
 problems += [f"missing {a}" for a in manifest["artifacts"] if not os.path.exists(os.path.join(os.path.dirname(app), a))]
 if runtime != "true": problems.append("hardened runtime missing")
 if sandboxed != "true": problems.append("app sandbox entitlement missing")
@@ -164,7 +164,7 @@ if sandboxed != "true": problems.append("app sandbox entitlement missing")
 if notary_requested == "true" and stapled != "true": problems.append("notarization or stapling failed")
 evidence = {
     "version": manifest["version"], "dmg": os.path.basename(dmg), "signingIdentity": "ad-hoc (not distributable)" if identity == "-" else identity,
-    "architectures": {"app": archs(os.path.join(app, "Contents/MacOS/PostWoman")), "cli": archs(os.path.join(app, "Contents/Helpers/postwoman"))},
+    "architectures": {"app": archs(os.path.join(app, "Contents/MacOS/Reqs")), "cli": archs(os.path.join(app, "Contents/Helpers/reqs"))},
     "minimumMacOS": info["LSMinimumSystemVersion"], "signatureVerified": verified == "true", "hardenedRuntime": runtime == "true", "sandboxed": sandboxed == "true",
     "notarized": notarized == "true", "stapled": stapled == "true", "gatekeeperLocal": gatekeeper.strip(), "updateFeed": info.get("SUFeedURL"), "manifestProblems": problems,
 }

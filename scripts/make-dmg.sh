@@ -2,14 +2,14 @@
 # Packages an app into a drag-to-install DMG: the app icon beside an Applications
 # shortcut, over Design/DMG/background.png, with the app icon as the volume icon.
 #
-#   scripts/make-dmg.sh <path/to/PostWoman.app> <output.dmg> <volume name>
+#   scripts/make-dmg.sh <path/to/Reqs.app> <output.dmg> <volume name>
 #
 # The Finder layout is applied with AppleScript; when Finder automation is unavailable
 # (e.g. a headless runner) the DMG is still built with the shortcut, just without layout.
 set -eu
 cd "$(dirname "$0")/.."
 app=$1; dmg=$2; volname=$3
-work=$(mktemp -d "${TMPDIR:-/tmp}/postwoman-dmg.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/reqs-dmg.XXXXXX")
 device=""
 cleanup() {
     if [ -n "$device" ]; then /usr/bin/hdiutil detach -quiet -force "$device" 2>/dev/null || true; fi

@@ -1,8 +1,51 @@
 # Changelog
 
-All notable changes to PostWoman are documented in this file.
+All notable changes to Reqs (formerly PostWoman) are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+## [0.12.0] - 2026-11-28
+
+### Changed
+- PostWoman is now **Reqs**: a new name, a new flat icon (a list of saved requests on electric blue) and an electric blue accent. Pink is still available in Settings → Appearance
+- Reqs is a new app with its own bundle identifier (`com.bearstouch.reqs`), so it installs next to PostWoman and starts empty. To bring collections over, right-click each one in PostWoman, choose Export Collection…, and import the file in Reqs with + → Import Collection…. History, secret values and settings stay in PostWoman, and PostWoman keeps working
+- PostWoman doesn't update itself to Reqs: download Reqs from https://github.com/bearstouch/reqs/releases. Once Reqs releases publish an update feed, PostWoman's Check for Updates says Reqs is available and links there instead of offering an install
+- The command-line tool is now `reqs` (`REQS_URL`, `REQS_TOKEN`, `REQS_TOKEN_FILE`), and MCP clients see the server as `reqs`. Reqs has its own agent token: copy it from Settings → Remote Agent and update your agent configs
+- The project moved to https://github.com/bearstouch/reqs (the old address redirects) and its page to https://bearstouch.com/reqs
+- The Reqs theme's JSON keys are blue and literals (`true`, `null`) violet; the Pink environment color stays pink whatever the accent
+- A request or History entry with a body and no query parameters opens on the Body tab instead of an empty Params tab
+- A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
+- Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `reqs request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)
+- Basic authentication is sent when only the username or only the password was typed (an API key as the username, say); the other part is empty
+- `reqs` fails with exit status 2 on an option placed before the command (`reqs -X POST request execute …`) or a mistyped global option, instead of printing the overview and exiting 0
+
+### Fixed
+- Selecting another request no longer shows the previous request's response, missing-variables notice or form fields, no longer keeps Send blocked by the previous request's send, and an edit in a form body no longer writes the previous request's fields into the newly selected one
+- A failed tool call from an agent (an unknown ID, a bad argument, a request that got no response) no longer discards what you had just created or edited in the app but autosave hadn't stored yet
+- A GET whose body was typed for another method is sent, instead of failing with "resource exceeds maximum size"
+- Send always asks the server: a response that allowed caching is no longer shown again from the local cache as if it were fresh
+- Form Data bodies are sent as `multipart/form-data` parts with a boundary (they went out URL-encoded under a multipart label no server could parse). Generated cURL uses `--form-string`, generated Python `files=`, and generated Swift builds the parts. A `{{variable}}` in a field is resolved inside that field, whatever its value contains
+- Generated cURL passes the body with `--data-raw`, so a body starting with `@` is sent as text instead of being read from a file
+- Generated cURL sends each header once with its last value, and the request's Bearer or Basic authentication replaces a written `Authorization` header, as in the app
+- Generated Python sends the body type's `Content-Type` for XML, plain text and URL-encoded bodies, and keeps repeated query parameters (`id=1&id=2` was sent as `id=2`)
+- Opening the Body tab of a form body no longer respells it (`name=John+Doe` became `name=John%2BDoe`, a literal plus), choosing a form body type by mistake no longer replaces a JSON body, and the fields follow a body an agent changes while the tab is open
+- A response in another charset (`charset=ISO-8859-1`, UTF-16, also when the name is quoted) is decoded with it instead of being reported as "isn't UTF-8 text"
+- History records no request body when the body type is None (it kept the text left from another type), and the Body tab no longer counts it
+- History shows a bearer token as dots, like the Basic password and the editor's token field
+- With History selected and no entry chosen, the toolbar shows the environment the request on screen is sent with, instead of "No Environment"
+- With more than one window open, a menu command (New Request, Send, Duplicate, Save, Generate Code, the Environment menu) acts in the front window only
+- `environment_update` keeps a saved secret whose name was typed with a leading or trailing space when an agent sends it back without a value
+- `history_create` refuses (`NOT_ALLOWED`) an entry older than everything a full History keeps, instead of reporting an ID for an entry that was deleted at once
+- A URL pasted with whitespace around it (a trailing space or newline) is sent without it, instead of ending in `%20` or being refused as invalid
+- New Folder, an imported collection and `collection_create` go after the last collection even after deletions, instead of above or level with an existing one
+- Importing a collection gives its variables, headers and parameters IDs of their own (a second import, or a hand-edited file, could make two rows share one, so deleting one deleted both), and keeps the first environment selected when two share the selected one's name
+- Generated cURL sends a header with an empty value (`-H 'Name;'`); generated Python sends a JSON body of `null` instead of no body
+- `history_create` and `history_update` refuse a `timeMs` over a day (a huge one made the entry unreadable), and clearing an entry's `errorMessage` marks a 2xx entry successful again
+- `reqs` accepts `--server=URL`, `--agent-token=…` and `--agent-token-file=…`, and ignores an empty `REQS_URL`
+- `reqs` tables no longer cut a name with an emoji or a combining accent in the middle
+- `reqs` tries the app whose Remote Agent is on first, so a leftover token from another build no longer uses up the server's failed sign-in limit after a few commands
 
 ## [0.11.0] - 2026-11-27
 

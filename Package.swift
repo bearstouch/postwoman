@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "PostWoman",
+    name: "Reqs",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "PostWoman", targets: ["PostWoman"]),
-        // `postwoman` inside the app bundle; `postwoman-cli` here, since `postwoman` and `PostWoman` would clash in .build.
-        .executable(name: "postwoman-cli", targets: ["PostWomanCLIMain"])
+        .executable(name: "Reqs", targets: ["Reqs"]),
+        // `reqs` inside the app bundle; `reqs-cli` here, since `reqs` and `Reqs` would clash in .build.
+        .executable(name: "reqs-cli", targets: ["ReqsCLIMain"])
     ],
     dependencies: [
         // In-place updates, as in Trellis. Linked only by the app target; packaging embeds Sparkle.framework.
@@ -15,12 +15,12 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "PostWoman", dependencies: [.product(name: "Sparkle", package: "Sparkle")], resources: [.copy("Resources/AppIcon")],
+            name: "Reqs", dependencies: [.product(name: "Sparkle", package: "Sparkle")], resources: [.copy("Resources/AppIcon")],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
-        .target(name: "PostWomanCLI"),
-        .executableTarget(name: "PostWomanCLIMain", dependencies: ["PostWomanCLI"]),
-        .testTarget(name: "PostWomanTests", dependencies: ["PostWoman", "PostWomanCLI"])
+        .target(name: "ReqsCLI"),
+        .executableTarget(name: "ReqsCLIMain", dependencies: ["ReqsCLI"]),
+        .testTarget(name: "ReqsTests", dependencies: ["Reqs", "ReqsCLI"])
     ],
     swiftLanguageModes: [.v6]
 )

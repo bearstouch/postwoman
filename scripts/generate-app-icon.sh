@@ -13,7 +13,7 @@ mkdir -p "$set_dir"
 
 # 16 and 32 px use the simplified artwork; larger sizes use the full CRT artwork.
 render() {
-    if [ "$1" -le 32 ]; then source="$icon/PostWoman-small.svg"; else source="$icon/PostWoman.svg"; fi
+    if [ "$1" -le 32 ]; then source="$icon/Reqs-small.svg"; else source="$icon/Reqs.svg"; fi
     rsvg-convert --width "$1" --height "$1" "$source" --output "$set_dir/$2"
 }
 
@@ -30,5 +30,5 @@ render 1024 icon_512x512@2x.png
 
 iconutil --convert icns --output "$icon/AppIcon.icns" "$set_dir"
 # `swift run` has no bundle icon; the app sets this PNG as the Dock icon instead.
-cp "$set_dir/icon_512x512@2x.png" Sources/PostWoman/Resources/AppIcon/AppIcon.png
+cp "$set_dir/icon_512x512@2x.png" Sources/Reqs/Resources/AppIcon/AppIcon.png
 echo "Generated $(pwd)/$icon/AppIcon.icns"
