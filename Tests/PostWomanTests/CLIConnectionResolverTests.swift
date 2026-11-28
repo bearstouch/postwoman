@@ -147,11 +147,41 @@ final class CLIConnectionResolverTests: XCTestCase {
     func testEachAppsTokenGoesToItsOwnEndpointInOrder() throws {
         let files = FakeFiles()
         for (index, token) in ["pwm_release", "pwm_dev", "pwm_run"].enumerated() { files.files[apps[index].tokenPath] = Data(token.utf8) }
-        files.files[try XCTUnwrap(apps[1].preferencesPath)] = try plist(#"{"port":9002,"bindAddress":"127.0.0.1"}"#)
+        files.files[try XCTUnwrap(apps[0].preferencesPath)] = try plist(#"{"mcpEnabled":true}"#)
+        files.files[try XCTUnwrap(apps[1].preferencesPath)] = try plist(#"{"mcpEnabled":true,"port":9002,"bindAddress":"127.0.0.1"}"#)
         XCTAssertEqual(try candidates(files: files), ["\(fallback) pwm_release", "http://127.0.0.1:9002/mcp pwm_dev", "\(fallback) pwm_run"])
         XCTAssertEqual(
             try candidates(server: "h:3", files: files), ["http://h:3/mcp pwm_release", "http://h:3/mcp pwm_dev", "http://h:3/mcp pwm_run"],
             "An explicit endpoint applies to every app's token")
+    }
+
+    func testAnAppWhoseServerIsOffIsTriedAfterTheOneThatIsOn() throws {
+        let files = FakeFiles()
+        for (index, token) in ["pwm_release", "pwm_dev", "pwm_run"].enumerated() { files.files[apps[index].tokenPath] = Data(token.utf8) }
+        files.files[try XCTUnwrap(apps[0].preferencesPath)] = try plist(#"{"mcpEnabled":false,"port":7778}"#)
+        files.files[try XCTUnwrap(apps[1].preferencesPath)] = try plist(#"{"mcpEnabled":true,"port":7778}"#)
+        XCTAssertEqual(
+            try candidates(files: files), ["\(fallback) pwm_dev", "\(fallback) pwm_run", "\(fallback) pwm_release"],
+            "The release app's leftover token isn't offered to the dev app's server first")
+
+        let neverConfigured = FakeFiles()
+        neverConfigured.files[apps[0].tokenPath] = Data("pwm_release".utf8)
+        neverConfigured.files[apps[2].tokenPath] = Data("pwm_run".utf8)
+        XCTAssertEqual(try candidates(files: neverConfigured), ["\(fallback) pwm_run", "\(fallback) pwm_release"], "An app that saved no settings has its server off")
+    }
+
+    func testWhetherAnAppsServerIsOnComesFromItsSavedSettings() throws {
+        let path = try XCTUnwrap(apps[0].preferencesPath)
+        let cases: [(Data?, Bool?)] = [
+            (try plist(#"{"mcpEnabled":true}"#), true), (try plist(#"{"mcpEnabled":false}"#), false), (try plist(#"{"port":9001}"#), false), (nil, false),
+            (try PropertyListSerialization.data(fromPropertyList: ["other": 1], format: .xml, options: 0), false), (Data("garbage".utf8), nil), (try plist("not json"), nil)
+        ]
+        for (data, expected) in cases {
+            let files = FakeFiles()
+            files.files[path] = data
+            XCTAssertEqual(ConnectionResolver.serverIsOn(apps[0], environment(files)), expected, data.map { String(decoding: $0, as: UTF8.self) } ?? "no file")
+        }
+        XCTAssertNil(ConnectionResolver.serverIsOn(apps[2], environment()), "swift run keeps no preferences file the CLI can read")
     }
 
     func testIdenticalAppConnectionsAreListedOnce() throws {
