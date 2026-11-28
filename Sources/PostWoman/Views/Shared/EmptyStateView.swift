@@ -6,6 +6,7 @@ struct EmptyStateView: View {
             Image(systemName: "arrow.left.arrow.right")
                 .font(.system(size: 64))
                 .foregroundColor(.secondary.opacity(0.5))
+                .accessibilityHidden(true)
 
             Text("No Request Selected")
                 .font(.title2)

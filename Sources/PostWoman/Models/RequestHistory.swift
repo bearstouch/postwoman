@@ -60,6 +60,9 @@ final class RequestHistory {
     /// The encoded `ResponseTiming` of the response, when URLSession reported one.
     var responseTimingData: Data?
 
+    /// The encoded `StreamInfo` of a streamed response (its events, assembled text and how it ended).
+    var responseStreamData: Data?
+
     /// Error message if the request failed.
     var errorMessage: String?
 
@@ -69,6 +72,10 @@ final class RequestHistory {
     /// ID of the saved request this history entry corresponds to, if any.
     /// Used to link history entries back to their originating saved request.
     var savedRequestID: UUID?
+
+    /// The collection environment its `{{variables}}` were resolved with ("Default" when only Default applied).
+    /// Nil for entries recorded without one.
+    var environmentName: String?
 
     /// Creates a new request history entry for a request about to be executed.
     /// Response fields are populated after the request completes.
@@ -92,22 +99,28 @@ final class RequestHistory {
         self.wasSuccessful = false
     }
 
-    /// Creates a history entry holding a snapshot of `request` as it is about to be sent.
-    convenience init(request: APIRequest) {
+    /// Creates a history entry for `request` as it is about to be sent.
+    /// - Parameters:
+    ///   - sent: What is sent: the request resolved with its environment, secrets left as `{{name}}`.
+    ///     Defaults to the request as it is.
+    ///   - environmentName: The environment it was resolved with.
+    convenience init(request: APIRequest, sent: RequestSnapshot? = nil, environmentName: String? = nil) {
+        let sent = sent ?? RequestSnapshot(request)
         self.init(
-            url: request.url,
-            method: request.method,
-            requestHeaders: request.headers,
-            requestBody: request.bodyContent.isEmpty ? nil : request.bodyContent
+            url: sent.url,
+            method: sent.method,
+            requestHeaders: sent.headers,
+            requestBody: sent.bodyContent.isEmpty || !sent.method.sendsBody ? nil : sent.bodyContent
         )
         requestName = request.name
-        queryParams = request.queryParams
-        bodyType = request.bodyType
-        authenticationType = request.authenticationType
-        authBearerToken = request.authBearerToken
-        authBasicUsername = request.authBasicUsername
-        authBasicPassword = request.authBasicPassword
+        queryParams = sent.queryParams
+        bodyType = sent.method.sendsBody ? sent.bodyType : ContentType.none
+        authenticationType = sent.authenticationType
+        authBearerToken = sent.authBearerToken
+        authBasicUsername = sent.authBasicUsername
+        authBasicPassword = sent.authBasicPassword
         savedRequestID = request.id
+        self.environmentName = environmentName
     }
 
     /// Records the response the request got.
@@ -119,6 +132,7 @@ final class RequestHistory {
         responseTime = response.responseTime
         responseSize = response.bodySize ?? response.body?.utf8.count
         responseTimingData = response.timing.flatMap { try? JSONEncoder().encode($0) }
+        responseStreamData = response.stream.flatMap { try? JSONEncoder().encode($0) }
         wasSuccessful = response.isSuccess
         errorMessage = nil
     }
@@ -146,7 +160,8 @@ final class RequestHistory {
                 ?? headers.first { $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value,
             cookies: URL(string: url).map { ResponseCookie.parse(headerFields: headerFields, url: $0) } ?? [],
             timing: responseTimingData.flatMap { try? JSONDecoder().decode(ResponseTiming.self, from: $0) },
-            bodySize: responseSize
+            bodySize: responseSize,
+            stream: responseStreamData.flatMap { try? JSONDecoder().decode(StreamInfo.self, from: $0) }
         )
     }
 

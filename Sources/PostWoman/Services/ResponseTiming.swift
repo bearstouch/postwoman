@@ -1,6 +1,5 @@
 import Foundation
 import Security
-import os
 
 /// Where the time of a request went, taken from `URLSessionTaskMetrics`.
 ///
@@ -114,18 +113,6 @@ struct ResponseTiming: Equatable, Sendable, Codable {
         case .TLSv13: return "TLS 1.3"
         default: return nil
         }
-    }
-}
-
-/// Receives a task's metrics from URLSession, which calls it on its own queue.
-final class MetricsCollector: NSObject, URLSessionTaskDelegate, Sendable {
-    private let storage = OSAllocatedUnfairLock<ResponseTiming?>(initialState: nil)
-
-    var timing: ResponseTiming? { storage.withLock { $0 } }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
-        let timing = ResponseTiming(metrics: metrics)
-        storage.withLock { $0 = timing }
     }
 }
 

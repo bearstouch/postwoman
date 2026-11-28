@@ -27,6 +27,16 @@ struct ResponseCookiesView: View {
             .background(Theme.field)
         }
     }
+
+    /// "Expires 27 Nov 2026 at 17:24", or "Session" for a cookie without an expiry.
+    static func expiryText(_ cookie: ResponseCookie) -> String {
+        cookie.expires.map { "Expires \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Session"
+    }
+
+    /// The attribute chips: Secure, HttpOnly and SameSite, in that order, for those the cookie sets.
+    static func flags(_ cookie: ResponseCookie) -> [String] {
+        [cookie.isSecure ? "Secure" : nil, cookie.isHTTPOnly ? "HttpOnly" : nil, cookie.sameSite.map { "SameSite=\($0)" }].compactMap { $0 }
+    }
 }
 
 private struct CookieRowView: View {
@@ -53,15 +63,14 @@ private struct CookieRowView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
                 .help("Copy value")
+                .accessibilityLabel("Copy value")
             }
 
             HStack(spacing: 6) {
                 Text(cookie.domain + cookie.path)
                 Text("·")
-                Text(cookie.expires.map { "Expires \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Session")
-                if cookie.isSecure { flag("Secure") }
-                if cookie.isHTTPOnly { flag("HttpOnly") }
-                if let sameSite = cookie.sameSite { flag("SameSite=\(sameSite)") }
+                Text(ResponseCookiesView.expiryText(cookie))
+                ForEach(ResponseCookiesView.flags(cookie), id: \.self) { flag($0) }
             }
             .font(.caption)
             .foregroundColor(.secondary)

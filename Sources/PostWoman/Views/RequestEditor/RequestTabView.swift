@@ -7,19 +7,30 @@ enum RequestTab: String, CaseIterable, Identifiable {
     case auth = "Auth"
 
     var id: String { rawValue }
+
+    /// The count on the tab: active params or headers, 1 for a body (that the method sends) or an auth type, nil (no badge) when there is none.
+    func badge(for request: APIRequest) -> Int? {
+        switch self {
+        case .params: return request.queryParams.activeCount > 0 ? request.queryParams.activeCount : nil
+        case .headers: return request.headers.activeCount > 0 ? request.headers.activeCount : nil
+        case .body: return request.bodyContent.isEmpty || !request.method.sendsBody ? nil : 1
+        case .auth: return request.authenticationType != .none ? 1 : nil
+        }
+    }
+}
+
+extension [KeyValuePair] {
+    /// The pairs that are sent: enabled, with a name.
+    var activeCount: Int { filter { $0.isEnabled && !$0.key.isEmpty }.count }
 }
 
 struct RequestTabView: View {
     @Binding var selectedTab: RequestTab
     let request: APIRequest
 
-    var paramsCount: Int {
-        request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }.count
-    }
+    var paramsCount: Int { request.queryParams.activeCount }
 
-    var headersCount: Int {
-        request.headers.filter { $0.isEnabled && !$0.key.isEmpty }.count
-    }
+    var headersCount: Int { request.headers.activeCount }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -27,7 +38,7 @@ struct RequestTabView: View {
                 TabButton(
                     title: tab.rawValue,
                     isSelected: selectedTab == tab,
-                    badge: badgeCount(for: tab)
+                    badge: tab.badge(for: request)
                 ) {
                     selectedTab = tab
                 }
@@ -37,15 +48,6 @@ struct RequestTabView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(Theme.bar)
-    }
-
-    private func badgeCount(for tab: RequestTab) -> Int? {
-        switch tab {
-        case .params: return paramsCount > 0 ? paramsCount : nil
-        case .headers: return headersCount > 0 ? headersCount : nil
-        case .body: return request.bodyContent.isEmpty ? nil : 1
-        case .auth: return request.authenticationType != .none ? 1 : nil
-        }
     }
 }
 
@@ -77,5 +79,6 @@ struct TabButton: View {
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

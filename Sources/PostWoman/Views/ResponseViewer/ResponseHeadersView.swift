@@ -12,19 +12,48 @@ struct ResponseHeadersView: View {
     private static let keyFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
 
     private var sortedHeaders: [KeyValuePair] {
-        headers.sorted { $0.key.lowercased() < $1.key.lowercased() }
+        Self.sorted(headers)
     }
 
     private var filteredHeaders: [KeyValuePair] {
-        guard !searchText.isEmpty else { return sortedHeaders }
-        return sortedHeaders.filter {
-            $0.key.localizedCaseInsensitiveContains(searchText) || $0.value.localizedCaseInsensitiveContains(searchText)
-        }
+        Self.filter(sortedHeaders, by: searchText)
+    }
+
+    private var keyColumnWidth: CGFloat {
+        Self.keyColumnWidth(for: headers)
+    }
+
+    /// By name, ignoring case.
+    static func sorted(_ headers: [KeyValuePair]) -> [KeyValuePair] {
+        headers.sorted { $0.key.lowercased() < $1.key.lowercased() }
+    }
+
+    /// The headers whose name or value contains `text` (ignoring case); all of them when `text` is empty.
+    static func filter(_ headers: [KeyValuePair], by text: String) -> [KeyValuePair] {
+        guard !text.isEmpty else { return headers }
+        return headers.filter { $0.key.localizedCaseInsensitiveContains(text) || $0.value.localizedCaseInsensitiveContains(text) }
+    }
+
+    /// "12 headers", or "3 of 12" while filtering.
+    static func countText(total: Int, matching: Int, isFiltering: Bool) -> String {
+        isFiltering ? "\(matching) of \(total)" : "\(total) headers"
+    }
+
+    /// What Copy all headers puts on the pasteboard: one `Name: value` line per header.
+    static func copyText(_ headers: [KeyValuePair]) -> String {
+        sorted(headers).map { "\($0.key): \($0.value)" }.joined(separator: "\n")
+    }
+
+    /// What shows instead of the rows: nil when there are rows to show.
+    static func placeholder(total: Int, matching: Int, searchText: String) -> String? {
+        if total == 0 { return "No response headers" }
+        if matching == 0 { return "No headers match \u{201C}\(searchText)\u{201D}" }
+        return nil
     }
 
     /// Wide enough for the longest name, between 120 and 260 points; longer names are truncated.
-    private var keyColumnWidth: CGFloat {
-        let longest = headers.map { ($0.key as NSString).size(withAttributes: [.font: Self.keyFont]).width }.max() ?? 0
+    static func keyColumnWidth(for headers: [KeyValuePair]) -> CGFloat {
+        let longest = headers.map { ($0.key as NSString).size(withAttributes: [.font: keyFont]).width }.max() ?? 0
         return min(max(ceil(longest) + 4, 120), 260)
     }
 
@@ -33,10 +62,8 @@ struct ResponseHeadersView: View {
             toolbar
             HairlineDivider()
 
-            if headers.isEmpty {
-                placeholder("No response headers")
-            } else if filteredHeaders.isEmpty {
-                placeholder("No headers match \u{201C}\(searchText)\u{201D}")
+            if let message = Self.placeholder(total: headers.count, matching: filteredHeaders.count, searchText: searchText) {
+                placeholder(message)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -73,6 +100,7 @@ struct ResponseHeadersView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Clear filter")
+                    .accessibilityLabel("Clear filter")
                 }
             }
             .padding(.horizontal, 8)
@@ -82,12 +110,12 @@ struct ResponseHeadersView: View {
 
             Spacer()
 
-            Text(searchText.isEmpty ? "\(headers.count) headers" : "\(filteredHeaders.count) of \(headers.count)")
+            Text(Self.countText(total: headers.count, matching: filteredHeaders.count, isFiltering: !searchText.isEmpty))
                 .font(.caption.monospacedDigit())
                 .foregroundColor(.secondary)
 
             ResponseIconButton(systemImage: "doc.on.doc", help: "Copy all headers") {
-                copy(sortedHeaders.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+                copy(Self.copyText(headers))
             }
             .disabled(headers.isEmpty)
         }
@@ -147,11 +175,16 @@ struct HeaderRowView: View {
         .background(isHovering ? Theme.chip.opacity(0.6) : Color.clear)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
-        .contextMenu {
-            Button("Copy Name") { copy(header.key) }
-            Button("Copy Value") { copy(header.value) }
-            Button("Copy Header") { copy("\(header.key): \(header.value)") }
-        }
+        .contextMenu { copyButtons }
+        // The row's Copy value button only shows on hover, so VoiceOver gets the same copies as actions on the row.
+        .accessibilityActions { copyButtons }
+    }
+
+    @ViewBuilder
+    private var copyButtons: some View {
+        Button("Copy Name") { copy(header.key) }
+        Button("Copy Value") { copy(header.value) }
+        Button("Copy Header") { copy("\(header.key): \(header.value)") }
     }
 
     @ViewBuilder

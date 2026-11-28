@@ -17,7 +17,7 @@ final class ExportImportServiceTests: XCTestCase {
         folder.requests = [second, first]
 
         let data = try ExportImportService.exportFolder(folder)
-        let container = try ModelContainer(for: Folder.self, APIRequest.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         let imported = try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 3)
 
@@ -32,8 +32,20 @@ final class ExportImportServiceTests: XCTestCase {
         XCTAssertEqual(requests[1].bodyContent, #"{"name":"Ada"}"#)
     }
 
+    func testEveryMethodSurvivesExportAndImport() throws {
+        let folder = Folder(name: "Methods")
+        folder.requests = HTTPMethod.allCases.enumerated().map { index, method in
+            let request = APIRequest(name: method.rawValue, url: "https://h", method: method, folder: folder)
+            request.sortOrder = index
+            return request
+        }
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let imported = try ExportImportService.importFolder(from: try ExportImportService.exportFolder(folder), context: ModelContext(container), existingFolderCount: 0)
+        XCTAssertEqual((imported.requests ?? []).sorted { $0.sortOrder < $1.sortOrder }.map(\.method), HTTPMethod.allCases)
+    }
+
     func testImportRejectsMalformedData() throws {
-        let container = try ModelContainer(for: Folder.self, APIRequest.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         XCTAssertThrowsError(try ExportImportService.importFolder(from: Data("{}".utf8), context: ModelContext(container), existingFolderCount: 0))
     }
 }

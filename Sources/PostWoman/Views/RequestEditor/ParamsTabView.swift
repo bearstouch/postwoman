@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ParamsTabView: View {
     @Binding var params: [KeyValuePair]
+    var resolver: VariableResolver?
 
     var body: some View {
         ScrollView {
@@ -10,7 +11,7 @@ struct ParamsTabView: View {
                     Text("Query Parameters")
                         .font(.headline)
                     Spacer()
-                    Text("\(params.filter { $0.isEnabled && !$0.key.isEmpty }.count) active")
+                    Text("\(params.activeCount) active")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -21,7 +22,8 @@ struct ParamsTabView: View {
                 KeyValueEditorView(
                     pairs: $params,
                     keyPlaceholder: "Parameter name",
-                    valuePlaceholder: "Value"
+                    valuePlaceholder: "Value",
+                    resolver: resolver
                 )
             }
         }

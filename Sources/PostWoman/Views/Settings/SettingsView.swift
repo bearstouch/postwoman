@@ -1,7 +1,10 @@
+import SwiftData
 import SwiftUI
 
 /// The Settings window: a sidebar of sections and the selected section's pane, laid out like Trellis's.
 struct SettingsView: View {
+    /// Nil when this build has no update feed; the Updates section is left out.
+    var updates: UpdateSettingsModel?
     @State private var selection: SettingsSection = .appearance
 
     var body: some View {
@@ -19,6 +22,9 @@ struct SettingsView: View {
                     switch selection {
                     case .general: GeneralSettingsView()
                     case .appearance: AppearanceSettingsView()
+                    case .remoteAgent: RemoteAgentSettingsView()
+                    case .updates:
+                        if let updates { UpdateSettingsView(updates: updates) }
                     }
                 }
                 .padding(.horizontal, 8)
@@ -37,7 +43,7 @@ struct SettingsView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8).padding(.top, 20).padding(.bottom, 10)
-            ForEach(SettingsSection.allCases) { section in
+            ForEach(SettingsSection.visible(hasUpdates: updates != nil)) { section in
                 let isSelected = selection == section
                 Button {
                     selection = section
@@ -69,31 +75,41 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case general, appearance, remoteAgent, updates
     var id: Self { self }
+    /// The sidebar's sections: Updates only in builds with an update feed.
+    static func visible(hasUpdates: Bool) -> [Self] { allCases.filter { $0 != .updates || hasUpdates } }
     var title: String {
         switch self {
         case .general: "General"
         case .appearance: "Appearance"
+        case .remoteAgent: "Remote Agent"
+        case .updates: "Updates"
         }
     }
     var detail: String {
         switch self {
-        case .general: "Defaults for new requests."
+        case .general: "Defaults for new requests, and how much history PostWoman keeps."
         case .appearance: "Choose light, dark or the macOS setting, and the themes and accent PostWoman uses."
+        case .remoteAgent: "Let agents such as Claude Code work with your collections, requests and history over MCP."
+        case .updates: "Check for new versions of PostWoman and install them in place."
         }
     }
     var symbol: String {
         switch self {
         case .general: "gearshape.fill"
         case .appearance: "circle.lefthalf.filled"
+        case .remoteAgent: "antenna.radiowaves.left.and.right"
+        case .updates: "arrow.triangle.2.circlepath"
         }
     }
     @MainActor var tileColor: Color {
         switch self {
         case .general: Color(nsColor: .systemGray)
         case .appearance: Color.appAccent
+        case .remoteAgent: Color(nsColor: .systemIndigo)
+        case .updates: Color(nsColor: .systemGreen)
         }
     }
 }
@@ -125,10 +141,14 @@ extension View {
 
 // MARK: - General
 
-/// Request defaults.
+/// Request defaults and history retention.
 struct GeneralSettingsView: View {
     /// The default timeout in seconds for HTTP requests, persisted across app launches.
     @AppStorage("defaultTimeout") private var defaultTimeout: Double = 30.0
+    @AppStorage(HistoryRetention.limitKey) private var historyLimit = HistoryRetention.defaultLimit
+    @Environment(\.modelContext) private var modelContext
+    @Query private var history: [RequestHistory]
+    @State private var isConfirmingClear = false
 
     var body: some View {
         Form {
@@ -146,16 +166,63 @@ struct GeneralSettingsView: View {
                     SettingsLabel("Default timeout", help: "How long a new request waits for a response before it fails.")
                 }
             }
+            Section("History") {
+                LabeledContent {
+                    HStack(spacing: 6) {
+                        TextField("Maximum entries", value: $historyLimit, format: .number)
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 70)
+                            .textFieldStyle(.themed)
+                        Text("entries").foregroundStyle(.secondary)
+                    }
+                } label: {
+                    SettingsLabel(
+                        "Maximum entries",
+                        help: "PostWoman keeps the most recent requests and deletes older ones. The default is \(HistoryRetention.defaultLimit).")
+                }
+                LabeledContent {
+                    Button("Clear History…", role: .destructive) { isConfirmingClear = true }
+                        .disabled(history.isEmpty)
+                } label: {
+                    SettingsLabel(
+                        "Clear history",
+                        help: Self.historyCountText(history.count))
+                }
+            }
         }
         .settingsFormStyle()
+        .onChange(of: historyLimit) { _, limit in
+            let clamped = Self.clampedHistoryLimit(limit)
+            if clamped != limit {
+                historyLimit = clamped
+            } else {
+                HistoryRetention.trim(modelContext, limit: clamped)
+            }
+        }
+        .confirmationDialog("Clear all history?", isPresented: $isConfirmingClear) {
+            Button("Clear History", role: .destructive) { HistoryRetention.clear(modelContext) }
+        } message: {
+            Text("This deletes every entry in History. Saved requests are not affected.")
+        }
     }
+
+    static func historyCountText(_ count: Int) -> String { count == 1 ? "1 entry in History." : "\(count) entries in History." }
+
+    /// A typed limit outside `HistoryRetention.limitRange` is put back in range before anything is trimmed.
+    static func clampedHistoryLimit(_ limit: Int) -> Int { min(max(limit, HistoryRetention.limitRange.lowerBound), HistoryRetention.limitRange.upperBound) }
 }
 
 // MARK: - Appearance
 
 /// Mode, light and dark themes, accent and code text size. Changes apply at once.
 struct AppearanceSettingsView: View {
-    @Bindable private var store = ThemeStore.shared
+    @Bindable private var store: ThemeStore
+
+    /// `store` is the shared one in the app; tests pass a private store.
+    init(store: ThemeStore = .shared) { self.store = store }
+
+    static func fontSizeTitle(_ size: Double) -> String { "Font size: \(Int(size)) pt" }
 
     var body: some View {
         Form {
@@ -183,8 +250,7 @@ struct AppearanceSettingsView: View {
             }
             Section("Code text") {
                 Stepper(value: $store.codeFontSize, in: ThemeStore.codeFontSizeRange, step: 1) {
-                    SettingsLabel(
-                        "Font size: \(Int(store.codeFontSize)) pt", help: "The request body, the response body and their line numbers.")
+                    SettingsLabel(Self.fontSizeTitle(store.codeFontSize), help: "The request body, the response body and their line numbers.")
                 }
                 CodeSample(fontSize: store.codeFontSize)
             }
@@ -208,7 +274,10 @@ struct AppearanceModePicker: View {
         .accessibilityLabel("Application appearance")
     }
 
-    private func themeNames(_ mode: AppearanceMode) -> String {
+    private func themeNames(_ mode: AppearanceMode) -> String { Self.themeNames(mode, light: light, dark: dark) }
+
+    /// The themes a mode uses, under its tile and as its accessibility value.
+    static func themeNames(_ mode: AppearanceMode, light: ThemePalette, dark: ThemePalette) -> String {
         switch mode {
         case .system: "\(light.name) · \(dark.name)"
         case .light: light.name

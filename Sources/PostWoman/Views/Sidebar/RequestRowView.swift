@@ -8,7 +8,9 @@ struct RequestRowView: View {
             Text(request.method.rawValue)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundColor(request.method.color)
-                .frame(width: 45, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize()
+                .frame(width: 52, alignment: .leading)
 
             Text(request.name)
                 .lineLimit(1)

@@ -5,15 +5,19 @@ import SwiftUI
 /// common actions like creating requests, sending requests, and managing environments.
 /// Commands communicate with views using NotificationCenter to maintain loose coupling.
 struct AppCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
+    /// Nil when this build has no update feed; the menu item is left out.
+    let updates: UpdateSettingsModel?
 
     /// The command menu structure containing File, Request, and Environment menus.
     /// Each menu item posts notifications that are observed by relevant views.
     var body: some Commands {
-        // Replace the default About menu item with custom About window
+        // The standard About panel, with linked license and copyright credits (as in Trellis)
         CommandGroup(replacing: .appInfo) {
             Button("About PostWoman") {
-                openWindow(id: "about")
+                AboutPanel.show()
+            }
+            if let updates {
+                CheckForUpdatesButton(updates: updates)
             }
         }
 
@@ -59,7 +63,46 @@ struct AppCommands: Commands {
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 
+        // Environment menu: the current collection's environments
+        CommandMenu("Environment") {
+            ForEach(EnvironmentShortcut.all) { shortcut in
+                Button(shortcut.title) { shortcut.post() }
+                    .keyboardShortcut(shortcut.key, modifiers: .control)
+            }
+
+            Divider()
+
+            Button("New Environment…") {
+                NotificationCenter.default.post(name: .newEnvironment, object: nil)
+            }
+
+            Button("Manage Environments…") {
+                NotificationCenter.default.post(name: .manageEnvironments, object: nil)
+            }
+            .keyboardShortcut("e", modifiers: .command)
+        }
     }
+}
+
+/// An Environment menu item that picks the current collection's environment by position: ⌃0 Default only, ⌃1…⌃9 the others.
+struct EnvironmentShortcut: Identifiable, Sendable {
+    /// 0 is Default only; 1… the collection's other environments in order (`.selectEnvironment`'s `userInfo["index"]`).
+    let index: Int
+
+    var id: Int { index }
+
+    var title: String { index == 0 ? "Use Default Only" : "Use Environment \(index)" }
+
+    /// The digit, pressed with Control.
+    var key: KeyEquivalent { KeyEquivalent(Character("\(index)")) }
+
+    /// Posts `.selectEnvironment` for this position.
+    func post(to center: NotificationCenter = .default) {
+        center.post(name: .selectEnvironment, object: nil, userInfo: ["index": index])
+    }
+
+    /// ⌃0 to ⌃9, in menu order.
+    static let all = (0..<10).map { EnvironmentShortcut(index: $0) }
 }
 
 /// Extension providing notification names used for inter-view communication.

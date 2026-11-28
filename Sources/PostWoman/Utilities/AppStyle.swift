@@ -166,6 +166,8 @@ enum CodePalette {
     static let literal = themed { $0.literal }
     static let punctuation = themed { $0.punctuation }
     static let text = themed { $0.foreground }
+    /// `{{variables}}` in a request body.
+    static let variable = themed { $0.cyan }
     /// Hairlines AppKit draws, such as split view dividers.
     static let border = themed { $0.border }
 

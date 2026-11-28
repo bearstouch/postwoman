@@ -52,6 +52,7 @@ struct HistoryDetailView: View {
                     Image(systemName: "arrow.uturn.backward")
                 }
                 .help("Open as New Request")
+                .accessibilityLabel("Open as New Request")
             }
         }
     }

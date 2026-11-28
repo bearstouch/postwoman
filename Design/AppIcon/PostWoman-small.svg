@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>PostWoman (16–32 px)</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6FD"/><stop offset="1" stop-color="#F0CDEC"/></linearGradient>
+    <linearGradient id="pl1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF7CF9"/><stop offset="1" stop-color="#D62FD6"/></linearGradient>
+    <linearGradient id="pl2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B01FB8"/><stop offset="1" stop-color="#7A0E88"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" stroke="#D9A8D6" stroke-width="12"/>
+  <rect x="210" y="520" width="420" height="280" rx="50" fill="#FFFFFF" stroke="#E3C3E2" stroke-width="12"/>
+  <rect x="260" y="575" width="150" height="70" rx="22" fill="#FF61FB"/>
+  <rect x="260" y="690" width="300" height="44" rx="22" fill="#C9A3CF"/>
+  <path d="M850 180 L400 390 L560 455 Z" fill="url(#pl1)"/>
+  <path d="M850 180 L560 455 L620 610 Z" fill="url(#pl2)"/>
+  <path d="M850 180 L620 610 L700 500 L790 545 Z" fill="url(#pl1)"/>
+</svg>

@@ -3,6 +3,7 @@ import Foundation
 /// Utility enum for JSON formatting, minification, and validation operations.
 /// Provides static methods to work with JSON strings, useful for displaying
 /// API response bodies and validating JSON content in request bodies.
+/// A top-level scalar (`42`, `true`, `null`, `"x"`) is JSON too (RFC 8259), so a body of `true` shows as JSON.
 enum JSONFormatter {
     /// Formats a JSON string with proper indentation and structure.
     /// Converts compact JSON to human-readable format with consistent key ordering.
@@ -10,15 +11,12 @@ enum JSONFormatter {
     /// - Parameter jsonString: The JSON string to format
     /// - Returns: A formatted JSON string, or nil if the input is invalid JSON
     static func format(_ jsonString: String) -> String? {
-        guard let data = jsonString.data(using: .utf8) else {
-            return nil
-        }
+        guard let jsonObject = parse(jsonString) else { return nil }
 
         do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
             let prettyData = try JSONSerialization.data(
                 withJSONObject: jsonObject,
-                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
             )
             return String(data: prettyData, encoding: .utf8)
         } catch {
@@ -114,15 +112,12 @@ enum JSONFormatter {
     /// - Parameter jsonString: The JSON string to minify
     /// - Returns: A minified JSON string, or nil if the input is invalid JSON
     static func minify(_ jsonString: String) -> String? {
-        guard let data = jsonString.data(using: .utf8) else {
-            return nil
-        }
+        guard let jsonObject = parse(jsonString) else { return nil }
 
         do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
             let minifiedData = try JSONSerialization.data(
                 withJSONObject: jsonObject,
-                options: [.withoutEscapingSlashes]
+                options: [.withoutEscapingSlashes, .fragmentsAllowed]
             )
             return String(data: minifiedData, encoding: .utf8)
         } catch {
@@ -136,15 +131,43 @@ enum JSONFormatter {
     /// - Parameter jsonString: The string to validate
     /// - Returns: True if the string is valid JSON, false otherwise
     static func isValid(_ jsonString: String) -> Bool {
-        guard let data = jsonString.data(using: .utf8) else {
-            return false
-        }
+        parse(jsonString) != nil
+    }
 
-        do {
-            _ = try JSONSerialization.jsonObject(with: data, options: [])
-            return true
-        } catch {
-            return false
+    /// Parses strictly per RFC 8259. Foundation checks everything except a comma before `]` or `}`, which it accepts.
+    private static func parse(_ jsonString: String) -> Any? {
+        guard !hasTrailingComma(jsonString), let data = jsonString.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    }
+
+    /// Whether a comma outside a string is followed, after whitespace, by `]` or `}`. One pass, no recursion.
+    private static func hasTrailingComma(_ jsonString: String) -> Bool {
+        var inString = false
+        var escaped = false
+        var afterComma = false
+        for byte in jsonString.utf8 {
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if byte == UInt8(ascii: "\\") {
+                    escaped = true
+                } else if byte == UInt8(ascii: "\"") {
+                    inString = false
+                }
+                continue
+            }
+            switch byte {
+            case UInt8(ascii: " "), UInt8(ascii: "\t"), UInt8(ascii: "\n"), UInt8(ascii: "\r"):
+                continue
+            case UInt8(ascii: "]"), UInt8(ascii: "}"):
+                if afterComma { return true }
+            case UInt8(ascii: "\""):
+                inString = true
+            default:
+                break
+            }
+            afterComma = byte == UInt8(ascii: ",")
         }
+        return false
     }
 }

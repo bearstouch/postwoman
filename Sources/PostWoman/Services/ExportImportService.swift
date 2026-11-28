@@ -9,6 +9,23 @@ enum ExportImportService {
     /// The current export format version.
     static let formatVersion = "1.0"
 
+    /// Why a file was not imported, beyond it not being a collection file at all.
+    enum ImportError: LocalizedError, Equatable {
+        /// The file's format major version is newer than ``formatVersion``: a newer app wrote it, and fields could be lost.
+        case newerVersion(String)
+        /// The file's version is not a dotted number, so which format it uses is unknown.
+        case unknownVersion(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .newerVersion(let version):
+                return "This file was made by a newer PostWoman (version \(version)), so this one can't read all of it. Update PostWoman, then import it again."
+            case .unknownVersion(let version):
+                return "This file's format version (\"\(version)\") isn't one PostWoman knows, so it wasn't imported."
+            }
+        }
+    }
+
     // MARK: - Codable Structures
 
     /// Root container for exported data.
@@ -22,6 +39,18 @@ enum ExportImportService {
     struct ExportableFolder: Codable {
         let name: String
         let requests: [ExportableRequest]
+        /// The collection's environments, Default first. Absent in files from before environments.
+        var environments: [ExportableEnvironment]? = nil
+        /// The name of the environment its requests used, if not Default.
+        var selectedEnvironment: String? = nil
+    }
+
+    /// Codable representation of a CollectionEnvironment. Secret values are exported empty.
+    struct ExportableEnvironment: Codable, Equatable {
+        let name: String
+        let isDefault: Bool
+        let color: String
+        let variables: [Variable]
     }
 
     /// Codable representation of an APIRequest.
@@ -65,9 +94,21 @@ enum ExportImportService {
                 )
             }
 
+        let environments = ([folder.defaultEnvironment].compactMap { $0 } + folder.overrideEnvironments).map { environment in
+            ExportableEnvironment(
+                name: environment.name, isDefault: environment.isDefault, color: environment.colorName,
+                variables: environment.variables.map { variable in
+                    var copy = variable
+                    if copy.isSecret { copy.value = "" }
+                    return copy
+                })
+        }
+
         let exportableFolder = ExportableFolder(
             name: folder.name,
-            requests: requests
+            requests: requests,
+            environments: environments,
+            selectedEnvironment: folder.selectedEnvironment?.name
         )
 
         let container = ExportContainer(
@@ -121,6 +162,9 @@ enum ExportImportService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
+        // The version first, so a newer file is reported as newer even when the rest of it has a shape this app doesn't know.
+        let version = try decoder.decode(VersionHeader.self, from: data).version
+        try checkVersion(version)
         let container = try decoder.decode(ExportContainer.self, from: data)
 
         // Create the folder
@@ -129,6 +173,20 @@ enum ExportImportService {
             sortOrder: existingFolderCount
         )
         context.insert(folder)
+
+        // Environments: Default's name and variables, then the others in order; files from before environments get an empty Default.
+        // A blank Default name keeps "Default", as a rename to a blank name would.
+        let defaultEnvironment = folder.ensureDefaultEnvironment()
+        for exported in container.folder.environments ?? [] {
+            if exported.isDefault {
+                if !exported.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { defaultEnvironment.name = exported.name }
+                defaultEnvironment.variables = exported.variables
+            } else {
+                let environment = folder.addEnvironment(
+                    named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: exported.variables)
+                if exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
+            }
+        }
 
         // Create all requests
         for (index, exportedRequest) in container.folder.requests.enumerated() {
@@ -153,6 +211,23 @@ enum ExportImportService {
         }
 
         return folder
+    }
+
+    /// Just the `version` key of a file, read before the rest.
+    private struct VersionHeader: Decodable {
+        let version: String
+    }
+
+    /// Accepts a dotted number whose major part is at most ``formatVersion``'s (every file so far says "1.0").
+    /// Minor versions only add optional fields, which older apps ignore.
+    private static func checkVersion(_ version: String) throws {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else {
+            throw ImportError.unknownVersion(version)
+        }
+        let current = Int(formatVersion.prefix { $0 != "." }) ?? 1
+        // A major part too long for an Int is newer than any this app knows.
+        guard let major = Int(parts[0]), major <= current else { throw ImportError.newerVersion(version) }
     }
 
     /// Shows an open panel and imports a folder from a JSON file.

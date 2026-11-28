@@ -4,7 +4,39 @@ All notable changes to PostWoman are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.11.0] - 2026-11-27
+
+### Added
+- PATCH, HEAD and OPTIONS requests, in the method menu, for agents (`request_*` tools) and in the CLI (`-X PATCH`). A HEAD request is sent without its body (the Body tab says so, and keeps the body for when you choose another method), and History records it without one. Generated cURL uses `-I` for HEAD, and generated Python follows redirects for HEAD as the app does. Collections with these methods can't be imported by earlier versions, and going back to an earlier version after using them isn't supported
+- Streaming responses, such as LLM APIs with `"stream": true` (OpenAI, Anthropic, Ollama, Gemini). A `text/event-stream` or NDJSON response appears as it arrives, and a new Events tab lists each event with its arrival time and full data. For LLM replies, the Body's Text view joins the deltas into the reply, and Timing shows the first byte and first token. Send becomes Stop (⌘.) while a request runs, and a stopped stream keeps what arrived, in History too. Generated cURL adds `-N` when a request asks for a stream. Agents get `response.stream` from `request_execute` (events, text, end; streams stop after 90 s), and `postwoman request execute --text` prints the reply text
+- Check for Updates, as in Trellis: PostWoman → Check for Updates… and Settings → Updates (Check Now, automatic daily checks, beta versions) install new releases in place with Sparkle. Nothing reaches the network until you check or turn automatic checks on, and no usage data is sent. Only notarized releases are offered; each one is verified against PostWoman's EdDSA key. Bundles now carry a numeric `CFBundleVersion` (`X.Y.Z.100` for a release, lower for its pre-releases)
+- Environments for each collection, so one request works against Local, Staging and Production. Write `{{name}}` in a request's URL, params, headers, body or auth. Every collection has a Default environment that always applies; pick another from the toolbar's environment menu (or Environment → ⌃1…⌃9, Manage Environments ⌘E), and it overrides Default only for the variables it sets. The URL bar shows the resolved address, with each variable colored by where it comes from (red when nothing defines it); after sending, a notice lists variables sent as written. Secret variables are masked, left as `{{name}}` in History and generated code, exported empty, and write-only for agents. Generate Code can fill in the variables. Environments are exported and imported with their collection. Agents get `environment_*` MCP tools and an `environmentId` for `request_execute`; the CLI gets `postwoman environment …` and `request execute --env`
+- The `postwoman` command-line tool, shipped in the app at `Contents/Helpers/postwoman`: manage collections, requests and History and send requests from the shell through the app's MCP server (`postwoman request execute --id …`, `postwoman history list`, `postwoman call TOOL --args JSON`). It finds the agent token on its own, prints tables or `--json`, and has stable exit statuses. `postwoman cli install-link` puts it on PATH, and Settings → Remote Agent → Copy Client Setup copies that command
+- Settings → Remote Agent: an MCP server (off by default, like Trellis's Remote Control) that lets agents such as Claude Code, Codex and OpenCode list, create, update and delete collections, requests and history entries, and send requests (recorded in History). It listens on loopback (port 7778) unless you confirm a network address, needs the access token shown in Settings on every request, and offers ready-to-paste client setups. Saved credentials are write-only over MCP. The app now has the sandbox's incoming-connections entitlement
+
+### Changed
+- The response tabs (Body, Events, Headers, Cookies, Timing) are icons, with their names as tooltips, so they no longer wrap in a narrow pane
+- A new layered app icon: a paper plane flying off a stack of request cards
+- About PostWoman opens the standard macOS About panel, with credits linking the MIT License and bearstouch
+- Importing a collection file made by a newer PostWoman (or with a format version it doesn't know) is refused with a message saying so, instead of importing part of it
+
+### Fixed
+- Params no longer replace a query already in the URL: `https://api.test/items?page=1` with a `limit` param sends `?page=1&limit=10`
+- `+`, `&`, `=` and `#` in a param's name or value are percent-encoded, so `a+b` is no longer read as `a b` by the server and `a&b=c` stays one value. The app, generated cURL and generated Swift build the same URL
+- Generated cURL works with a `'` in the URL, a header, a token or a password, and spells out `-X GET` when a GET has a body (curl sent it as a POST)
+- Generated Python keeps JSON strings as written (`"nullable"` became `"Noneable"`), keeps key order and numbers, and escapes every string, so bodies, URLs and header names with quotes or backslashes no longer break the script
+- Generated Swift escapes every string, so a JSON body containing `\n` or `\(`, or a URL or param with a quote, compiles and sends the same bytes, and it keeps the URL's own query
+- A response body that is a single JSON value (`true`, `42`, `"ok"`) is shown as JSON, and JSON with a trailing comma (`[1,]`) is no longer treated as valid
+- Timings round before choosing a unit: 9.96 ms reads "10 ms" instead of "10.0 ms", and 999.6 ms reads "1.00 s" instead of "1000 ms"; sizes just under a megabyte read "1.0 MB" instead of "1024.0 KB"
+- A URL with a space, braces or brackets after its host keeps the escapes already in it (`?q=%2F b` was sent as `q=%252F%20b`), and generated cURL for such a URL (for example with `{{name}}` or `filter[a]=1`) is no longer refused by curl
+- Opening the Body tab of a form body no longer rewrites it: `&`, `=` and `+` in a field are encoded, so `q=a%26b` stays one field instead of becoming `q=a&b`
+- Duplicate in the request list keeps the request's credentials (Bearer token, Basic username and password, OAuth settings), and ⌘D makes the same copy ("<name> Copy", after the last request)
+- New, duplicated and restored requests go after the last request of their collection, so two requests no longer share a place in the list
+- Deleting the selected collection clears the window instead of leaving "Folder not found" and its deleted request on screen
+- History shows "Failed", with the error as its tooltip, for a request that got no response
+- Generated Python sends a JSON body that doesn't parse as written, with `Content-Type: application/json`, instead of as a JSON string
+- A body the server labels only `; charset=utf-8` is no longer labelled "charset=utf-8", and a body that isn't UTF-8 text says why it isn't shown instead of "No response body"
+- VoiceOver: the selected request tab, response tab, code language and stream event are announced as selected; icon-only buttons are read by what they do (Prettify, Stop, Clear History, Copy, Delete, the environment editor's controls) instead of by their symbol names; key-value rows name their checkbox, fields and delete button; each response header row offers Copy Name, Copy Value and Copy Header as actions; and collection rows read their request count ("3 requests")
 
 ## [0.10.0] - 2026-11-27
 

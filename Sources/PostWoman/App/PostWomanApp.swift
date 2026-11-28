@@ -8,20 +8,31 @@ import SwiftData
 struct PostWomanApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    /// The shared SwiftData model container that manages all persistent data.
-    /// Contains schemas for all core data models used throughout the application.
-    /// Creates and configures the SwiftData model container with all application schemas.
-    /// This container manages persistent storage for:
+    /// The shared SwiftData model container that manages all persistent data:
     /// - Folders: Hierarchical organization of API requests
     /// - APIRequest: Individual HTTP request configurations
     /// - RequestHistory: Logs of executed requests and responses
-    var sharedModelContainer: ModelContainer = {
-        // Define the data schema containing all SwiftData models
-        let schema = Schema([
-            Folder.self,
-            APIRequest.self,
-            RequestHistory.self
-        ])
+    /// - CollectionEnvironment: Each collection's Default and other environments ({{variables}})
+    let sharedModelContainer: ModelContainer
+
+    /// The MCP server agents use (Settings → Remote Agent). It works on the same main context as the windows.
+    @State private var remoteAgent: RemoteAgentController
+
+    /// Sparkle, only in packaged builds with an update feed (Settings → Updates, Check for Updates…).
+    @State private var updates: UpdateSettingsModel?
+
+    init() {
+        let container = Self.makeModelContainer()
+        sharedModelContainer = container
+        AppSchema.migrate(container.mainContext)
+        let remoteAgent = RemoteAgentController(container: container)
+        remoteAgent.start()
+        _remoteAgent = State(initialValue: remoteAgent)
+        _updates = State(initialValue: SparkleUpdater().map { UpdateSettingsModel(updater: $0) })
+    }
+
+    private static func makeModelContainer() -> ModelContainer {
+        let schema = Schema(AppSchema.models)
 
         // Configure the model container for persistent storage on disk. Packaged apps are sandboxed and
         // keep the default store in their container; unbundled runs (`swift run`) are not, so they get
@@ -40,7 +51,7 @@ struct PostWomanApp: App {
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     /// The main application scene containing the primary window and settings.
     /// Configures the app with SwiftData model container, custom commands,
@@ -52,24 +63,18 @@ struct PostWomanApp: App {
         }
         .modelContainer(sharedModelContainer)
         .commands {
-            AppCommands()
+            AppCommands(updates: updates)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 1300, height: 850)
 
         Settings {
-            SettingsView()
+            SettingsView(updates: updates)
+                .environment(remoteAgent)
                 .themedScene()
         }
-
-        Window("About PostWoman", id: "about") {
-            AboutView()
-                .themedScene()
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
+        .modelContainer(sharedModelContainer)
     }
 }
 
@@ -85,43 +90,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.applicationIconImage = icon
         }
         NSApp.activate()
-    }
-}
-
-/// Custom About view displaying app information with clickable license link.
-struct AboutView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    private let appVersion = AppVersion.current
-    private let licenseURL = URL(string: "https://github.com/bearstouch/postwoman/blob/master/LICENSE")!
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 128, height: 128)
-
-            Text("PostWoman 💅")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("Version \(appVersion)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text("Made with ❤️ by Bearstouch")
-                .font(.body)
-
-            Link("View License on GitHub", destination: licenseURL)
-                .font(.body)
-
-            Button("Close") {
-                dismiss()
-            }
-            .keyboardShortcut(.defaultAction)
-            .padding(.top, 8)
-        }
-        .padding(32)
-        .frame(width: 320)
     }
 }
