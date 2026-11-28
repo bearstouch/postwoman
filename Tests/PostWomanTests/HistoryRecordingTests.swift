@@ -102,7 +102,7 @@ final class HistoryRecordingTests: XCTestCase {
     }
 
     func testAnEmptyBodyIsRecordedAsNoBody() {
-        let request = APIRequest(name: "Get", url: "https://x")
+        let request = APIRequest(name: "Post", url: "https://x", method: .post)
         context.insert(request)
         request.bodyType = .json
         XCTAssertNil(RequestHistory(request: request).requestBody)

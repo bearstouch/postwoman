@@ -126,7 +126,7 @@ enum BodyEditing {
         }
     }
 
-    /// The note above the editor when the method doesn't send a body (HEAD) and a body type is chosen, or nil.
+    /// The note above the editor when the method doesn't send a body (GET, HEAD) and a body type is chosen, or nil.
     static func notice(method: HTTPMethod, bodyType: ContentType) -> String? {
         guard !method.sendsBody, bodyType != .none else { return nil }
         return "\(method.rawValue) requests are sent without a body. It is kept for when you choose another method."

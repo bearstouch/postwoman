@@ -238,7 +238,7 @@ Design/                        # AppIcon (iconset + icns), DMG background (make-
 
 ### Adding a New HTTP Method
 1. Add case to `HTTPMethod` enum in `Models/HTTPMethod.swift` (case order is the menu order; raw values are stored and exported)
-2. Assign a color for the method badge, and say in `sendsBody` whether it carries a body (HEAD doesn't: everything that sends
+2. Assign a color for the method badge, and say in `sendsBody` whether it carries a body (GET and HEAD don't: everything that sends
    or generates a body checks `RequestFields.sendsBody`)
 3. Add it to `CLICommands.methods` (`CLIContractTests` checks it matches `MCPTools.methods`) and to the cURL and Python
    generators' tests, which run the generated code (cURL needs `-I` for HEAD, not `-X HEAD`)

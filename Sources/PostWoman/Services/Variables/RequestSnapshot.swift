@@ -17,7 +17,7 @@ protocol RequestFields {
 extension APIRequest: RequestFields {}
 
 extension RequestFields {
-    /// Whether the body goes out with the request: a body type, some content, and a method that sends a body (not HEAD).
+    /// Whether the body goes out with the request: a body type, some content, and a method that sends a body (not GET or HEAD).
     var sendsBody: Bool { method.sendsBody && bodyType != .none && !bodyContent.isEmpty }
 }
 

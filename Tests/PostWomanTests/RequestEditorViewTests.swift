@@ -349,7 +349,8 @@ final class BodyTabViewTests: XCTestCase {
     func testOnlyAHeadRequestWithABodyTypeGetsTheNotSentNotice() {
         XCTAssertEqual(BodyEditing.notice(method: .head, bodyType: .json), "HEAD requests are sent without a body. It is kept for when you choose another method.")
         XCTAssertNil(BodyEditing.notice(method: .head, bodyType: .none), "Nothing to warn about without a body")
-        for method in HTTPMethod.allCases where method != .head { XCTAssertNil(BodyEditing.notice(method: method, bodyType: .json), method.rawValue) }
+        XCTAssertEqual(BodyEditing.notice(method: .get, bodyType: .json), "GET requests are sent without a body. It is kept for when you choose another method.")
+        for method in HTTPMethod.allCases where method.sendsBody { XCTAssertNil(BodyEditing.notice(method: method, bodyType: .json), method.rawValue) }
     }
 
     func testAHeadRequestShowsTheNoticeAndKeepsTheEditor() throws {

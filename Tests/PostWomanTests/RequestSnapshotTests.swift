@@ -123,7 +123,7 @@ final class RequestSnapshotTests: XCTestCase {
     }
 
     func testSentTextHoldsOnlyWhatIsSent() {
-        let request = APIRequest(name: "s", url: "u")
+        let request = APIRequest(name: "s", url: "u", method: .post)
         request.headers = [KeyValuePair(key: "hk", value: "hv"), KeyValuePair(key: "off", value: "offv", isEnabled: false)]
         request.queryParams = [KeyValuePair(key: "qk", value: "qv")]
         request.bodyContent = "body"

@@ -53,8 +53,9 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         let request = APIRequest(name: "g", url: "https://h", method: .get)
         request.bodyType = .text
         request.bodyContent = "x"
-        XCTAssertEqual(parts(request), ["curl", "-X GET", "'https://h'", "-d 'x'", "-H 'Content-Type: text/plain'"])
-        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-X", "GET", "https://h", "-d", "x", "-H", "Content-Type: text/plain"])
+        // The app can't send a GET with a body, so the command leaves it out too: nothing turns the GET into a POST.
+        XCTAssertEqual(parts(request), ["curl", "'https://h'"])
+        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["https://h"])
     }
 
     func testGetWithoutAnEmittedBodyStillOmitsTheMethod() {

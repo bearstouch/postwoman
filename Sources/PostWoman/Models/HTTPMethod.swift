@@ -28,9 +28,10 @@ enum HTTPMethod: String, Codable, CaseIterable, Identifiable {
     /// Unique identifier for use in SwiftUI lists
     var id: String { rawValue }
 
-    /// Whether a request with this method carries the body it was given. HEAD doesn't: URLSession waits on a HEAD
-    /// with a body until it times out, and `curl -I` can't send one, so the body is kept on the request but not sent.
-    var sendsBody: Bool { self != .head }
+    /// Whether a request with this method carries the body it was given. GET and HEAD don't: URLSession fails a GET with a
+    /// body before sending it ("resource exceeds maximum size") and waits on a HEAD with one until it times out, and
+    /// `curl -I` can't send one. The body is kept on the request but not sent.
+    var sendsBody: Bool { self != .get && self != .head }
 
     /// Color associated with each HTTP method for UI visualization. The method's name is always shown next to it.
     @MainActor var color: Color {
