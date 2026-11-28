@@ -49,6 +49,16 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testABodyStartingWithAnAtSignIsSentAsTextNotReadFromAFile() throws {
+        // `curl -d @name` uploads the file `name`; the app sends the characters.
+        for body in ["@/etc/hosts", "@channel hi", "@"] {
+            let request = post(body, type: .text)
+            XCTAssertTrue(parts(request).contains("--data-raw '\(body)'"), body)
+            XCTAssertFalse(parts(request).contains { $0.hasPrefix("-d ") || $0.hasPrefix("--data ") || $0.hasPrefix("--data-binary ") }, body)
+            XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-X", "POST", "https://api.example.com/items", "--data-raw", body, "-H", "Content-Type: text/plain"])
+        }
+    }
+
     func testFormDataFieldsAreSentAsLiteralMultipartFields() throws {
         let request = post("name=Ana%20Lu&file=@/etc/hosts&q=%3Cx&it's=1", type: .formData)
         XCTAssertEqual(
@@ -94,7 +104,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
             request.method = method
             XCTAssertEqual(
                 try shellWords(CURLGenerator().generate(from: request)),
-                ["-X", method.rawValue, "https://api.example.com/items", "-d", #"{"a":1}"#, "-H", "Content-Type: application/json"], method.rawValue)
+                ["-X", method.rawValue, "https://api.example.com/items", "--data-raw", #"{"a":1}"#, "-H", "Content-Type: application/json"], method.rawValue)
         }
     }
 
@@ -107,7 +117,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         XCTAssertEqual(
             parts(request),
             [
-                "curl", "-X POST", "'https://api.example.com/items?v=2'", "-H 'Accept: */*'", "-H 'X-Trace: 1'", "-H 'Authorization: Bearer t'", #"-d '{"a":1}'"#,
+                "curl", "-X POST", "'https://api.example.com/items?v=2'", "-H 'Accept: */*'", "-H 'X-Trace: 1'", "-H 'Authorization: Bearer t'", #"--data-raw '{"a":1}'"#,
                 "-H 'Content-Type: application/json'"
             ])
     }
@@ -186,7 +196,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         // Form Data goes as --form-string fields (testFormDataFieldsAreSentAsLiteralMultipartFields).
         for type in ContentType.allCases where type != .none && type != .formData {
             let lines = parts(post("x", type: type))
-            XCTAssertEqual(lines.suffix(2), ["-d 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
+            XCTAssertEqual(lines.suffix(2), ["--data-raw 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
         }
     }
 
@@ -206,7 +216,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testBodyQuotesAreClosedEscapedAndReopened() {
-        let cases = [("it's", #"-d 'it'\''s'"#), ("''", #"-d ''\'''\'''"#), ("'start", #"-d ''\''start'"#), ("end'", #"-d 'end'\'''"#)]
+        let cases = [("it's", #"--data-raw 'it'\''s'"#), ("''", #"--data-raw ''\'''\'''"#), ("'start", #"--data-raw ''\''start'"#), ("end'", #"--data-raw 'end'\'''"#)]
         for (body, expected) in cases {
             XCTAssertEqual(parts(post(body, type: .text))[3], expected, body)
         }
@@ -218,7 +228,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         ]
         for body in bodies {
             let words = try shellWords(CURLGenerator().generate(from: post(body, type: .text)))
-            XCTAssertEqual(words, ["-X", "POST", "https://api.example.com/items", "-d", body, "-H", "Content-Type: text/plain"], body)
+            XCTAssertEqual(words, ["-X", "POST", "https://api.example.com/items", "--data-raw", body, "-H", "Content-Type: text/plain"], body)
         }
     }
 
@@ -288,7 +298,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         let lines = parts(request)
         XCTAssertEqual(lines[2], "'https://例え.jp/%E3%83%91%E3%82%B9'", "The path as the app sends it; the host is left for curl to convert")
         XCTAssertEqual(lines[3], "-H 'X-Name: Zoë'")
-        XCTAssertEqual(lines[4], "-d '{\"name\":\"Zoë 💅\"}'")
+        XCTAssertEqual(lines[4], "--data-raw '{\"name\":\"Zoë 💅\"}'")
     }
 
     func testGeneratingDoesNotChangeTheRequest() {

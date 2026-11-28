@@ -52,7 +52,7 @@ final class CodeGenerationSecretsTests: XCTestCase {
         let curl = CURLGenerator().generate(from: bearer)
         XCTAssertTrue(curl.contains("-H 'X-Api-Key: {{token}}'"), curl)
         XCTAssertTrue(curl.contains("-H 'Authorization: Bearer {{token}}'"), curl)
-        XCTAssertTrue(curl.contains("-d 'user=ada&token={{token}}'"), curl)
+        XCTAssertTrue(curl.contains("--data-raw 'user=ada&token={{token}}'"), curl)
         XCTAssertTrue(curl.contains("sig=%7B%7Bpw%7D%7D"), "A redacted param is percent-encoded like any other value: \(curl)")
 
         let swift = SwiftGenerator().generate(from: bearer)

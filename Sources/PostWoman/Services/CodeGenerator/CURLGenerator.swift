@@ -19,7 +19,7 @@ struct CURLGenerator {
             parts.append("-N")
         }
 
-        // cURL defaults to GET, but switches to POST for -d, so a GET with a body is spelled out too. HEAD is -I:
+        // cURL defaults to GET, but switches to POST for a body, so a GET with a body is spelled out too. HEAD is -I:
         // with -X HEAD, curl waits for a body that never comes.
         let hasBody = request.sendsBody
         if request.method == .head {
@@ -57,7 +57,8 @@ struct CURLGenerator {
             // multipart Content-Type and its boundary.
             for field in fields { parts.append("--form-string " + quoted("\(field.key)=\(field.value)")) }
         } else if hasBody {
-            parts.append("-d " + quoted(request.bodyContent))
+            // --data-raw, not -d: with -d a body that starts with @ names a file to upload.
+            parts.append("--data-raw " + quoted(request.bodyContent))
 
             // Add Content-Type header if not already specified
             if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil,
