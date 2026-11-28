@@ -4,6 +4,15 @@ import XCTest
 @testable import PostWoman
 
 final class RequestURLTests: XCTestCase {
+    func testWhitespaceAroundTheURLIsDropped() {
+        // A pasted URL often ends with a space or a newline: it was sent as %20, or refused as an invalid URL.
+        XCTAssertEqual(RequestURL.encoded(" https://x.com/a b \n"), "https://x.com/a%20b")
+        XCTAssertEqual(RequestURL.encoded("https://example.com "), "https://example.com")
+        XCTAssertEqual(RequestURL.encoded("\thttps://example.com/users"), "https://example.com/users")
+        XCTAssertEqual(RequestURL.encoded("  example.com/x  "), "example.com/x", "Also without a scheme")
+        XCTAssertEqual(RequestURL.encoded("https://x.com/a%20"), "https://x.com/a%20", "An encoded space at the end is part of the URL")
+    }
+
     func testOnlyCharactersAURLCantHoldAreEncoded() {
         let cases: [(String, String)] = [
             ("https://x.test/a?q=%2F b", "https://x.test/a?q=%2F%20b"), ("https://x.test/a%20b c", "https://x.test/a%20b%20c"),
