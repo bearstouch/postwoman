@@ -121,6 +121,30 @@ final class MCPToolHandlerContractTests: XCTestCase {
 
     // MARK: - Invalid params
 
+    // MARK: History retention
+
+    func testAnEntryOlderThanEverythingKeptIsRefusedInsteadOfReportedAsCreated() async throws {
+        let suite = "MCPToolHandlerContractTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(2, forKey: HistoryRetention.limitKey)
+        handler = MCPToolHandler(container: container, defaults: defaults)
+
+        let first = try await call("history_create", ["url": .string("https://a.test/1")])
+        let second = try await call("history_create", ["url": .string("https://a.test/2")])
+        // History is full, and retention keeps the newest: this one would be deleted as soon as it was stored.
+        let old = await failure("history_create", ["url": .string("https://a.test/old"), "timestamp": .string("2000-01-01T00:00:00Z")])
+        XCTAssertEqual(old?.code, "NOT_ALLOWED")
+        XCTAssertEqual(old?.message, "History keeps the 2 most recent entries, and this one is older than all of them. Raise the limit in Settings → General to add it.")
+        let kept = Set(try context.fetch(FetchDescriptor<RequestHistory>()).map(\.id))
+        XCTAssertEqual(kept, Set([uuid(id(first)), uuid(id(second))].compactMap { $0 }), "The entries that were there stay")
+
+        // A newer entry still replaces the oldest.
+        let newer = try await call("history_create", ["url": .string("https://a.test/3")])
+        _ = try await call("history_get", ["id": id(newer)])
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<RequestHistory>()), 2)
+    }
+
     // MARK: The user's unsaved work
 
     func testAFailedToolCallKeepsTheUsersUnsavedWork() async throws {

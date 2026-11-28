@@ -19,9 +19,11 @@ final class MCPToolHandler {
 
     private let container: ModelContainer
     private let client: HTTPClient
+    /// Where the History limit is read from.
+    private let defaults: UserDefaults
 
-    init(container: ModelContainer, client: HTTPClient = HTTPClient()) {
-        self.container = container; self.client = client
+    init(container: ModelContainer, client: HTTPClient = HTTPClient(), defaults: UserDefaults = .standard) {
+        self.container = container; self.client = client; self.defaults = defaults
     }
 
     private var context: ModelContext { container.mainContext }
@@ -156,8 +158,18 @@ final class MCPToolHandler {
             entry.savedRequestID = try args.uuid("requestId")
             if let timestamp = try args.date("timestamp") { entry.timestamp = timestamp }
             try Self.apply(args, to: entry)
+            // Retention keeps the newest entries, so one older than all of a full History would be deleted at once.
+            let limit = HistoryRetention.limit(in: defaults)
+            var oldestKept = FetchDescriptor<RequestHistory>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            oldestKept.fetchOffset = limit - 1
+            oldestKept.fetchLimit = 1
+            if let oldest = try context.fetch(oldestKept).first, entry.timestamp <= oldest.timestamp {
+                throw MCPToolError(
+                    code: "NOT_ALLOWED",
+                    message: "History keeps the \(limit) most recent entries, and this one is older than all of them. Raise the limit in Settings → General to add it.")
+            }
             context.insert(entry)
-            HistoryRetention.trim(context)
+            HistoryRetention.trim(context, limit: limit)
             return Self.json(entry, maxBodyBytes: Self.defaultMaxBodyBytes)
         case "history_update":
             let entry = try history(args.uuid("id")!)
@@ -234,7 +246,7 @@ final class MCPToolHandler {
             history.record(response)
             if record {
                 context.insert(history)
-                HistoryRetention.trim(context)
+                HistoryRetention.trim(context, limit: HistoryRetention.limit(in: defaults))
             }
             var result: [String: JSONValue] = [
                 "response": Self.json(response, maxBodyBytes: maxBody), "resolvedUrl": .string(recorded.url),
@@ -246,7 +258,7 @@ final class MCPToolHandler {
             history.record(error)
             if record {
                 context.insert(history)
-                HistoryRetention.trim(context)
+                HistoryRetention.trim(context, limit: HistoryRetention.limit(in: defaults))
             }
             // Saved before the rollback that follows this error: the History entry, and whatever the user did during the send.
             try? context.save()
