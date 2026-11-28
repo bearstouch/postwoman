@@ -1,35 +1,57 @@
 # PostWoman
 
-A native macOS REST API client built with SwiftUI and SwiftData. A lightweight Postman alternative designed specifically for macOS.
+A native macOS REST API client built with SwiftUI and SwiftData: a lightweight Postman alternative with collections, environments, streamed responses and code generation, which agents and scripts can drive too.
 
+[Website](https://bearstouch.com/postwoman/) · [Download](https://github.com/bearstouch/postwoman/releases/latest) · [Changelog](CHANGELOG.md)
+
+[![CI](https://github.com/bearstouch/postwoman/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bearstouch/postwoman/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bearstouch/postwoman)](https://github.com/bearstouch/postwoman/releases/latest)
 ![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9+-orange)
-![SwiftUI](https://img.shields.io/badge/SwiftUI-5.0+-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![Swift](https://img.shields.io/badge/Swift-6.2-orange)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Design/Screenshots/postwoman-dark.png">
+  <img src="Design/Screenshots/postwoman-light.png" alt="PostWoman's window: the Shop API collection and its requests, a GET request with {{variables}} and query parameters, and the 200 OK JSON response" width="900">
+</picture>
 
 ## Features
 
-### Core Functionality
-- **REST API Testing** - Support for GET, POST, PUT, DELETE methods
-- **Folder Organization** - Organize requests into nested collections
-- **Request Editor** - Configure URL, headers, query parameters, body, and authentication
-- **Response Viewer** - View response status, headers, and formatted JSON body
+### Requests
+- **Methods** - GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS
+- **Request editor** - URL, query parameters, headers, body and authentication, each in its own tab
+- **Body types** - JSON, Form Data (sent as `multipart/form-data`), URL Encoded, XML and Plain Text
+- **Collections** - Requests are grouped in collections (folders). Export a collection to a file and import it on another Mac; secret values are exported empty
+
+### Environments and variables
+- Write `{{name}}` in a request's URL, params, headers, body or auth
+- Every collection has a Default environment that always applies. Pick another (Local, Staging, Production…) from the toolbar, and it overrides Default only for the variables it sets
+- Variables marked secret are masked in the app and left as `{{name}}` in History and generated code
+
+### Responses
+- **Body** - Formatted, syntax-highlighted JSON, or the text as received
+- **Headers, Cookies and Timing** - Timing is a waterfall of DNS, connect, TLS, send, wait and download
+- **Streaming** - A `text/event-stream` or NDJSON response appears as it arrives, and the Events tab lists each event with its arrival time. For LLM APIs with `"stream": true`, the Text view joins the deltas into the reply. Send becomes Stop (⌘.), which keeps what arrived
 
 ### Authentication
-- **Bearer Token** - JWT and OAuth token support
-- **Basic Auth** - Username/password with Base64 encoding
-- **OAuth 2.0** - Configuration structure (implementation in progress)
+- **Bearer Token**
+- **Basic Auth** - Username and password
+- **OAuth 2.0** - The settings can be filled in and saved, but no token is requested or sent yet
 
 ### Code Generation
-Export requests as code in multiple languages:
+Export a request as code, with its variables resolved:
 - **cURL** - Command-line ready
-- **Swift** - URLSession implementation
-- **Python** - requests library
+- **Swift** - URLSession
+- **Python** - `requests` library
 
-### Request History
-- Automatic logging of all requests
-- View past requests grouped by date
-- Restore requests from history
+### History
+- Every request sent is recorded with what was sent and what came back, including failed requests and their error
+- Select an entry to read it, or open it as a new request
+- Keeps the most recent 300 entries; change the limit in **Settings → General**
+
+### Themes and updates
+- Light and dark color themes, chosen in **Settings → Appearance**
+- **PostWoman → Check for Updates…** installs new releases in place (Sparkle). Nothing reaches the network until you check or turn automatic checks on
 
 ### Remote Agent (MCP)
 - An optional [Model Context Protocol](https://modelcontextprotocol.io) server, so agents such as Claude Code can create, update and delete collections, requests and history, and send requests
@@ -107,11 +129,11 @@ The version comes from `release/manifest.json`.
 ## Usage
 
 ### Creating a Request
-1. Click the **+** button in the sidebar
-2. Select "New Request" or "New Folder"
-3. Enter the URL and select HTTP method
-4. Configure headers, parameters, body as needed
-5. Press **Cmd+Return** or click "Send"
+1. Click **+** in the sidebar and choose **New Folder** (or **Import Collection…**)
+2. Select the collection and click **New Request** (Cmd+N)
+3. Enter the URL and select the HTTP method
+4. Configure params, headers, body and authentication as needed
+5. Press **Cmd+Return** or click **Send**
 
 ### Keyboard Shortcuts
 
@@ -120,34 +142,42 @@ The version comes from `release/manifest.json`.
 | New Request | Cmd+N |
 | New Folder | Shift+Cmd+N |
 | Send Request | Cmd+Return |
+| Stop a streamed response | Cmd+. |
 | Save Request | Cmd+S |
 | Duplicate Request | Cmd+D |
 | Generate Code | Shift+Cmd+G |
+| Manage Environments | Cmd+E |
+| Select an environment | Ctrl+1 … Ctrl+9 |
 
 ## Project Structure
 
 ```
-Package.swift               # SwiftPM manifest (executable + tests)
+Package.swift               # SwiftPM manifest (app, CLI and tests)
 Sources/PostWoman/
-├── App/                    # App entry point and main views
+├── App/                    # App entry point, root view and menu commands
 ├── Models/                 # SwiftData models
 ├── Views/
-│   ├── Sidebar/           # Collection tree and history
+│   ├── Sidebar/           # Collections, request list and History
 │   ├── RequestEditor/     # URL bar and request tabs
-│   ├── ResponseViewer/    # Response display
+│   ├── ResponseViewer/    # Body, Events, Headers, Cookies, Timing
+│   ├── Environments/      # Environment menu and editor
 │   ├── CodeGeneration/    # Code export
-│   └── Settings/          # General, Appearance, Remote Agent
+│   ├── Settings/          # General, Appearance, Remote Agent, Updates
+│   └── Shared/            # Reusable components
 ├── RemoteAgent/           # MCP server: HTTP listener, endpoint, tools
-Sources/PostWomanCLI/       # the postwoman command (MCP client); PostWomanCLIMain is its entry point
 ├── Services/
 │   ├── HTTPClient.swift   # Networking
 │   ├── AuthenticationHandler.swift
-│   └── CodeGenerator/     # cURL, Swift, Python generators
-└── Utilities/             # JSON formatting, helpers
+│   ├── CodeGenerator/     # cURL, Swift, Python generators
+│   ├── Streaming/         # Server-sent events and NDJSON
+│   ├── Variables/         # {{variable}} resolution
+│   └── Updates/           # Sparkle updater
+└── Utilities/             # JSON formatting, themes
+Sources/PostWomanCLI/       # the postwoman command (MCP client); PostWomanCLIMain is its entry point
 Tests/PostWomanTests/       # XCTest suite
 release/                    # manifest.json (version, bundle id) and entitlements
 scripts/                    # app bundle, DMG and release packaging
-Design/                     # app icon and DMG background sources
+Design/                     # app icon, DMG background and README screenshots
 ```
 
 ## Tech Stack
@@ -155,8 +185,9 @@ Design/                     # app icon and DMG background sources
 - **UI Framework**: SwiftUI
 - **Data Persistence**: SwiftData
 - **Networking**: URLSession with async/await
+- **Updates**: [Sparkle](https://sparkle-project.org)
 - **Build**: Swift Package Manager, Swift 6 language mode
-- **Target Platform**: macOS 14+
+- **Target Platform**: macOS 14+ (Apple silicon and Intel)
 
 ## Contributing
 
