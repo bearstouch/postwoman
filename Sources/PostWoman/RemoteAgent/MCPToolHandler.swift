@@ -17,6 +17,14 @@ final class MCPToolHandler {
     /// The most stream events a response lists.
     static let maxStreamEvents = 500
 
+    /// How long a stream may keep arriving; tests shorten it.
+    var streamDeadline = MCPToolHandler.maxStreamSeconds
+
+    /// Whether the response being received turned out to be a stream (only a stream reports progress).
+    private final class StreamProgress {
+        var started = false
+    }
+
     private let container: ModelContainer
     private let client: HTTPClient
     /// Where the History limit is read from.
@@ -268,12 +276,16 @@ final class MCPToolHandler {
         }
     }
 
-    /// Sends `request`, stopping a stream still arriving after `maxStreamSeconds` (it returns what came, `end: stopped`).
+    /// Sends `request`, stopping a stream still arriving after `streamDeadline` (it returns what came, `end: stopped`).
+    /// Any other response has as long as the timeout chosen in Settings allows, and at most its upper bound in all.
     private func executeWithDeadline(_ request: RequestSnapshot) async throws -> HTTPResponse {
         let client = self.client
-        let work = Task { @MainActor in try await client.execute(request: request) }
-        let deadline = Task {
-            try await Task.sleep(for: .seconds(Self.maxStreamSeconds))
+        let progress = StreamProgress()
+        let work = Task { @MainActor in try await client.execute(request: request) { _ in progress.started = true } }
+        let streamDeadline = streamDeadline
+        let deadline = Task { @MainActor in
+            try await Task.sleep(for: .seconds(streamDeadline))
+            if !progress.started { try await Task.sleep(for: .seconds(max(RequestTimeout.range.upperBound - streamDeadline, 0))) }
             work.cancel()
         }
         defer { deadline.cancel() }

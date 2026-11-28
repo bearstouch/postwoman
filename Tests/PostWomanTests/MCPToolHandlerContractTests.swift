@@ -174,13 +174,42 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertEqual(text(unchanged["name"]), text(fixture.request["name"]))
     }
 
+    /// A target that answers after `delay` seconds.
+    private func slowServer(_ delay: TimeInterval) throws -> (MCPListener, UInt16) {
+        let listener = MCPListener { _ in
+            try? await Task.sleep(for: .seconds(delay))
+            return .json(200, JSONValue.object(["ok": .bool(true)]).data)
+        }
+        return (listener, try listener.start(address: "127.0.0.1", port: 0))
+    }
+
     func testAFailedSendKeepsWhatTheUserDidWhileItWasOnItsWay() async throws {
-        let folder = Folder(name: "Typed before the send")
-        context.insert(folder)
-        // Nothing listens on port 1, so the send fails; without History nothing else saves.
-        let error = await failure("request_execute", ["request": .object(["url": .string("http://127.0.0.1:1/")]), "recordHistory": .bool(false)])
-        XCTAssertEqual(error?.code, "REQUEST_FAILED")
-        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed before the send"])
+        let suite = "MCPToolHandlerContractTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(1.0, forKey: RequestTimeout.key)
+        let (listener, port) = try slowServer(2)
+        defer { listener.stop() }
+        handler = MCPToolHandler(container: container, client: HTTPClient(session: URLSession(configuration: .ephemeral), defaults: defaults), defaults: defaults)
+        let handler = try XCTUnwrap(handler)
+        // The request times out after a second; without History nothing else saves.
+        let send = Task { @MainActor in
+            await handler.call("request_execute", ["request": .object(["url": .string("http://127.0.0.1:\(port)/")]), "recordHistory": .bool(false)])
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        context.insert(Folder(name: "Typed during the send"))
+        guard case .failure(let error) = await send.value else { return XCTFail("The request times out") }
+        XCTAssertEqual(error.code, "REQUEST_FAILED")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed during the send"])
+    }
+
+    func testAnAnswerSlowerThanTheStreamLimitIsStillReturnedWhenItIsNotAStream() async throws {
+        // Only a stream is cut off after the limit (90 s in the app); anything else has as long as the timeout setting allows.
+        let (listener, port) = try slowServer(1)
+        defer { listener.stop() }
+        handler.streamDeadline = 0.2
+        let result = try await call("request_execute", ["request": .object(["url": .string("http://127.0.0.1:\(port)/")]), "recordHistory": .bool(false)])
+        XCTAssertEqual(result["response"]?["status"], .number(200))
     }
 
     func testAnUnknownToolIsInvalidParams() async {
