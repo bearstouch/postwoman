@@ -205,7 +205,7 @@ over to another request.
     `ViewHosting` (`Tests/ReqsTests/ViewHostingSupport.swift`) in light and dark, and tests assert what VoiceOver gets
     (labels, help, values, `isSelected`) and that no secret is exposed. Toolbars and list rows need a titled window.
   - UserDefaults: a suite with a unique name (`"Area.\(UUID().uuidString)"`), removed afterwards; never a fixed name, which other runs share.
-- A bug fix comes with a test that fails without it (run it against the old code once). Generated code is checked by running it:
+- Every change comes with unit tests for what it adds or changes. A bug fix comes with a test that fails without it (run it against the old code once). Generated code is checked by running it:
   cURL through `/bin/sh`, Python with `python3 -I -W error` against a stubbed `requests`, Swift compiled with `swiftc` behind a stub.
 - Contract tests that must keep passing: `MCPServerTests` (every tool dispatched, closed schemas), `CLIContractTests`
   (every MCP tool has a command and valid flags), `AppVersionTests` (versions match the manifest), `ThemeStoreTests` (contrast).
@@ -214,20 +214,30 @@ over to another request.
 
 ## Change workflow
 
-1. Read the code involved and this file. For larger features, plan first: files to touch, existing helpers to reuse,
+Every fix and feature goes through its own branch and pull request; never commit them straight to `develop` or `master`.
+
+1. Branch off an up-to-date `develop`: `feature/<short-name>` for features, `fix/<short-name>` for bug fixes.
+2. Read the code involved and this file. For larger features, plan first: files to touch, existing helpers to reuse,
    tests, and how to verify it end to end.
-2. Implement with tests (observable behavior + failure safety). Keep the app, MCP tools and CLI in step: a capability
-   added to the app's send path should reach `request_execute` and `reqs` too.
-3. Format, lint, build, test, all clean: `swift format -i -r Sources Tests`, `swift format lint --strict -r Sources Tests`
+3. Implement with unit tests. Every change gets tests that cover it (observable behavior + failure safety, see Tests); a
+   bug fix gets a test that fails without the fix. If a change truly can't be unit tested (e.g. pure layout), say why in
+   the pull request. Keep the app, MCP tools and CLI in step: a capability added to the app's send path should reach
+   `request_execute` and `reqs` too.
+4. Format, lint, build, test, all clean: `swift format -i -r Sources Tests`, `swift format lint --strict -r Sources Tests`
    (no output), `swift build` (no warnings), `swift test`.
-4. For non-trivial changes, run an independent review (fresh eyes: correctness, races, leaks, data loss, security of the
-   MCP server and secrets, regressions, test gaps). Fix what matters, then format, lint, build and test again.
-5. Check UI changes in the real app (`scripts/run-app.sh`); a local test server (e.g. a small Python `http.server`) stands
+5. Always launch an independent review agent on the change once it is implemented (a fresh agent given the diff, not
+   your conclusions: correctness, races, leaks, data loss, security of the MCP server and secrets, regressions, test
+   gaps). Fix the issues it confirms, adding tests for them, then format, lint, build and test again. Repeat the review
+   if the fixes were substantial.
+6. Check UI changes in the real app (`scripts/run-app.sh`); a local test server (e.g. a small Python `http.server`) stands
    in for real APIs.
-6. Record what was verified and what wasn't. Update `CHANGELOG.md` (`## [Unreleased]`, or the next version section) for
+7. Record what was verified and what wasn't. Update `CHANGELOG.md` (`## [Unreleased]`, or the next version section) for
    anything user-visible, and this file when architecture or conventions change.
-7. Commit on `develop` with a short imperative subject ("Add environments for each collection, with {{variables}}") and a
-   body explaining what changed for the user; `master` gets it through a pull request. Releases follow "Releases" above.
+8. Commit on the branch with a short imperative subject ("Add environments for each collection, with {{variables}}") and a
+   body explaining what changed for the user, push it and open a pull request into `develop` (`gh pr create --base develop`).
+   The PR description says what changed, the tests added, what the review found and fixed, and what was verified and what
+   wasn't. Pull requests into `develop` are never squashed: merge them with a merge commit (`gh pr merge --merge`), so the
+   branch's commits are kept. `master` gets `develop` through a pull request. Releases follow "Releases" above.
 
 Honesty rules: say what was actually run and observed. Checks that can't be done here (VoiceOver, notarization, Sparkle
 installs, Intel or older macOS, real third-party APIs) are reported as **not verified**, never as passed. Report blockers
