@@ -337,7 +337,8 @@ final class MCPToolHandler {
     /// The variables an agent passed, keeping the saved value of a secret it sent without one (secrets are write-only).
     private static func merge(_ incoming: [Arguments.VariableInput], into existing: [Variable]) -> [Variable] {
         incoming.map { input in
-            let saved = existing.first { $0.key == input.key }
+            // Keys arrive trimmed, and the app stores them as typed (it resolves them trimmed too).
+            let saved = existing.first { $0.key.trimmingCharacters(in: .whitespaces) == input.key }
             let isSecret = input.isSecret ?? saved?.isSecret ?? false
             let value = input.value ?? (isSecret ? saved?.value : nil) ?? ""
             return Variable(key: input.key, value: value, isEnabled: input.isEnabled, isSecret: isSecret)

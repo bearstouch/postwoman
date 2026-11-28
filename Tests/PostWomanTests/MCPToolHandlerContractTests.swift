@@ -522,6 +522,26 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertTrue(entry.requestHeaders.contains { $0.value == "{{authHeader}}" || $0.value == "Bearer {{apiKey}}" })
     }
 
+    func testASecretWhoseKeyWasTypedWithASpaceKeepsItsValueWhenSentBackWithoutOne() async throws {
+        let collection = try await call("collection_create", ["name": .string("C")])
+        let folder = try XCTUnwrap(try context.fetch(FetchDescriptor<Folder>()).first)
+        let defaults = try XCTUnwrap(folder.defaultEnvironment)
+        // As typed in the app, which stores the key as written and resolves it trimmed.
+        defaults.variables = [Variable(key: "apiKey ", value: "sk-SAVED", isSecret: true)]
+        try context.save()
+        XCTAssertNotNil(uuid(id(collection)))
+
+        let updated = try await call(
+            "environment_update",
+            [
+                "id": .string(defaults.id.uuidString),
+                "variables": .array([.object(["key": .string("apiKey "), "secret": .bool(true)]), .object(["key": .string("new"), "value": .string("x")])])
+            ])
+        XCTAssertEqual(list(updated["variables"]).first?["valueSet"], .bool(true))
+        XCTAssertEqual(defaults.variables.first?.value, "sk-SAVED", "A secret sent back without a value keeps the saved one")
+        XCTAssertEqual(defaults.variables.first?.isSecret, true)
+    }
+
     func testSecretValuesReadAsNullAndUnmarkingWithoutAValueClearsThem() async throws {
         let collection = try await call("collection_create", ["name": .string("C")])
         let created = try await call(
