@@ -180,10 +180,10 @@ enum ExportImportService {
         for exported in container.folder.environments ?? [] {
             if exported.isDefault {
                 if !exported.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { defaultEnvironment.name = exported.name }
-                defaultEnvironment.variables = exported.variables
+                defaultEnvironment.variables = fresh(exported.variables)
             } else {
                 let environment = folder.addEnvironment(
-                    named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: exported.variables)
+                    named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: fresh(exported.variables))
                 // The first of that name: names aren't unique, and the last match would pick another environment.
                 if folder.selectedEnvironment == nil, exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
             }
@@ -198,8 +198,8 @@ enum ExportImportService {
                 folder: folder
             )
             request.sortOrder = index
-            request.headers = exportedRequest.headers
-            request.queryParams = exportedRequest.queryParams
+            request.headers = fresh(exportedRequest.headers)
+            request.queryParams = fresh(exportedRequest.queryParams)
             request.bodyType = exportedRequest.bodyType
             request.bodyContent = exportedRequest.bodyContent
             request.authenticationType = exportedRequest.authenticationType
@@ -221,6 +221,16 @@ enum ExportImportService {
 
     /// Accepts a dotted number whose major part is at most ``formatVersion``'s (every file so far says "1.0").
     /// Minor versions only add optional fields, which older apps ignore.
+    /// The rows of a file with identities of their own: the file's IDs would be shared with the collection it was exported
+    /// from (or with a second import of it), and a hand-edited file can repeat one, so deleting a row would delete its twin.
+    private static func fresh(_ variables: [Variable]) -> [Variable] {
+        variables.map { Variable(key: $0.key, value: $0.value, isEnabled: $0.isEnabled, isSecret: $0.isSecret) }
+    }
+
+    private static func fresh(_ pairs: [KeyValuePair]) -> [KeyValuePair] {
+        pairs.map { KeyValuePair(key: $0.key, value: $0.value, isEnabled: $0.isEnabled) }
+    }
+
     private static func checkVersion(_ version: String) throws {
         let parts = version.split(separator: ".", omittingEmptySubsequences: false)
         guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else {
