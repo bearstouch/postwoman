@@ -9,7 +9,8 @@ name: Release
 #   MACOS_CERTIFICATE_PASSWORD  password for the .p12
 #   MACOS_SIGN_IDENTITY         e.g. "Developer ID Application: Example (TEAMID)"
 #   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   notarytool credentials (app-specific password)
-#   SPARKLE_ED_PRIVATE_KEY      EdDSA key from Sparkle's generate_keys; without it the update feed isn't published
+#   SPARKLE_ED_PRIVATE_KEY      EdDSA key from Sparkle's generate_keys -x, the one whose public half is sparklePublicKey
+#                               (keychain account `postwoman`); without it the update feed isn't published
 
 on:
   push:
@@ -148,8 +149,15 @@ jobs:
           feed=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/Reqs.app/Contents/Info.plist 2>/dev/null || true)
           if [ -z "$feed" ]; then echo "::error::The signing key is set but the app has no SUFeedURL; add sparklePublicKey to release/manifest.json."; exit 1; fi
           dmg="dist/Reqs-$VERSION.dmg"
-          signature=$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "$dmg")
+          # sign_update reports errors on stdout, which $(…) would swallow: show the first line, cut before any key it echoes.
+          if ! signature=$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "$dmg" 2>&1); then
+            unset SPARKLE_ED_PRIVATE_KEY
+            echo "::error::sign_update couldn't sign $dmg: $(printf '%s\n' "$signature" | head -n 1 | sed 's/ from:.*//'). Set SPARKLE_ED_PRIVATE_KEY to the output of generate_keys -x for the key whose public half is sparklePublicKey."
+            exit 1
+          fi
           unset SPARKLE_ED_PRIVATE_KEY  # nothing after signing needs the key
+          # A key that signs but isn't the app's would publish an update every installed copy rejects.
+          swift scripts/verify-update-signature.swift "$dmg" "$signature" "$(python3 -c 'import json;print(json.load(open("release/manifest.json"))["sparklePublicKey"])')"
           bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/Reqs.app/Contents/Info.plist)
           minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' dist/Reqs.app/Contents/Info.plist)
           # Another tag's release may publish at the same time: rebuild on the newest feed and retry a rejected push.

@@ -56,7 +56,8 @@ the same steps on `macos-26`, and fails on any warning in `Sources/`.
   Builds without a feed (`swift run`, `scripts/run-app.sh`, tests) get no updater: no menu item, no Settings → Updates, no network.
 - `scripts/package-release.sh` writes the feed keys only when `release/manifest.json` has `sparklePublicKey`. The feed is
   `appcast.xml` on the orphan `appcast` branch, which `release.yml` updates (`scripts/update-appcast.py`, tested by
-  `scripts/test-update-appcast.py`) for notarized tag builds when the `SPARKLE_ED_PRIVATE_KEY` secret is set.
+  `scripts/test-update-appcast.py`) for notarized tag builds when the `SPARKLE_ED_PRIVATE_KEY` secret is set. That secret is `generate_keys --account postwoman -x`
+  (the key for `sparklePublicKey`); `scripts/verify-update-signature.swift` fails the release if the DMG's signature doesn't match it.
 - Unlike Trellis, Reqs is sandboxed: Sparkle installs through `Installer.xpc` (`SUEnableInstallerLauncherService`, and the
   `com.bearstouch.reqs-spks`/`-spki` mach-lookup exceptions in the entitlements). `scripts/sign-sparkle.sh` drops `Downloader.xpc`
   (the app has network.client), thins and signs the framework inside-out. Ad-hoc package builds add `disable-library-validation`.
