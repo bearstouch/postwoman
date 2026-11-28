@@ -152,6 +152,31 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertEqual(received.request.value(forHTTPHeaderField: "X-Dup"), "second")
     }
 
+    func testAResponseInAnotherCharsetIsDecodedWithIt() async throws {
+        // "café" in ISO-8859-1: not valid UTF-8, so it used to be reported as a body that can't be shown.
+        RecordingStubProtocol.serve(.init(headers: ["Content-Type": "text/html; charset=ISO-8859-1"], chunks: [Data([0x63, 0x61, 0x66, 0xE9])]))
+        let latin = try await makeClient().execute(request: makeRequest())
+        XCTAssertEqual(latin.body, "café")
+        XCTAssertEqual(latin.bodySize, 4)
+
+        RecordingStubProtocol.serve(.init(headers: ["Content-Type": "application/json; charset=utf-16"], chunks: [try XCTUnwrap(#"{"a":"é"}"#.data(using: .utf16))]))
+        let wide = try await makeClient().execute(request: makeRequest())
+        XCTAssertEqual(wide.body, #"{"a":"é"}"#)
+    }
+
+    func testResponseTextFollowsTheDeclaredCharsetThenUTF8ThenLatin1ForText() {
+        let cafe = Data([0x63, 0x61, 0x66, 0xE9])
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "iso-8859-1", contentType: "text/plain; charset=iso-8859-1"), "café")
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "windows-1252", contentType: "text/csv"), "café")
+        XCTAssertEqual(HTTPClient.text(cafe, charset: nil, contentType: "text/plain"), "café", "Text with no charset that isn't UTF-8 is read as Latin-1")
+        XCTAssertEqual(HTTPClient.text(Data("café 💅".utf8), charset: nil, contentType: "text/plain"), "café 💅", "UTF-8 comes first")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "utf-8", contentType: "application/json; charset=utf-8"), "café")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "no-such-charset", contentType: "application/json"), "café", "An unknown charset falls back to UTF-8")
+        XCTAssertNil(HTTPClient.text(Data([0x89, 0x50, 0x4E, 0x47, 0xFF, 0xFE]), charset: nil, contentType: "image/png"), "Bytes that aren't text have no text")
+        XCTAssertNil(HTTPClient.text(cafe, charset: nil, contentType: nil))
+        XCTAssertEqual(HTTPClient.text(Data(), charset: nil, contentType: nil), "")
+    }
+
     func testEverySendGoesToTheServerInsteadOfTheLocalCache() async throws {
         // A response with `Cache-Control: max-age` would otherwise be shown again, as if fresh, without a request.
         let received = try await send(makeRequest())

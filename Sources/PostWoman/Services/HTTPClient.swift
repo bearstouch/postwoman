@@ -270,7 +270,8 @@ final class HTTPClient {
             statusCode: response.statusCode,
             headers: headers,
             // A stream can stop mid-character, so decode it leniently.
-            body: stream == nil ? String(data: data, encoding: .utf8) : String(decoding: data, as: UTF8.self),
+            body: stream == nil
+                ? Self.text(data, charset: response.textEncodingName, contentType: response.value(forHTTPHeaderField: "Content-Type")) : String(decoding: data, as: UTF8.self),
             responseTime: total,
             contentType: response.value(forHTTPHeaderField: "Content-Type"),
             cookies: ResponseCookie.parse(headerFields: headerFields, url: response.url ?? url),
@@ -278,6 +279,20 @@ final class HTTPClient {
             bodySize: data.count,
             stream: stream
         )
+    }
+
+    /// A response body as text: in the charset its Content-Type declares, else UTF-8, else, for `text/*`, Latin-1 (what such
+    /// a body is when it isn't UTF-8). Nil when the bytes aren't text (an image, say).
+    nonisolated static func text(_ data: Data, charset: String?, contentType: String?) -> String? {
+        if let charset {
+            let encoding = CFStringConvertIANACharSetNameToEncoding(charset as CFString)
+            if encoding != kCFStringEncodingInvalidId, let text = String(data: data, encoding: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))) {
+                return text
+            }
+        }
+        if let text = String(data: data, encoding: .utf8) { return text }
+        guard contentType?.lowercased().hasPrefix("text/") == true else { return nil }
+        return String(data: data, encoding: .isoLatin1)
     }
 
     /// Parses HTTP response headers into KeyValuePair objects.
