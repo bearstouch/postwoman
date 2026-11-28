@@ -228,7 +228,9 @@ final class MCPClient: Sendable {
 /// Finding the endpoint and token: flags, then environment variables, then each app's own files.
 enum ConnectionResolver {
     static func candidates(server: String?, token: String?, tokenFile: String?, environment: CLIEnvironment) throws(CLIFailure) -> [Connection] {
-        let explicitURL = try (server ?? environment.variable("POSTWOMAN_URL")).map { text throws(CLIFailure) in try url(text) }
+        // An empty POSTWOMAN_URL (exported blank by an env file) is no choice, like an empty POSTWOMAN_TOKEN; an empty --server is a mistake.
+        let fromEnvironment = environment.variable("POSTWOMAN_URL").flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        let explicitURL = try (server ?? fromEnvironment).map { text throws(CLIFailure) in try url(text) }
         let fallback = try url(MCPClient.defaultURL)
         // Any flag beats any environment variable: --agent-token, --agent-token-file, POSTWOMAN_TOKEN, POSTWOMAN_TOKEN_FILE.
         func read(_ path: String) throws(CLIFailure) -> String {

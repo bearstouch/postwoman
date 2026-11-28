@@ -70,8 +70,17 @@ final class CLIConnectionResolverTests: XCTestCase {
     func testServerURLsMustHaveAHost() {
         for rejected in ["", "http://", "http:///mcp", "https://", "http://:7778/mcp", "://", "  "] {
             XCTAssertEqual(failure(server: rejected, token: "pwm_x"), "--server must be a URL such as http://127.0.0.1:7778/mcp.", "'\(rejected)'")
-            XCTAssertEqual(failure(token: "pwm_x", variables: ["POSTWOMAN_URL": rejected]), "--server must be a URL such as http://127.0.0.1:7778/mcp.", "'\(rejected)'")
+            let blank = rejected.trimmingCharacters(in: .whitespaces).isEmpty
+            XCTAssertEqual(failure(token: "pwm_x", variables: ["POSTWOMAN_URL": rejected]), blank ? nil : "--server must be a URL such as http://127.0.0.1:7778/mcp.", "'\(rejected)'")
         }
+    }
+
+    func testAnEmptyServerVariableIsNoChoiceOfServer() throws {
+        // POSTWOMAN_URL= in an env file must not fail every command with a message about --server.
+        for blank in ["", "  ", "\n"] {
+            XCTAssertEqual(try candidates(token: "pwm_x", variables: ["POSTWOMAN_URL": blank]), ["\(fallback) pwm_x"], "'\(blank)'")
+        }
+        XCTAssertEqual(try candidates(server: "h:2", token: "pwm_x", variables: ["POSTWOMAN_URL": ""]), ["http://h:2/mcp pwm_x"])
     }
 
     func testAnEmptyServerExitsWithAnArgumentError() async {
