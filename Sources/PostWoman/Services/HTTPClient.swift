@@ -96,13 +96,18 @@ final class HTTPClient {
     /// The URLSession used for network requests.
     private let session: URLSession
 
+    /// Where the timeout chosen in Settings → General is read from, at each send.
+    private let defaults: UserDefaults
+
     /// Service for applying authentication to requests.
     private let authHandler = AuthenticationHandler()
 
     /// Creates a new HTTP client with the specified URLSession.
     /// - Parameter session: URLSession to use for requests (defaults to shared session)
-    init(session: URLSession = .shared) {
+    ///   - defaults: Where the timeout chosen in Settings is read from.
+    init(session: URLSession = .shared, defaults: UserDefaults = .standard) {
         self.session = session
+        self.defaults = defaults
     }
 
     /// How often `onProgress` hears about a stream, at most.
@@ -227,7 +232,7 @@ final class HTTPClient {
         // Configure the URL request. The timeout is the longest wait between packets, so long streams are fine.
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
-        urlRequest.timeoutInterval = 30
+        urlRequest.timeoutInterval = RequestTimeout.seconds(in: defaults)
         // Send means ask the server: never answer from URLCache, which would show a cacheable response again as if fresh.
         urlRequest.cachePolicy = .reloadIgnoringLocalCacheData
 

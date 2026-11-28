@@ -191,8 +191,8 @@ final class MCPClient: Sendable {
         var message: [String: JSONValue] = ["jsonrpc": .string("2.0"), "method": .string(method)]
         if !notification { message["id"] = .number(1) }
         if let params { message["params"] = params }
-        // request_execute waits for the remote server (30 s), so allow more than that.
-        var request = URLRequest(url: connection.url, timeoutInterval: 120)
+        // request_execute waits for the remote server as long as the app's timeout setting allows (up to 600 s), so allow more.
+        var request = URLRequest(url: connection.url, timeoutInterval: 660)
         request.httpMethod = "POST"
         request.httpBody = Data(JSONValue.object(message).compact.utf8)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

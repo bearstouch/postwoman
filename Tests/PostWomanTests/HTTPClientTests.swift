@@ -177,6 +177,24 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertEqual(HTTPClient.text(Data(), charset: nil, contentType: nil), "")
     }
 
+    func testTheTimeoutChosenInSettingsIsUsed() async throws {
+        let suite = "HTTPClientRequestTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RecordingStubProtocol.self]
+        let client = HTTPClient(session: URLSession(configuration: configuration), defaults: defaults)
+        // Read at each send, so a change in Settings applies to the next request.
+        for (saved, expected) in [(nil, 30.0), (5.0, 5.0), (120.0, 120.0), (0.0, 30.0), (-3.0, 30.0), (0.2, 1.0), (1_000_000.0, 600.0)] as [(Double?, Double)] {
+            if let saved { defaults.set(saved, forKey: RequestTimeout.key) }
+            RecordingStubProtocol.serve(.init())
+            _ = try await client.execute(request: makeRequest())
+            XCTAssertEqual(RecordingStubProtocol.received.first?.request.timeoutInterval, expected, "\(String(describing: saved))")
+        }
+        defaults.set("soon", forKey: RequestTimeout.key)
+        XCTAssertEqual(RequestTimeout.seconds(in: defaults), 30, "A value that isn't a number is ignored")
+    }
+
     func testEverySendGoesToTheServerInsteadOfTheLocalCache() async throws {
         // A response with `Cache-Control: max-age` would otherwise be shown again, as if fresh, without a request.
         let received = try await send(makeRequest())
