@@ -431,7 +431,8 @@ final class MCPToolHandler {
         }
         if let message = try args.string("errorMessage") {
             entry.errorMessage = message.isEmpty ? nil : message
-            if !message.isEmpty { entry.wasSuccessful = false }
+            // With the error cleared, success is again what the status says.
+            entry.wasSuccessful = message.isEmpty && entry.statusCode.map { (200..<300).contains($0) } ?? false
         }
     }
 

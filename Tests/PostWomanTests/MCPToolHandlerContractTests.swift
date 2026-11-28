@@ -133,6 +133,20 @@ final class MCPToolHandlerContractTests: XCTestCase {
         XCTAssertNoThrow(try JSONSerialization.jsonObject(with: day.data))
     }
 
+    func testClearingAnErrorMessageMakesA2xxEntrySuccessfulAgain() async throws {
+        let entry = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200)])])
+        XCTAssertEqual(entry["wasSuccessful"], .bool(true))
+        let failed = try await call("history_update", ["id": id(entry), "errorMessage": .string("flaky")])
+        XCTAssertEqual(failed["wasSuccessful"], .bool(false))
+        let cleared = try await call("history_update", ["id": id(entry), "errorMessage": .string("")])
+        XCTAssertEqual(cleared["errorMessage"], .null)
+        XCTAssertEqual(cleared["wasSuccessful"], .bool(true), "A 200 with no error is a success")
+
+        let notFound = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(404)])])
+        let stillFailed = try await call("history_update", ["id": id(notFound), "errorMessage": .string("")])
+        XCTAssertEqual(stillFailed["wasSuccessful"], .bool(false), "Clearing the message doesn't make a 404 a success")
+    }
+
     // MARK: History retention
 
     func testAnEntryOlderThanEverythingKeptIsRefusedInsteadOfReportedAsCreated() async throws {
