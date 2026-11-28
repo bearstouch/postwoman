@@ -91,8 +91,10 @@ struct SwiftGenerator {
                 request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")
 
                 """
-        } else if request.sendsBody {
-            if request.bodyType == .json {
+        } else if request.sendsBody || request.generatesFileBody {
+            if request.bodyType == .file {
+                code += "\nrequest.httpBody = FileManager.default.contents(atPath: \(SwiftLiteral.string(FileBody.codePath(forFileName: request.bodyFileName))))\n"
+            } else if request.bodyType == .json {
                 code += """
 
                     let jsonBody = \(SwiftLiteral.block(request.bodyContent))
@@ -104,9 +106,9 @@ struct SwiftGenerator {
             }
 
             if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil,
-                let mimeType = request.bodyType.mimeType
+                let mimeType = request.bodyMIMEType
             {
-                code += "request.setValue(\"\(mimeType)\", forHTTPHeaderField: \"Content-Type\")\n"
+                code += "request.setValue(\(SwiftLiteral.string(mimeType)), forHTTPHeaderField: \"Content-Type\")\n"
             }
         }
 

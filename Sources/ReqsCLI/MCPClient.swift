@@ -47,6 +47,9 @@ public struct CLIEnvironment: Sendable {
     public var send: @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
     public var variable: @Sendable (String) -> String?
     public var readFile: @Sendable (String) throws -> Data
+    /// A path's size in bytes before it is read: -1 for something other than a regular file (a FIFO, a device, a
+    /// folder), nil when it can't be told (then reading says why).
+    public var fileSize: @Sendable (String) -> Int? = { _ in nil }
     public var readStdin: @Sendable () -> Data
     public var stdout: @Sendable (String) -> Void
     public var stderr: @Sendable (String) -> Void
@@ -66,7 +69,7 @@ public struct CLIEnvironment: Sendable {
     }
 
     public static var live: CLIEnvironment {
-        CLIEnvironment(
+        var environment = CLIEnvironment(
             send: { request in
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
@@ -80,6 +83,14 @@ public struct CLIEnvironment: Sendable {
             home: ProcessInfo.processInfo.environment["HOME"].flatMap { $0.hasPrefix("/") ? $0 : nil } ?? NSHomeDirectory(),
             executablePath: Bundle.main.executableURL?.resolvingSymlinksInPath().path ?? CommandLine.arguments[0],
             links: .live)
+        environment.fileSize = { path in
+            // attributesOfItem doesn't follow a symlink, which readFile does: resolve it first.
+            let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved) else { return nil }
+            guard attributes[.type] as? FileAttributeType == .typeRegular else { return -1 }
+            return (attributes[.size] as? NSNumber)?.intValue
+        }
+        return environment
     }
 }
 

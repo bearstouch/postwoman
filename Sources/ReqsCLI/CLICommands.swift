@@ -34,6 +34,8 @@ struct ToolArguments: Sendable {
 struct CLIInput: Sendable {
     let readFile: @Sendable (String) throws -> Data
     let readStdin: @Sendable () -> Data
+    /// `CLIEnvironment.fileSize`: checked before `--upload` reads a file, so a huge file or a device isn't read whole.
+    var fileSize: @Sendable (String) -> Int? = { _ in nil }
 
     func text(at path: String) throws(CLIFailure) -> String {
         if path == "-" { return String(decoding: readStdin(), as: UTF8.self) }
@@ -140,7 +142,28 @@ enum CLICommands {
     // MARK: Shared flag sets
 
     static let methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
-    static let bodyTypes = ["none", "json", "form-data", "urlencoded", "xml", "text"]
+    static let bodyTypes = ["none", "json", "form-data", "urlencoded", "xml", "text", "file"]
+
+    /// The largest file `--upload` sends: the app's MCP calls are limited to 1 MiB, and base64 takes 4/3 of it
+    /// (`MCPTools.maximumBodyFileBytes`, which `CLIContractTests` checks it matches).
+    static let maximumUploadBytes = 700_000
+
+    /// `--upload`: a file sent as the whole body. Saved requests and execute take it; History keeps no file bytes.
+    static let uploadFlag = Flag(
+        name: "upload", value: "PATH", help: "Send this file as the body (body type file, Content-Type from its extension). At most 700 KB; choose larger files in the app."
+    ) { args, value, input throws(CLIFailure) in
+        if let size = input.fileSize(value) {
+            guard size >= 0 else { throw .arguments("\(value) isn't a regular file.") }
+            guard size <= maximumUploadBytes else {
+                throw .arguments("\(value) is \(size) bytes; --upload sends at most \(maximumUploadBytes). Choose larger files in the app.")
+            }
+        }
+        guard let data = try? input.readFile(value) else { throw .arguments("Can't read \(value).") }
+        guard data.count <= maximumUploadBytes else {
+            throw .arguments("\(value) is \(data.count) bytes; --upload sends at most \(maximumUploadBytes). Choose larger files in the app.")
+        }
+        args.fields["bodyFile"] = .object(["name": .string((value as NSString).lastPathComponent), "base64": .string(data.base64EncodedString())])
+    }
     static let authTypes = ["none", "bearer", "basic", "oauth2"]
 
     /// The request's fields, as request_create/update/execute and history_create/update take them.
@@ -163,7 +186,7 @@ enum CLICommands {
         Flag(name: "body-file", value: "PATH", help: "Read the body from a file, or - for standard input.") { args, value, input throws(CLIFailure) in
             args.fields["body"] = .string(try input.text(at: value))
         },
-        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data (fields as a=1&b=2, sent as multipart parts), urlencoded, xml or text (default json with a body).") {
+        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data (fields as a=1&b=2, sent as multipart parts), urlencoded, xml, text (default json with a body) or file (see --upload).") {
             args, value, _ throws(CLIFailure) in
             guard bodyTypes.contains(value) else { throw .arguments("--body-type must be one of \(bodyTypes.joined(separator: ", ")).") }
             args.fields["bodyType"] = .string(value)
@@ -183,6 +206,9 @@ enum CLICommands {
             args.auth["type"] = .string(value)
         }
     ]
+
+    /// The fields of a request that is saved or sent: `requestFields` and `--upload` (History keeps no file bytes).
+    static let savedRequestFields: [Flag] = requestFields + [uploadFlag]
 
     /// A recorded response, for history_create/update.
     static let responseFields: [Flag] = [
@@ -233,10 +259,10 @@ enum CLICommands {
             option("include", short: "i", "Print the status line and headers before the body."),
             option("fail", short: "f", "Exit with status 22 when the response status is 400 or more."),
             option("text", "For a streamed LLM reply, print the text its events assemble to instead of the raw stream.")
-        ] + requestFields
+        ] + savedRequestFields
 
-    private static let requestCreateFlags: [Flag] = [id("collection", "collectionId", "Collection to add it to.")] + requestFields
-    private static let requestUpdateFlags: [Flag] = [id(help: "Request ID."), id("collection", "collectionId", "Move it to this collection.")] + requestFields
+    private static let requestCreateFlags: [Flag] = [id("collection", "collectionId", "Collection to add it to.")] + savedRequestFields
+    private static let requestUpdateFlags: [Flag] = [id(help: "Request ID."), id("collection", "collectionId", "Move it to this collection.")] + savedRequestFields
 
     private static let requestCommands: [Command] = [
         Command(

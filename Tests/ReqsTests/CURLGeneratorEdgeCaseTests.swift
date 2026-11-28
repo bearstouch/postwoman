@@ -193,8 +193,8 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testEachBodyTypeAddsItsContentType() {
-        // Form Data goes as --form-string fields (testFormDataFieldsAreSentAsLiteralMultipartFields).
-        for type in ContentType.allCases where type != .none && type != .formData {
+        // Form Data goes as --form-string fields (testFormDataFieldsAreSentAsLiteralMultipartFields), File as --data-binary (FileBodyTests).
+        for type in ContentType.allCases where type != .none && type != .formData && type != .file {
             let lines = parts(post("x", type: type))
             XCTAssertEqual(lines.suffix(2), ["--data-raw 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
         }

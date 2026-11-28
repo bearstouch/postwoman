@@ -150,7 +150,7 @@ enum PostmanImporter {
             draft.body = ImportSupport.prettyJSON(.object(payload))
             notes.append("GraphQL bodies were imported as JSON ({\"query\": …, \"variables\": …}).")
         case "file":
-            notes.append(ImportSupport.fileFieldsNote)
+            draft.setFileBody(path: value["file"]?["src"]?.scalarText, notes: &notes)
         default:
             break
         }

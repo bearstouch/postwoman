@@ -115,7 +115,7 @@ struct HistoryDetailView: View {
         switch tab {
         case .params: return enabledParams.isEmpty ? nil : enabledParams.count
         case .headers: return enabledHeaders.isEmpty ? nil : enabledHeaders.count
-        case .body: return history.requestBody == nil ? nil : 1
+        case .body: return history.requestBody == nil && history.bodyType != .file ? nil : 1
         case .auth: return authenticationType == .none ? nil : 1
         }
     }
@@ -128,14 +128,38 @@ struct HistoryDetailView: View {
         case .headers:
             KeyValueListView(pairs: enabledHeaders, emptyMessage: "No request headers")
         case .body:
-            ResponseBodyView(
-                responseBody: history.requestBody,
-                contentType: history.bodyType?.mimeType,
-                emptyMessage: "No request body"
-            )
+            if let file = Self.fileSummary(of: history) {
+                VStack(spacing: 6) {
+                    Label(file, systemImage: "doc")
+                        .font(.body.monospaced())
+                    Text("History keeps a file's name and size, not its contents.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .combine)
+            } else {
+                ResponseBodyView(
+                    responseBody: history.requestBody,
+                    contentType: history.bodyType?.mimeType,
+                    emptyMessage: "No request body"
+                )
+            }
         case .auth:
             KeyValueListView(pairs: authPairs, emptyMessage: "No authentication")
         }
+    }
+
+    /// The file a File body sent, as "name · size · type", or nil for another body.
+    static func fileSummary(of history: RequestHistory) -> String? {
+        guard history.bodyType == .file else { return nil }
+        let name = history.requestBodyFileName ?? "Unnamed file"
+        var parts = [name]
+        if let size = history.requestBodyFileSize { parts.append(FileBody.formattedSize(size)) }
+        // The type it went out as: the request's own Content-Type header, else the one its name gives.
+        let header = history.requestHeaders.last { $0.isEnabled && $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value
+        parts.append(header ?? FileBody.mimeType(forFileName: history.requestBodyFileName))
+        return parts.joined(separator: " · ")
     }
 
     /// A credential as History shows it: one dot per character, as the editor's secure fields hide it. One written only as

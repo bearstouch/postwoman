@@ -40,7 +40,8 @@ final class ModelBehaviorTests: XCTestCase {
     func testContentTypeRawValuesAndMimeTypes() throws {
         let table: [(ContentType, String, String?)] = [
             (.none, "None", nil), (.json, "JSON", "application/json"), (.formData, "Form Data", "multipart/form-data"),
-            (.urlEncoded, "URL Encoded", "application/x-www-form-urlencoded"), (.xml, "XML", "application/xml"), (.text, "Plain Text", "text/plain")
+            (.urlEncoded, "URL Encoded", "application/x-www-form-urlencoded"), (.xml, "XML", "application/xml"), (.text, "Plain Text", "text/plain"),
+            (.file, "File", "application/octet-stream")
         ]
         XCTAssertEqual(ContentType.allCases, table.map(\.0))
         for (type, raw, mime) in table {

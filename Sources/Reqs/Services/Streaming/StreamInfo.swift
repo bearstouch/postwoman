@@ -76,7 +76,7 @@ extension RequestFields {
             $0.isEnabled && $0.key.caseInsensitiveCompare("Accept") == .orderedSame && $0.value.lowercased().contains("text/event-stream")
         }
         if acceptsEvents { return true }
-        guard bodyType != .none, method.sendsBody, let data = bodyContent.data(using: .utf8),
+        guard bodyType != .none, bodyType != .file, method.sendsBody, let data = bodyContent.data(using: .utf8),
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return false }
         return (object["stream"] as? Bool) == true

@@ -77,12 +77,16 @@ enum HTTPClientError: LocalizedError {
     /// A network or connection error occurred.
     case networkError(Error)
 
+    /// The body is a File with no bytes attached (none chosen, or a request restored from History, which keeps only the name).
+    case missingBodyFile(String?)
+
     /// Human-readable error description for display in the UI.
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid URL"
         case .invalidResponse: return "Invalid response from server"
         case .networkError(let error): return error.localizedDescription
+        case .missingBodyFile(let name): return FileBody.missingFileMessage(fileName: name)
         }
     }
 }
@@ -250,8 +254,14 @@ final class HTTPClient {
             to: &urlRequest
         )
 
-        // Set request body if present
-        if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+        // Set request body if present. A File body without its file fails here, rather than going out empty.
+        if request.lacksBodyFile { throw HTTPClientError.missingBodyFile(request.bodyFileName) }
+        if request.sendsBody, request.bodyType == .file {
+            urlRequest.httpBody = request.bodyFile
+            if urlRequest.value(forHTTPHeaderField: "Content-Type") == nil, let mimeType = request.bodyMIMEType {
+                urlRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+            }
+        } else if request.sendsBody, let fields = MultipartForm.fields(of: request) {
             // No named field, nothing to send (as the generated cURL and Python do).
             guard !fields.isEmpty else { return urlRequest }
             let boundary = MultipartForm.makeBoundary()
@@ -262,7 +272,7 @@ final class HTTPClient {
 
             // Set Content-Type header if not already set
             if urlRequest.value(forHTTPHeaderField: "Content-Type") == nil,
-                let mimeType = request.bodyType.mimeType
+                let mimeType = request.bodyMIMEType
             {
                 urlRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
             }
