@@ -2,7 +2,7 @@
 
 A native macOS REST API client built with SwiftUI and SwiftData: a lightweight Postman alternative with collections, environments, streamed responses and code generation, which agents and scripts can drive too. Formerly PostWoman.
 
-[Website](https://bearstouch.com/postwoman/) · [Download](https://github.com/bearstouch/reqs/releases/latest) · [Changelog](CHANGELOG.md)
+[Website](https://bearstouch.com/reqs) · [Download](https://github.com/bearstouch/reqs/releases/latest) · [Changelog](CHANGELOG.md)
 
 [![CI](https://github.com/bearstouch/reqs/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bearstouch/reqs/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bearstouch/reqs)](https://github.com/bearstouch/reqs/releases/latest)
