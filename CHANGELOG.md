@@ -1,12 +1,21 @@
 # Changelog
 
-All notable changes to PostWoman are documented in this file.
+All notable changes to Reqs (formerly PostWoman) are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-28
+
 ### Changed
+- PostWoman is now **Reqs**, a new app with its own bundle identifier (`com.bearstouch.reqs`), an electric blue accent and
+  a new flat icon (a list of saved requests on electric blue). Because it is a new app, it starts empty: in PostWoman, right-click each collection and
+  choose Export Collection…, then import each file in Reqs with + → Import Collection…. PostWoman doesn't update to Reqs: its update check says Reqs is available
+  and links to https://github.com/bearstouch/reqs/releases. The command-line tool is now `reqs` (`REQS_URL`, `REQS_TOKEN`,
+  `REQS_TOKEN_FILE`), and MCP clients see the server as `reqs`, with a new agent token. Pink is still available in
+  Settings → Appearance
+- The Reqs theme's JSON keys are blue and literals (`true`, `null`) violet; the Pink environment color stays pink whatever the accent
 - A request or History entry with a body and no query parameters opens on the Body tab instead of an empty Params tab
 - A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
 - Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `postwoman request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)

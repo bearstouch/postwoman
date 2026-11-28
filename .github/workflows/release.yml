@@ -77,11 +77,11 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
           rm -f "$RUNNER_TEMP/cert.p12"
-          echo "POSTWOMAN_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "REQS_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "signed=true" >> "$GITHUB_OUTPUT"
           if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
-            xcrun notarytool store-credentials postwoman-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
-            echo "POSTWOMAN_NOTARY_PROFILE=postwoman-notary" >> "$GITHUB_ENV"
+            xcrun notarytool store-credentials reqs-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+            echo "REQS_NOTARY_PROFILE=reqs-notary" >> "$GITHUB_ENV"
           else
             echo "::warning::Notary credentials not configured; the release will be signed but not notarized."
           fi
@@ -95,13 +95,13 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          shasum -a 256 PostWoman-*.dmg | tee SHA256SUMS.txt
+          shasum -a 256 Reqs-*.dmg | tee SHA256SUMS.txt
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: PostWoman-${{ steps.version.outputs.version }}
+          name: Reqs-${{ steps.version.outputs.version }}
           path: |
-            dist/PostWoman-*.dmg
+            dist/Reqs-*.dmg
             dist/SHA256SUMS.txt
             dist/release-evidence.json
 
@@ -120,18 +120,18 @@ jobs:
             found && /^\[[^]]+\]: / { exit }
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          printf '\n### Downloads\n\n- `PostWoman-%s.dmg`: Universal 2, runs on Apple silicon and Intel (recommended)\n- `PostWoman-%s-apple-silicon.dmg`: Apple silicon (arm64) only\n- `PostWoman-%s-intel.dmg`: Intel (x86_64) only\n\nVerify with `shasum -a 256 -c SHA256SUMS.txt`. Requires macOS 14 or later.\n' "$VERSION" "$VERSION" "$VERSION" >> "$RUNNER_TEMP/notes.md"
+          printf '\n### Downloads\n\n- `Reqs-%s.dmg`: Universal 2, runs on Apple silicon and Intel (recommended)\n- `Reqs-%s-apple-silicon.dmg`: Apple silicon (arm64) only\n- `Reqs-%s-intel.dmg`: Intel (x86_64) only\n\nVerify with `shasum -a 256 -c SHA256SUMS.txt`. Requires macOS 14 or later.\n' "$VERSION" "$VERSION" "$VERSION" >> "$RUNNER_TEMP/notes.md"
           if [ "$SIGNED" != true ]; then
             printf '\n> **Note:** this build is ad-hoc signed and is not notarized. Gatekeeper will block it; build from source or wait for a signed release.\n' >> "$RUNNER_TEMP/notes.md"
           elif [ "$notarized" != true ]; then
             printf '\n> **Note:** this build is signed but not notarized, so Gatekeeper will warn before opening it.\n' >> "$RUNNER_TEMP/notes.md"
           fi
-          flags=(--title "PostWoman $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag)
+          flags=(--title "Reqs $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag)
           if [ "$SIGNED" != true ] || [ "$notarized" != true ] || [[ "$VERSION" == 0.* ]] || [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" "${flags[@]}" \
-            "dist/PostWoman-$VERSION.dmg#PostWoman $VERSION (Universal: Apple silicon + Intel)" \
-            "dist/PostWoman-$VERSION-apple-silicon.dmg#PostWoman $VERSION (Apple silicon)" \
-            "dist/PostWoman-$VERSION-intel.dmg#PostWoman $VERSION (Intel)" \
+            "dist/Reqs-$VERSION.dmg#Reqs $VERSION (Universal: Apple silicon + Intel)" \
+            "dist/Reqs-$VERSION-apple-silicon.dmg#Reqs $VERSION (Apple silicon)" \
+            "dist/Reqs-$VERSION-intel.dmg#Reqs $VERSION (Intel)" \
             dist/SHA256SUMS.txt dist/release-evidence.json
 
       # Only a notarized release reaches the update feed (as in Trellis). The appcast lives alone on the orphan
@@ -145,13 +145,13 @@ jobs:
           if [ -z "$SPARKLE_ED_PRIVATE_KEY" ]; then echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set; the update feed was not published."; exit 0; fi
           notarized=$(python3 -c 'import json;print(str(json.load(open("dist/release-evidence.json"))["notarized"]).lower())')
           if [ "$notarized" != true ]; then echo "::warning::This release isn't notarized, so it stays out of the update feed."; exit 0; fi
-          feed=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/PostWoman.app/Contents/Info.plist 2>/dev/null || true)
+          feed=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/Reqs.app/Contents/Info.plist 2>/dev/null || true)
           if [ -z "$feed" ]; then echo "::error::The signing key is set but the app has no SUFeedURL; add sparklePublicKey to release/manifest.json."; exit 1; fi
-          dmg="dist/PostWoman-$VERSION.dmg"
+          dmg="dist/Reqs-$VERSION.dmg"
           signature=$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "$dmg")
           unset SPARKLE_ED_PRIVATE_KEY  # nothing after signing needs the key
-          bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/PostWoman.app/Contents/Info.plist)
-          minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' dist/PostWoman.app/Contents/Info.plist)
+          bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/Reqs.app/Contents/Info.plist)
+          minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' dist/Reqs.app/Contents/Info.plist)
           # Another tag's release may publish at the same time: rebuild on the newest feed and retry a rejected push.
           for attempt in 1 2 3; do
             work="$RUNNER_TEMP/appcast-$attempt"
@@ -165,11 +165,11 @@ jobs:
             fi
             python3 -I scripts/update-appcast.py "$work/appcast.xml" --version "$VERSION" --bundle-version "$bundle_version" \
               --minimum-macos "$minimum" --length "$(stat -f %z "$dmg")" --signature "$signature" \
-              --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/PostWoman-$VERSION.dmg" \
+              --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Reqs-$VERSION.dmg" \
               --notes-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
             git -C "$work" add appcast.xml
             git -C "$work" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore(appcast): PostWoman $VERSION"
+              commit -m "chore(appcast): Reqs $VERSION"
             if git -C "$work" push origin HEAD:refs/heads/appcast; then exit 0; fi
             sleep $((attempt * 5))
           done

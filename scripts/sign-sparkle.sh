@@ -1,10 +1,10 @@
 #!/bin/sh
-# Prepares and signs PostWoman.app/Contents/Frameworks/Sparkle.framework, inside-out, before the app is signed.
+# Prepares and signs Reqs.app/Contents/Frameworks/Sparkle.framework, inside-out, before the app is signed.
 #
-#   scripts/sign-sparkle.sh <PostWoman.app> <identity|-> [arm64|x86_64]
+#   scripts/sign-sparkle.sh <Reqs.app> <identity|-> [arm64|x86_64]
 #
-# PostWoman is sandboxed, so Sparkle installs through its Installer XPC service (SUEnableInstallerLauncherService and
-# the -spks/-spki mach-lookup exceptions in release/PostWoman.entitlements). The app has the network-client
+# Reqs is sandboxed, so Sparkle installs through its Installer XPC service (SUEnableInstallerLauncherService and
+# the -spks/-spki mach-lookup exceptions in release/Reqs.entitlements). The app has the network-client
 # entitlement, so the Downloader service is removed. With an architecture, every binary is thinned to it.
 set -eu
 app=$1; identity=$2; arch=${3:-}
