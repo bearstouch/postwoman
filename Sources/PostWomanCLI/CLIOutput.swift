@@ -129,7 +129,8 @@ enum CLIOutput {
         let widths = header.indices.map { column in all.map { $0[column].count }.max() ?? 0 }
         for row in all {
             let cells = row.enumerated().map { column, cell in
-                column == row.count - 1 ? cell : cell.padding(toLength: widths[column], withPad: " ", startingAt: 0)
+                // Padded by hand: `padding(toLength:)` counts UTF-16 units, and would cut a name with emoji in it.
+                column == row.count - 1 ? cell : cell + String(repeating: " ", count: max(0, widths[column] - cell.count))
             }
             environment.stdout(cells.joined(separator: "  "))
         }
