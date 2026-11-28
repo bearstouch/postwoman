@@ -17,6 +17,9 @@ struct RequestEditorView: View {
     /// The environment the last send resolved with.
     @State private var sentEnvironmentName: String?
 
+    /// The window this editor is in: menu commands are handled by the front window only.
+    @State private var commandWindow = CommandWindow()
+
     private let httpClient = HTTPClient()
 
     var body: some View {
@@ -80,17 +83,22 @@ struct RequestEditorView: View {
             CodeGeneratorView(request: request, resolver: resolver, environmentLabel: request.folder.map { "\($0.name) · \($0.activeEnvironmentName)" })
         }
         .onReceive(NotificationCenter.default.publisher(for: .sendRequest)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             sendRequest()
         }
         .onReceive(NotificationCenter.default.publisher(for: .saveRequest)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             saveRequest()
         }
         .onReceive(NotificationCenter.default.publisher(for: .generateCode)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             showCodeGenerator = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .duplicateRequest)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             duplicateRequest()
         }
+        .background(CommandWindowReader(holder: commandWindow))
         .onDisappear {
             // A stream can run forever; don't keep one open for a request nobody is looking at.
             if isStreaming { stopRequest() }

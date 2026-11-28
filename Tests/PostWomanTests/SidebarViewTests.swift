@@ -888,6 +888,42 @@ final class ContentViewTests: XCTestCase {
         ViewHosting.settle(0.1)
     }
 
+    func testAMenuCommandActsInTheFrontWindowOnlyNotInEveryOpenOne() throws {
+        let fixture = try SidebarFixture()
+        let back = host(fixture)
+        defer { back.close() }
+        let front = host(fixture)
+        defer { front.close() }
+        let requests = try fixture.context.fetchCount(FetchDescriptor<APIRequest>())
+        let folders = try fixture.context.fetchCount(FetchDescriptor<Folder>())
+        post(.createNewRequest)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<APIRequest>()), requests + 1, "One New Request, not one per window")
+        post(.createNewFolder)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Folder>()), folders + 1)
+
+        // With the front window gone, the one behind it is the target.
+        front.close()
+        post(.createNewRequest)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<APIRequest>()), requests + 2)
+    }
+
+    func testTheCommandTargetIsTheFrontmostContentWindow() {
+        let a = NSWindow(), b = NSWindow(), settings = NSWindow()
+        let content = [a, b]
+        func target(_ ordered: [NSWindow]) -> NSWindow? { CommandTarget.frontmost(of: ordered) { window in content.contains { $0 === window } } }
+        XCTAssertTrue(target([b, a]) === b)
+        XCTAssertTrue(target([settings, a, b]) === a, "A sheet or the Settings window in front doesn't take the command")
+        XCTAssertNil(target([settings]))
+        XCTAssertTrue(CommandTarget.accepts(nil), "A view outside a window (or outside a main window, as in tests) handles its commands")
+        XCTAssertTrue(CommandTarget.accepts(settings), "So does one in a window that isn't a main window")
+        let holder = CommandWindow()
+        XCTAssertTrue(holder.acceptsCommands)
+        holder.window = settings
+        XCTAssertTrue(holder.acceptsCommands)
+        holder.window = nil
+        XCTAssertFalse(holder.acceptsCommands, "A view whose window closed no longer acts on commands")
+    }
+
     func testOpensOnHistoryWithTheCollectionsListed() throws {
         let fixture = try SidebarFixture()
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {

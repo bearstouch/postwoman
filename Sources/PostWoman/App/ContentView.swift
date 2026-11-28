@@ -24,6 +24,9 @@ struct ContentView: View {
         case folder(UUID)
     }
 
+    /// The window this view is in: menu commands are handled by the front window only.
+    @State private var commandWindow = CommandWindow()
+
     /// Controls the visibility of the NavigationSplitView columns.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -101,11 +104,14 @@ struct ContentView: View {
         .navigationSplitViewStyle(.balanced)
         // The window draws no titlebar separator; each pane's top hairline (above) takes its place.
         .background(ThemedWindowChrome())
+        .background(CommandWindowReader(holder: commandWindow, registers: true))
         .frame(minWidth: 1100, minHeight: 700)
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             createFolder()
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewRequest)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             createRequest()
         }
         .sheet(item: $selection.managedFolder) { folder in
@@ -115,12 +121,15 @@ struct ContentView: View {
             NewEnvironmentView(folder: folder)
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageEnvironments)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.managedFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .newEnvironment)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.newEnvironmentFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectEnvironment)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.selectEnvironment(notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .remoteAgentWillDelete)) { notification in
