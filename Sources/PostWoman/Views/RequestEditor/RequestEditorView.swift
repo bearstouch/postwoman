@@ -5,7 +5,8 @@ struct RequestEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var request: APIRequest
 
-    @State private var selectedTab: RequestTab = .params
+    /// Starts on `RequestTab.initial(for:)`; the view's identity is the request, so each request opens on its own.
+    @State private var selectedTab: RequestTab
     @State private var response: HTTPResponse?
     @State private var isLoading: Bool = false
     /// The send in flight; cancelling it stops the request (a stream keeps what arrived).
@@ -21,6 +22,11 @@ struct RequestEditorView: View {
     @State private var commandWindow = CommandWindow()
 
     private let httpClient = HTTPClient()
+
+    init(request: APIRequest) {
+        self.request = request
+        _selectedTab = State(initialValue: RequestTab.initial(for: request))
+    }
 
     var body: some View {
         VSplitView {

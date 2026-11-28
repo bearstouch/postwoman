@@ -8,6 +8,18 @@ enum RequestTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The tab a request or History entry opens on: Body when it has a body and no query parameters (a POST with JSON,
+    /// say, where Params would be an empty table), else Params.
+    static func initial(hasParams: Bool, hasBody: Bool) -> RequestTab { !hasParams && hasBody ? .body : .params }
+
+    /// The tab the editor opens `request` on. What counts is what the badges count: active params, a body that is sent.
+    static func initial(for request: APIRequest) -> RequestTab { initial(hasParams: request.queryParams.activeCount > 0, hasBody: request.sendsBody) }
+
+    /// The tab History opens `history` on.
+    static func initial(for history: RequestHistory) -> RequestTab {
+        initial(hasParams: (history.queryParams ?? []).activeCount > 0, hasBody: history.requestBody != nil)
+    }
+
     /// The count on the tab: active params or headers, 1 for a body that is sent (a body type, text, and a method that sends one) or an auth type, nil (no badge) when there is none.
     func badge(for request: APIRequest) -> Int? {
         switch self {

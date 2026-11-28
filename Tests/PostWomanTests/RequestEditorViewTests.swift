@@ -238,6 +238,29 @@ final class RequestTabViewTests: XCTestCase {
         for tab in RequestTab.allCases { XCTAssertNil(tab.badge(for: request), tab.rawValue) }
     }
 
+    func testARequestWithABodyAndNoParamsOpensOnTheBodyTab() throws {
+        let (_, _, request) = try EditorHosting.store()
+        XCTAssertEqual(RequestTab.initial(for: request), .params, "It has an active param")
+        request.queryParams = [KeyValuePair(key: "off", value: "x", isEnabled: false), KeyValuePair(key: "", value: "y")]
+        XCTAssertEqual(RequestTab.initial(for: request), .body, "Disabled and unnamed params aren't sent, so they don't hold the tab")
+        request.method = .get
+        XCTAssertEqual(RequestTab.initial(for: request), .params, "A GET doesn't send its body")
+        request.method = .post
+        request.bodyContent = ""
+        XCTAssertEqual(RequestTab.initial(for: request), .params, "No body")
+        XCTAssertEqual(RequestTab.initial(for: APIRequest(name: "Empty")), .params)
+    }
+
+    func testAHistoryEntryWithABodyAndNoParamsOpensOnTheBodyTab() {
+        let entry = RequestHistory(url: "https://shop.local/orders", method: .post, requestBody: #"{"sku":"A1"}"#)
+        XCTAssertEqual(RequestTab.initial(for: entry), .body)
+        entry.queryParams = [KeyValuePair(key: "page", value: "2")]
+        XCTAssertEqual(RequestTab.initial(for: entry), .params)
+        entry.queryParams = []
+        entry.requestBody = nil
+        XCTAssertEqual(RequestTab.initial(for: entry), .params)
+    }
+
     func testActiveCountSkipsDisabledAndUnnamedPairs() {
         XCTAssertEqual([KeyValuePair]().activeCount, 0)
         XCTAssertEqual([KeyValuePair(key: "a"), KeyValuePair(key: "b", isEnabled: false), KeyValuePair(key: "")].activeCount, 1)
@@ -658,6 +681,18 @@ final class RequestEditorViewTests: XCTestCase {
             XCTAssertTrue(buttons.contains("Send"), variant)
             XCTAssertTrue(text.contains("Send a request to see the response here"), variant)
             EditorHosting.assertNoSecrets(in: hosting, variant)
+        }
+    }
+
+    func testARequestWithABodyAndNoParamsShowsTheBodyTabFirst() throws {
+        let (container, _, request) = try EditorHosting.store()
+        request.queryParams = []
+        EditorHosting.eachVariant(RequestEditorView(request: request), sizes: sizes, container: container) { hosting, variant in
+            let text = ViewHosting.text(in: hosting)
+            XCTAssertTrue(text.contains("Request Body"), variant)
+            XCTAssertFalse(text.contains("Query Parameters"), variant)
+            let selected = ViewHosting.elements(in: hosting).filter { $0.role == .button && $0.isSelected == true }.map(\.label)
+            XCTAssertEqual(selected, ["Body, 1"], variant)
         }
     }
 

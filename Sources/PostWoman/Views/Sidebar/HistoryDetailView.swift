@@ -6,7 +6,14 @@ struct HistoryDetailView: View {
     /// Opens the entry's request in the editor as a new request.
     let onRestore: (RequestHistory) -> Void
 
-    @State private var selectedTab: RequestTab = .params
+    /// Starts on `RequestTab.initial(for:)`; the view's identity is the entry, so each entry opens on its own.
+    @State private var selectedTab: RequestTab
+
+    init(history: RequestHistory, onRestore: @escaping (RequestHistory) -> Void) {
+        self.history = history
+        self.onRestore = onRestore
+        _selectedTab = State(initialValue: RequestTab.initial(for: history))
+    }
 
     private var enabledParams: [KeyValuePair] {
         (history.queryParams ?? []).filter { $0.isEnabled && !$0.key.isEmpty }

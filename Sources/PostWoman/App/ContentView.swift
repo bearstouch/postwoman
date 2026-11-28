@@ -177,7 +177,9 @@ struct ContentDetailView: View {
     var body: some View {
         switch selection.detail {
         case .history(let history):
+            // One view per entry, so each opens on its own tab (Body for a body without params).
             HistoryDetailView(history: history, onRestore: onRestore)
+                .id(history.id)
         case .request(let request):
             // One editor per request: without the identity, selecting another request would keep the first one's response,
             // send in flight, open tab and form fields, and an edit would then write those fields into the other request.

@@ -642,6 +642,22 @@ final class HistoryDetailViewTests: XCTestCase {
         XCTAssertFalse(host.text.contains { $0.contains("hunter22") })
     }
 
+    func testAnEntryWithABodyAndNoParamsOpensOnTheBodyTab() throws {
+        let fixture = try SidebarFixture()
+        let entry = fixture.serverError
+        entry.queryParams = []
+        entry.requestBody = #"{"sku":"A1"}"#
+        entry.bodyType = .json
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let host = host(entry, fixture, appearance: appearance)
+            defer { host.close() }
+            let selected = host.buttons.filter(\.isSelected).map(\.label)
+            XCTAssertTrue(selected.contains("Body, 1"), "\(selected)")
+            XCTAssertFalse(selected.contains("Params"), "\(selected)")
+            XCTAssertFalse(host.text.contains("No query parameters"))
+        }
+    }
+
     func testALiteralBearerTokenIsMaskedLikeThePassword() throws {
         let fixture = try SidebarFixture()
         let entry = fixture.serverError

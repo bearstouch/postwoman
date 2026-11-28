@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- A request or History entry with a body and no query parameters opens on the Body tab instead of an empty Params tab
 - A GET request is sent without its body, like HEAD (URLSession can't send one): the Body tab says so and keeps the body for another method, and History and generated code leave it out
 - Settings → General → Default timeout now applies to every request (1 to 600 seconds; it was always 30), including `request_execute` and `postwoman request execute`, which no longer give up on a slow answer after 90 seconds (only a stream is stopped then)
 - Basic authentication is sent when only the username or only the password was typed (an API key as the username, say); the other part is empty
