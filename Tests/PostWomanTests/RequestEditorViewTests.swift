@@ -349,7 +349,8 @@ final class BodyTabViewTests: XCTestCase {
     func testOnlyAHeadRequestWithABodyTypeGetsTheNotSentNotice() {
         XCTAssertEqual(BodyEditing.notice(method: .head, bodyType: .json), "HEAD requests are sent without a body. It is kept for when you choose another method.")
         XCTAssertNil(BodyEditing.notice(method: .head, bodyType: .none), "Nothing to warn about without a body")
-        for method in HTTPMethod.allCases where method != .head { XCTAssertNil(BodyEditing.notice(method: method, bodyType: .json), method.rawValue) }
+        XCTAssertEqual(BodyEditing.notice(method: .get, bodyType: .json), "GET requests are sent without a body. It is kept for when you choose another method.")
+        for method in HTTPMethod.allCases where method.sendsBody { XCTAssertNil(BodyEditing.notice(method: method, bodyType: .json), method.rawValue) }
     }
 
     func testAHeadRequestShowsTheNoticeAndKeepsTheEditor() throws {
@@ -410,6 +411,60 @@ final class BodyTabViewTests: XCTestCase {
         defer { ViewHosting.close(hosting) }
         XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value), ["q", "a&b", "n", "1+1"])
         XCTAssertEqual(request.bodyContent, "q=a%26b&n=1%2B1")
+    }
+
+    func testAPlusInAFormBodyIsASpace() {
+        let pairs = FormBody.pairs(from: "full+name=John+Doe&sum=1%2B1")
+        XCTAssertEqual(pairs.map(\.key), ["full name", "sum"])
+        XCTAssertEqual(pairs.map(\.value), ["John Doe", "1+1"], "An encoded plus stays a plus")
+    }
+
+    func testOpeningAFormBodyDoesNotRewriteIt() throws {
+        // Written by an import, an agent or the CLI: valid, though not spelled the way the editor would.
+        for body in ["name=John+Doe&flag", "a=1&&b=%7e", "q=caf%C3%A9&q=2"] {
+            let (container, _, request) = try EditorHosting.store()
+            request.bodyType = .urlEncoded
+            request.bodyContent = body
+            let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+            defer { ViewHosting.close(hosting) }
+            ViewHosting.settle()
+            XCTAssertEqual(request.bodyContent, body, "Looking at the fields changes nothing")
+        }
+    }
+
+    func testChoosingAFormTypeByMistakeKeepsTheBodyThatWasThere() throws {
+        let (container, _, request) = try EditorHosting.store()
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        request.bodyType = .urlEncoded
+        ViewHosting.settle()
+        XCTAssertEqual(request.bodyContent, #"{"name":"Ada"}"#, "Nothing is rewritten until a field is edited")
+        request.bodyType = .json
+        ViewHosting.settle()
+        XCTAssertTrue(ViewHosting.elements(in: hosting).contains { $0.role == .textArea && $0.label == #"{"name":"Ada"}"# })
+    }
+
+    func testFormFieldsFollowABodyChangedFromOutsideTheEditor() throws {
+        // As an agent's request_update does while the Body tab is open.
+        let (container, _, request) = try EditorHosting.store()
+        request.bodyType = .urlEncoded
+        request.bodyContent = "a=1"
+        let hosting = ViewHosting.host(BodyTabHost(request: request), size: sizes[1], container: container)
+        defer { ViewHosting.close(hosting) }
+        request.bodyContent = "b=2&c=3"
+        ViewHosting.settle()
+        XCTAssertEqual(ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value), ["b", "2", "c", "3"])
+        XCTAssertEqual(request.bodyContent, "b=2&c=3")
+    }
+
+    func testAnEditedFieldIsWrittenAndOnlyThenIsTheBodyRespelled() {
+        let opened = FormBody.pairs(from: "name=John+Doe&flag")
+        XCTAssertNil(FormBody.edited(opened, from: "name=John+Doe&flag"), "The fields as parsed are not an edit")
+        var edited = opened
+        edited[1].value = "on"
+        XCTAssertEqual(FormBody.edited(edited, from: "name=John+Doe&flag"), "name=John%20Doe&flag=on")
+        edited[1].isEnabled = false
+        XCTAssertEqual(FormBody.edited(edited, from: "name=John+Doe&flag"), "name=John%20Doe")
     }
 
     func testAJSONBodyShowsItsTextAndAPrettifyButton() throws {
@@ -635,5 +690,77 @@ final class RequestEditorViewTests: XCTestCase {
         let history = try container.mainContext.fetch(FetchDescriptor<RequestHistory>())
         XCTAssertEqual(history.count, 1)
         EditorHosting.assertNoSecrets(in: hosting, "after send")
+    }
+}
+
+// MARK: - Detail column
+
+/// The window's selection, changed by a test as clicking another request in the list would.
+@MainActor
+@Observable
+private final class SelectionHolder {
+    var selection = ContentSelection()
+}
+
+private struct DetailHost: View {
+    let holder: SelectionHolder
+    var body: some View { ContentDetailView(selection: holder.selection, onRestore: { _ in }) }
+}
+
+@MainActor
+final class ContentDetailViewTests: XCTestCase {
+    private let size = CGSize(width: 1000, height: 700)
+
+    private func form(_ name: String, _ body: String, in folder: Folder, _ container: ModelContainer) -> APIRequest {
+        let request = APIRequest(name: name, url: "https://h/\(name)", method: .post, folder: folder)
+        container.mainContext.insert(request)
+        request.bodyType = .urlEncoded
+        request.bodyContent = body
+        return request
+    }
+
+    private func fieldValues(in hosting: NSView) -> [String] { ViewHosting.elements(in: hosting).filter { $0.role == .textField }.map(\.value) }
+
+    func testSelectingAnotherRequestShowsItsOwnFormFieldsNotThePreviousOnes() throws {
+        let (container, folder, _) = try EditorHosting.store()
+        let first = form("First", "alpha=one", in: folder, container)
+        let second = form("Second", "beta=two", in: folder, container)
+        let holder = SelectionHolder()
+        holder.selection.sidebar = .folder(folder.id)
+        holder.selection.request = first
+        let hosting = ViewHosting.host(DetailHost(holder: holder), size: size, container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(EditorHosting.press("Body, 1", in: hosting))
+        XCTAssertTrue(fieldValues(in: hosting).contains("alpha"), "\(fieldValues(in: hosting))")
+
+        holder.selection.request = second
+        ViewHosting.settle()
+        EditorHosting.press("Body, 1", in: hosting)
+        let fields = fieldValues(in: hosting)
+        XCTAssertTrue(fields.contains("beta") && fields.contains("two"), "\(fields)")
+        XCTAssertFalse(fields.contains("alpha") || fields.contains("one"), "The first request's fields are gone: \(fields)")
+        XCTAssertEqual(second.bodyContent, "beta=two")
+        XCTAssertEqual(first.bodyContent, "alpha=one")
+    }
+
+    func testSelectingAnotherRequestDoesNotShowThePreviousOnesSendResult() throws {
+        let (container, folder, first) = try EditorHosting.store()
+        // Nothing listens on port 1, so the send fails at once without leaving the machine.
+        first.url = "http://127.0.0.1:1/{{undefined}}"
+        let second = form("Second", "beta=two", in: folder, container)
+        let holder = SelectionHolder()
+        holder.selection.sidebar = .folder(folder.id)
+        holder.selection.request = first
+        let hosting = ViewHosting.host(DetailHost(holder: holder), size: size, container: container)
+        defer { ViewHosting.close(hosting) }
+        XCTAssertTrue(EditorHosting.press("Send", in: hosting))
+        XCTAssertTrue(EditorHosting.wait { ViewHosting.text(in: hosting).contains { $0.contains("{{undefined}}") && $0.contains("sent as written") } })
+
+        holder.selection.request = second
+        ViewHosting.settle()
+        let text = ViewHosting.text(in: hosting)
+        XCTAssertTrue(text.contains("Second"), "\(text)")
+        XCTAssertFalse(text.contains { $0.contains("sent as written") }, "The first request's notice isn't shown for the second: \(text)")
+        XCTAssertTrue(text.contains("Send a request to see the response here"), "\(text)")
     }
 }

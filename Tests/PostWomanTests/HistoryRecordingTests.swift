@@ -101,8 +101,23 @@ final class HistoryRecordingTests: XCTestCase {
         XCTAssertEqual(request.headers.map(\.value), ["{{key}}", "{{user}}"])
     }
 
+    func testABodyKeptUnderTheNoneTypeIsNotRecordedBecauseItWasNotSent() {
+        // The body type picker keeps the text; with None nothing is sent, and History is the record of what was sent.
+        let request = APIRequest(name: "Post", url: "https://x", method: .post)
+        context.insert(request)
+        request.bodyContent = #"{"a":1}"#
+        request.bodyType = .none
+        let entry = RequestHistory(request: request)
+        XCTAssertNil(entry.requestBody)
+        XCTAssertEqual(entry.bodyType, ContentType.none)
+        XCTAssertNil(RequestTab.body.badge(for: request), "The editor's Body tab doesn't count it either")
+        request.bodyType = .json
+        XCTAssertEqual(RequestHistory(request: request).requestBody, #"{"a":1}"#)
+        XCTAssertEqual(RequestTab.body.badge(for: request), 1)
+    }
+
     func testAnEmptyBodyIsRecordedAsNoBody() {
-        let request = APIRequest(name: "Get", url: "https://x")
+        let request = APIRequest(name: "Post", url: "https://x", method: .post)
         context.insert(request)
         request.bodyType = .json
         XCTAssertNil(RequestHistory(request: request).requestBody)

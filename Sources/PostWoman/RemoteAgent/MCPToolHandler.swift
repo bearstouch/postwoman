@@ -17,17 +17,30 @@ final class MCPToolHandler {
     /// The most stream events a response lists.
     static let maxStreamEvents = 500
 
+    /// How long a stream may keep arriving; tests shorten it.
+    var streamDeadline = MCPToolHandler.maxStreamSeconds
+
+    /// Whether the response being received turned out to be a stream (only a stream reports progress).
+    private final class StreamProgress {
+        var started = false
+    }
+
     private let container: ModelContainer
     private let client: HTTPClient
+    /// Where the History limit is read from.
+    private let defaults: UserDefaults
 
-    init(container: ModelContainer, client: HTTPClient = HTTPClient()) {
-        self.container = container; self.client = client
+    init(container: ModelContainer, client: HTTPClient = HTTPClient(), defaults: UserDefaults = .standard) {
+        self.container = container; self.client = client; self.defaults = defaults
     }
 
     private var context: ModelContext { container.mainContext }
 
     func call(_ name: String, _ arguments: [String: JSONValue]) async -> Result<JSONValue, MCPToolError> {
         guard let tool = MCPTools.byName[name] else { return .failure(.invalidParams("Unknown tool \(name).")) }
+        // The windows edit this same context and leave saving to autosave. Saving first makes a failed tool's rollback undo
+        // only what the tool did, not what the user typed a moment ago (and paging then sees every entry: `fetchOffset`).
+        if context.hasChanges { try? context.save() }
         do {
             let args = try Arguments(arguments, tool: tool)
             let value = try await run(tool.name, args)
@@ -55,7 +68,7 @@ final class MCPToolHandler {
             }
             return value
         case "collection_create":
-            let folder = Folder(name: try args.nonEmptyString("name")!, sortOrder: try args.int("sortOrder") ?? folders().count)
+            let folder = Folder(name: try args.nonEmptyString("name")!, sortOrder: try args.int("sortOrder") ?? Folder.nextSortOrder(after: folders()))
             context.insert(folder)
             folder.ensureDefaultEnvironment()
             return Self.summary(folder)
@@ -153,8 +166,18 @@ final class MCPToolHandler {
             entry.savedRequestID = try args.uuid("requestId")
             if let timestamp = try args.date("timestamp") { entry.timestamp = timestamp }
             try Self.apply(args, to: entry)
+            // Retention keeps the newest entries, so one older than all of a full History would be deleted at once.
+            let limit = HistoryRetention.limit(in: defaults)
+            var oldestKept = FetchDescriptor<RequestHistory>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            oldestKept.fetchOffset = limit - 1
+            oldestKept.fetchLimit = 1
+            if let oldest = try context.fetch(oldestKept).first, entry.timestamp <= oldest.timestamp {
+                throw MCPToolError(
+                    code: "NOT_ALLOWED",
+                    message: "History keeps the \(limit) most recent entries, and this one is older than all of them. Raise the limit in Settings → General to add it.")
+            }
             context.insert(entry)
-            HistoryRetention.trim(context)
+            HistoryRetention.trim(context, limit: limit)
             return Self.json(entry, maxBodyBytes: Self.defaultMaxBodyBytes)
         case "history_update":
             let entry = try history(args.uuid("id")!)
@@ -231,7 +254,7 @@ final class MCPToolHandler {
             history.record(response)
             if record {
                 context.insert(history)
-                HistoryRetention.trim(context)
+                HistoryRetention.trim(context, limit: HistoryRetention.limit(in: defaults))
             }
             var result: [String: JSONValue] = [
                 "response": Self.json(response, maxBodyBytes: maxBody), "resolvedUrl": .string(recorded.url),
@@ -243,21 +266,26 @@ final class MCPToolHandler {
             history.record(error)
             if record {
                 context.insert(history)
-                HistoryRetention.trim(context)
-                try? context.save()
+                HistoryRetention.trim(context, limit: HistoryRetention.limit(in: defaults))
             }
+            // Saved before the rollback that follows this error: the History entry, and whatever the user did during the send.
+            try? context.save()
             throw MCPToolError(
                 code: "REQUEST_FAILED", message: error.localizedDescription,
                 details: record ? .object(["historyId": .string(history.id.uuidString)]) : nil)
         }
     }
 
-    /// Sends `request`, stopping a stream still arriving after `maxStreamSeconds` (it returns what came, `end: stopped`).
+    /// Sends `request`, stopping a stream still arriving after `streamDeadline` (it returns what came, `end: stopped`).
+    /// Any other response has as long as the timeout chosen in Settings allows, and at most its upper bound in all.
     private func executeWithDeadline(_ request: RequestSnapshot) async throws -> HTTPResponse {
         let client = self.client
-        let work = Task { @MainActor in try await client.execute(request: request) }
-        let deadline = Task {
-            try await Task.sleep(for: .seconds(Self.maxStreamSeconds))
+        let progress = StreamProgress()
+        let work = Task { @MainActor in try await client.execute(request: request) { _ in progress.started = true } }
+        let streamDeadline = streamDeadline
+        let deadline = Task { @MainActor in
+            try await Task.sleep(for: .seconds(streamDeadline))
+            if !progress.started { try await Task.sleep(for: .seconds(max(RequestTimeout.range.upperBound - streamDeadline, 0))) }
             work.cancel()
         }
         defer { deadline.cancel() }
@@ -333,7 +361,8 @@ final class MCPToolHandler {
     /// The variables an agent passed, keeping the saved value of a secret it sent without one (secrets are write-only).
     private static func merge(_ incoming: [Arguments.VariableInput], into existing: [Variable]) -> [Variable] {
         incoming.map { input in
-            let saved = existing.first { $0.key == input.key }
+            // Keys arrive trimmed, and the app stores them as typed (it resolves them trimmed too).
+            let saved = existing.first { $0.key.trimmingCharacters(in: .whitespaces) == input.key }
             let isSecret = input.isSecret ?? saved?.isSecret ?? false
             let value = input.value ?? (isSecret ? saved?.value : nil) ?? ""
             return Variable(key: input.key, value: value, isEnabled: input.isEnabled, isSecret: isSecret)
@@ -402,7 +431,8 @@ final class MCPToolHandler {
         }
         if let message = try args.string("errorMessage") {
             entry.errorMessage = message.isEmpty ? nil : message
-            if !message.isEmpty { entry.wasSuccessful = false }
+            // With the error cleared, success is again what the status says.
+            entry.wasSuccessful = message.isEmpty && entry.statusCode.map { (200..<300).contains($0) } ?? false
         }
     }
 
@@ -597,9 +627,12 @@ struct Arguments {
         return flag
     }
 
+    static let maxMilliseconds: Double = 86_400_000
+
     func double(_ name: String) throws -> Double? {
         guard let value = value(name) else { return nil }
-        guard case .number(let number) = value, number.isFinite, number >= 0 else { throw invalid(name, "a number of 0 or more") }
+        // Bounded (a day, for the one use: a response time in ms): a huge value rounds to infinity, which no JSON reply can hold.
+        guard case .number(let number) = value, number.isFinite, number >= 0, number <= Self.maxMilliseconds else { throw invalid(name, "a number from 0 to 86400000") }
         return number
     }
 

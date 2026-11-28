@@ -642,6 +642,29 @@ final class HistoryDetailViewTests: XCTestCase {
         XCTAssertFalse(host.text.contains { $0.contains("hunter22") })
     }
 
+    func testALiteralBearerTokenIsMaskedLikeThePassword() throws {
+        let fixture = try SidebarFixture()
+        let entry = fixture.serverError
+        entry.authenticationType = .bearer
+        entry.authBearerToken = "sk-live-123456"
+        let host = host(entry, fixture)
+        defer { host.close() }
+        host.press(try XCTUnwrap(host.buttons.first { $0.label.hasPrefix("Auth") }))
+        XCTAssertTrue(host.text.contains("Token"))
+        XCTAssertTrue(host.text.contains("••••••••••••••"), "One dot per character, as the editor's secure field hides it")
+        XCTAssertFalse(host.text.contains { $0.contains("sk-live") }, "\(host.text)")
+    }
+
+    func testCredentialsWrittenAsVariablesStayReadableBecauseTheyHoldNoSecret() {
+        XCTAssertEqual(HistoryDetailView.masked("{{token}}"), "{{token}}")
+        XCTAssertEqual(HistoryDetailView.masked(" {{ api key }} "), " {{ api key }} ")
+        XCTAssertEqual(HistoryDetailView.masked("{{a}}{{b}}"), "{{a}}{{b}}")
+        XCTAssertEqual(HistoryDetailView.masked("abc"), "•••")
+        XCTAssertEqual(HistoryDetailView.masked("live-{{suffix}}"), "•••••••••••••••", "Literal text beside a variable is still a secret")
+        XCTAssertEqual(HistoryDetailView.masked("{{}}"), "••••")
+        XCTAssertEqual(HistoryDetailView.masked(""), "")
+    }
+
     func testEmptyTabsSaySo() throws {
         let fixture = try SidebarFixture()
         let host = host(fixture.success, fixture)
@@ -674,8 +697,29 @@ final class ContentViewTests: XCTestCase {
 
     func testHistoryHasNoCurrentCollection() throws {
         let fixture = try SidebarFixture()
-        let selection = ContentSelection(sidebar: .history, request: fixture.listOrders)
+        let selection = ContentSelection(sidebar: .history, request: fixture.listOrders, history: fixture.success)
         XCTAssertNil(selection.currentFolder(in: try fixture.folders()), "Even with a request still selected")
+        XCTAssertNil(ContentSelection(sidebar: .history).currentFolder(in: try fixture.folders()))
+    }
+
+    func testTheEnvironmentShownIsTheOneTheRequestOnScreenIsSentWith() throws {
+        // History with no entry chosen keeps showing the request editor, and Send resolves with its collection's environment.
+        let fixture = try SidebarFixture()
+        let folders = try fixture.folders()
+        let editing = ContentSelection(sidebar: .history, request: fixture.listOrders)
+        guard case .request(let shown) = editing.detail else { return XCTFail("The editor is shown") }
+        XCTAssertEqual(shown.id, fixture.listOrders.id)
+        XCTAssertEqual(editing.currentFolder(in: folders)?.id, fixture.shop.id, "Not \"No Environment\" over a request sent with one")
+
+        let reading = ContentSelection(sidebar: .history, request: fixture.listOrders, history: fixture.success)
+        guard case .history(let entry) = reading.detail else { return XCTFail("The History entry is shown") }
+        XCTAssertEqual(entry.id, fixture.success.id)
+        XCTAssertNil(reading.currentFolder(in: folders))
+
+        guard case .empty = ContentSelection(sidebar: .history).detail else { return XCTFail("Nothing to show") }
+        guard case .request = ContentSelection(sidebar: .folder(fixture.shop.id), request: fixture.listOrders, history: fixture.success).detail else {
+            return XCTFail("An entry chosen earlier doesn't hide the editor outside History")
+        }
     }
 
     func testTheEditedRequestsCollectionComesBeforeTheSelectedOne() throws {
@@ -705,6 +749,18 @@ final class ContentViewTests: XCTestCase {
     }
 
     // MARK: New Folder, New Request, Open as Request
+
+    func testANewCollectionGoesAfterTheLastOneEvenAfterDeletions() throws {
+        // Counting the collections put it above, or level with, one that was already there.
+        let fixture = try SidebarFixture()
+        let last = try XCTUnwrap(try fixture.folders().last)
+        last.sortOrder = 5
+        var selection = ContentSelection()
+        let created = selection.createFolder(in: try fixture.folders(), context: fixture.context)
+        XCTAssertEqual(created.sortOrder, 6)
+        XCTAssertEqual(try fixture.folders().last?.id, created.id, "Listed at the end")
+        XCTAssertEqual(Folder.nextSortOrder(after: []), 0)
+    }
 
     func testNewFolderAddsASelectedCollectionWithItsDefaultEnvironment() throws {
         let fixture = try SidebarFixture()
@@ -842,6 +898,42 @@ final class ContentViewTests: XCTestCase {
     private func post(_ name: Notification.Name, _ userInfo: [AnyHashable: Any]? = nil) {
         NotificationCenter.default.post(name: name, object: nil, userInfo: userInfo)
         ViewHosting.settle(0.1)
+    }
+
+    func testAMenuCommandActsInTheFrontWindowOnlyNotInEveryOpenOne() throws {
+        let fixture = try SidebarFixture()
+        let back = host(fixture)
+        defer { back.close() }
+        let front = host(fixture)
+        defer { front.close() }
+        let requests = try fixture.context.fetchCount(FetchDescriptor<APIRequest>())
+        let folders = try fixture.context.fetchCount(FetchDescriptor<Folder>())
+        post(.createNewRequest)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<APIRequest>()), requests + 1, "One New Request, not one per window")
+        post(.createNewFolder)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Folder>()), folders + 1)
+
+        // With the front window gone, the one behind it is the target.
+        front.close()
+        post(.createNewRequest)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<APIRequest>()), requests + 2)
+    }
+
+    func testTheCommandTargetIsTheFrontmostContentWindow() {
+        let a = NSWindow(), b = NSWindow(), settings = NSWindow()
+        let content = [a, b]
+        func target(_ ordered: [NSWindow]) -> NSWindow? { CommandTarget.frontmost(of: ordered) { window in content.contains { $0 === window } } }
+        XCTAssertTrue(target([b, a]) === b)
+        XCTAssertTrue(target([settings, a, b]) === a, "A sheet or the Settings window in front doesn't take the command")
+        XCTAssertNil(target([settings]))
+        XCTAssertTrue(CommandTarget.accepts(nil), "A view outside a window (or outside a main window, as in tests) handles its commands")
+        XCTAssertTrue(CommandTarget.accepts(settings), "So does one in a window that isn't a main window")
+        let holder = CommandWindow()
+        XCTAssertTrue(holder.acceptsCommands)
+        holder.window = settings
+        XCTAssertTrue(holder.acceptsCommands)
+        holder.window = nil
+        XCTAssertFalse(holder.acceptsCommands, "A view whose window closed no longer acts on commands")
     }
 
     func testOpensOnHistoryWithTheCollectionsListed() throws {

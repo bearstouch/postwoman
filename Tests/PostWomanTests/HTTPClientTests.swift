@@ -152,6 +152,94 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertEqual(received.request.value(forHTTPHeaderField: "X-Dup"), "second")
     }
 
+    func testAResponseInAnotherCharsetIsDecodedWithIt() async throws {
+        // "café" in ISO-8859-1: not valid UTF-8, so it used to be reported as a body that can't be shown.
+        RecordingStubProtocol.serve(.init(headers: ["Content-Type": "text/html; charset=ISO-8859-1"], chunks: [Data([0x63, 0x61, 0x66, 0xE9])]))
+        let latin = try await makeClient().execute(request: makeRequest())
+        XCTAssertEqual(latin.body, "café")
+        XCTAssertEqual(latin.bodySize, 4)
+
+        RecordingStubProtocol.serve(.init(headers: ["Content-Type": "application/json; charset=utf-16"], chunks: [try XCTUnwrap(#"{"a":"é"}"#.data(using: .utf16))]))
+        let wide = try await makeClient().execute(request: makeRequest())
+        XCTAssertEqual(wide.body, #"{"a":"é"}"#)
+    }
+
+    func testResponseTextFollowsTheDeclaredCharsetThenUTF8ThenLatin1ForText() {
+        let cafe = Data([0x63, 0x61, 0x66, 0xE9])
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "iso-8859-1", contentType: "text/plain; charset=iso-8859-1"), "café")
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "windows-1252", contentType: "text/csv"), "café")
+        XCTAssertEqual(HTTPClient.text(cafe, charset: nil, contentType: "text/plain"), "café", "Text with no charset that isn't UTF-8 is read as Latin-1")
+        XCTAssertEqual(HTTPClient.text(Data("café 💅".utf8), charset: nil, contentType: "text/plain"), "café 💅", "UTF-8 comes first")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "utf-8", contentType: "application/json; charset=utf-8"), "café")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "no-such-charset", contentType: "application/json"), "café", "An unknown charset falls back to UTF-8")
+        XCTAssertNil(HTTPClient.text(Data([0x89, 0x50, 0x4E, 0x47, 0xFF, 0xFE]), charset: nil, contentType: "image/png"), "Bytes that aren't text have no text")
+        XCTAssertNil(HTTPClient.text(cafe, charset: nil, contentType: nil))
+        XCTAssertEqual(HTTPClient.text(Data(), charset: nil, contentType: nil), "")
+        // `charset="windows-1252"`: URLSession hands the name over with its quotes.
+        XCTAssertEqual(HTTPClient.text(cafe, charset: "\"windows-1252\"", contentType: "application/json; charset=\"windows-1252\""), "café")
+        XCTAssertEqual(HTTPClient.text(Data("café".utf8), charset: "\"\"", contentType: "application/json"), "café")
+    }
+
+    func testTheTimeoutChosenInSettingsIsUsed() async throws {
+        let suite = "HTTPClientRequestTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RecordingStubProtocol.self]
+        let client = HTTPClient(session: URLSession(configuration: configuration), defaults: defaults)
+        // Read at each send, so a change in Settings applies to the next request.
+        for (saved, expected) in [(nil, 30.0), (5.0, 5.0), (120.0, 120.0), (0.0, 30.0), (-3.0, 30.0), (0.2, 1.0), (1_000_000.0, 600.0)] as [(Double?, Double)] {
+            if let saved { defaults.set(saved, forKey: RequestTimeout.key) }
+            RecordingStubProtocol.serve(.init())
+            _ = try await client.execute(request: makeRequest())
+            XCTAssertEqual(RecordingStubProtocol.received.first?.request.timeoutInterval, expected, "\(String(describing: saved))")
+        }
+        defaults.set("soon", forKey: RequestTimeout.key)
+        XCTAssertEqual(RequestTimeout.seconds(in: defaults), 30, "A value that isn't a number is ignored")
+    }
+
+    func testEverySendGoesToTheServerInsteadOfTheLocalCache() async throws {
+        // A response with `Cache-Control: max-age` would otherwise be shown again, as if fresh, without a request.
+        let received = try await send(makeRequest())
+        XCTAssertEqual(received.request.cachePolicy, .reloadIgnoringLocalCacheData)
+    }
+
+    func testFormDataIsSentAsMultipartPartsWithTheirBoundary() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "a=1&b=x%20y"
+            })
+        let contentType = try XCTUnwrap(received.request.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="), contentType)
+        let boundary = String(contentType.dropFirst("multipart/form-data; boundary=".count))
+        XCTAssertFalse(boundary.isEmpty)
+        XCTAssertEqual(
+            String(decoding: received.body ?? Data(), as: UTF8.self),
+            "--\(boundary)\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\nx y\r\n--\(boundary)--\r\n")
+    }
+
+    func testFormDataWithNoNamedFieldSendsNoBody() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "&"
+            })
+        XCTAssertNil(received.request.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertTrue(received.body?.isEmpty ?? true)
+    }
+
+    func testFormDataWithItsOwnContentTypeIsSentAsWritten() async throws {
+        let received = try await send(
+            makeRequest(method: .post) {
+                $0.bodyType = .formData
+                $0.bodyContent = "--mine\r\n"
+                $0.headers = [KeyValuePair(key: "Content-Type", value: "multipart/form-data; boundary=mine")]
+            })
+        XCTAssertEqual(received.request.value(forHTTPHeaderField: "Content-Type"), "multipart/form-data; boundary=mine")
+        XCTAssertEqual(received.body, Data("--mine\r\n".utf8))
+    }
+
     func testUsesAThirtySecondTimeout() async throws {
         let received = try await send(makeRequest())
         XCTAssertEqual(received.request.timeoutInterval, 30)
@@ -159,8 +247,7 @@ final class HTTPClientRequestTests: XCTestCase {
 
     func testEachBodyTypeSendsItsContentType() async throws {
         let expected: [(ContentType, String)] = [
-            (.json, "application/json"), (.xml, "application/xml"), (.text, "text/plain"), (.urlEncoded, "application/x-www-form-urlencoded"),
-            (.formData, "multipart/form-data")
+            (.json, "application/json"), (.xml, "application/xml"), (.text, "text/plain"), (.urlEncoded, "application/x-www-form-urlencoded")
         ]
         for (type, mime) in expected {
             let received = try await send(
@@ -239,7 +326,7 @@ final class HTTPClientRequestTests: XCTestCase {
 
     func testIncompleteAuthenticationLeavesTheAuthorizationHeader() async throws {
         let cases: [(AuthenticationType, String?, String?, String?)] = [
-            (.bearer, nil, nil, nil), (.bearer, "", nil, nil), (.basic, nil, "ana", nil), (.basic, nil, nil, "secret"), (.oauth2, "tok", nil, nil), (.none, "tok", "a", "b")
+            (.bearer, nil, nil, nil), (.bearer, "", nil, nil), (.basic, "tok", nil, nil), (.oauth2, "tok", nil, nil), (.none, "tok", "a", "b")
         ]
         for (type, token, username, password) in cases {
             let received = try await send(

@@ -35,6 +35,19 @@ final class CLIRenderingTests: XCTestCase {
         XCTAssertEqual(result.stderr, "")
     }
 
+    func testNamesWithEmojiAreNeitherCutNorMisaligned() throws {
+        let result = try render(
+            list(
+                "collections",
+                [
+                    ["id": .string("C1"), "name": .string("API 💅"), "requestCount": .number(3)],
+                    ["id": .string("C2"), "name": .string("Cafe\u{301} x"), "requestCount": .number(1)],
+                    ["id": .string("C3"), "name": .string("👨‍👩‍👧 fam"), "requestCount": .number(2)]
+                ]), "collection", "list")
+        XCTAssertEqual(result.stdout, ["ID  NAME    REQUESTS", "C1  API 💅   3", "C2  Cafe\u{301} x  1", "C3  👨‍👩‍👧 fam   2"].joined(separator: "\n"))
+        XCTAssertFalse(result.stdout.contains("\u{FFFD}"), "No name is cut in the middle of a character")
+    }
+
     func testMissingCellsPrintAsADash() throws {
         let result = try render(list("collections", [["id": .string("C")]]), "collection", "list")
         XCTAssertEqual(result.stdout, "ID  NAME  REQUESTS\nC   -     -")

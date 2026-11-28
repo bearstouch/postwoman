@@ -163,7 +163,7 @@ enum CLICommands {
         Flag(name: "body-file", value: "PATH", help: "Read the body from a file, or - for standard input.") { args, value, input throws(CLIFailure) in
             args.fields["body"] = .string(try input.text(at: value))
         },
-        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data, urlencoded, xml or text (default json with a body).") {
+        Flag(name: "body-type", value: "TYPE", help: "none, json, form-data (fields as a=1&b=2, sent as multipart parts), urlencoded, xml or text (default json with a body).") {
             args, value, _ throws(CLIFailure) in
             guard bodyTypes.contains(value) else { throw .arguments("--body-type must be one of \(bodyTypes.joined(separator: ", ")).") }
             args.fields["bodyType"] = .string(value)
@@ -363,8 +363,15 @@ enum CLIArguments {
         var index = 0
         // Globals first, wherever they appear; everything else keeps its order.
         while index < arguments.count {
-            let argument = arguments[index]
+            var argument = arguments[index]
+            // `--server=URL`, as every command flag can be written.
+            var inline: String?
+            if let equals = argument.firstIndex(of: "="), ["--server", "--agent-token", "--agent-token-file"].contains(String(argument[..<equals])) {
+                inline = String(argument[argument.index(after: equals)...])
+                argument = String(argument[..<equals])
+            }
             func next() throws(CLIFailure) -> String {
+                if let inline { return inline }
                 index += 1
                 guard index < arguments.count else { throw .arguments("\(argument) needs a value.") }
                 return arguments[index]
@@ -372,7 +379,9 @@ enum CLIArguments {
             switch argument {
             case "--json": global.json = true
             case "--help", "-h": wantsHelp = true
-            case "--version": if words.isEmpty, rest.isEmpty { return .version }
+            case "--version":
+                if words.isEmpty, rest.isEmpty { return .version }
+                rest.append(argument)
             case "--server": global.server = try next()
             case "--agent-token": global.token = try next()
             case "--agent-token-file": global.tokenFile = try next()
@@ -385,7 +394,11 @@ enum CLIArguments {
             let topic = Array(words.dropFirst()) + rest
             return .help(noun: topic.first, verb: topic.dropFirst().first)
         }
-        guard let noun = words.first else { return .help(noun: nil, verb: nil) }
+        guard let noun = words.first else {
+            // Not the overview with exit 0: a script with a misplaced or mistyped option must not look as if it had run.
+            if !wantsHelp, let stray = rest.first { throw .arguments("Unknown option \(stray) before the command. Options go after it: postwoman NOUN VERB [options].") }
+            return .help(noun: nil, verb: nil)
+        }
         if noun == "tools", words.count == 1 { words.append("list") }
         // `call TOOL`: the tool name is the second word.
         var positional: String?

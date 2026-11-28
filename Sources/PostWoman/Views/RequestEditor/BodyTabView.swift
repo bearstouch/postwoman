@@ -94,20 +94,17 @@ struct FormDataEditorView: View {
             )
         }
         .onAppear {
-            parseFormData()
+            formPairs = FormBody.pairs(from: bodyContent)
         }
         .onChange(of: formPairs) { _, newValue in
-            serializeFormData(newValue)
+            // Only an edit is written back: showing the fields must not respell (or, for a body of another type chosen by
+            // mistake, replace) what is stored.
+            if let body = FormBody.edited(newValue, from: bodyContent) { bodyContent = body }
         }
-    }
-
-    private func parseFormData() {
-        guard !bodyContent.isEmpty else { return }
-        formPairs = FormBody.pairs(from: bodyContent)
-    }
-
-    private func serializeFormData(_ pairs: [KeyValuePair]) {
-        bodyContent = FormBody.body(from: pairs)
+        .onChange(of: bodyContent) { _, newValue in
+            // Changed from outside (an agent's request_update): show it, instead of overwriting it on the next edit.
+            if FormBody.edited(formPairs, from: newValue) != nil { formPairs = FormBody.pairs(from: newValue) }
+        }
     }
 }
 
@@ -126,7 +123,7 @@ enum BodyEditing {
         }
     }
 
-    /// The note above the editor when the method doesn't send a body (HEAD) and a body type is chosen, or nil.
+    /// The note above the editor when the method doesn't send a body (GET, HEAD) and a body type is chosen, or nil.
     static func notice(method: HTTPMethod, bodyType: ContentType) -> String? {
         guard !method.sendsBody, bodyType != .none else { return nil }
         return "\(method.rawValue) requests are sent without a body. It is kept for when you choose another method."
@@ -150,21 +147,29 @@ enum BodyEditing {
 
 /// A form body (`a=1&b=2`) as editable fields and back.
 enum FormBody {
-    /// The fields of `body`, percent-decoded; a field without `=` has an empty value.
+    /// The fields of `body`, decoded (`+` is a space, then percent-encoding); a field without `=` has an empty value.
     static func pairs(from body: String) -> [KeyValuePair] {
-        body.split(separator: "&").compactMap { pair in
+        func decoded(_ text: Substring) -> String {
+            let spaced = text.replacingOccurrences(of: "+", with: " ")
+            return spaced.removingPercentEncoding ?? spaced
+        }
+        return body.split(separator: "&").compactMap { pair in
             let parts = pair.split(separator: "=", maxSplits: 1)
             guard let key = parts.first else { return nil }
-            let value = parts.count > 1 ? String(parts[1]) : ""
-            return KeyValuePair(
-                key: String(key).removingPercentEncoding ?? String(key),
-                value: value.removingPercentEncoding ?? value
-            )
+            return KeyValuePair(key: decoded(key), value: parts.count > 1 ? decoded(parts[1]) : "")
         }
     }
 
-    /// What a form name or value keeps unencoded: query characters other than the separators `&` and `=`, and `+` (a space).
-    private static let fieldAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))
+    /// The body to store for the editor's `pairs`, or nil when they say what `body` already says (however it is spelled),
+    /// so only an edit rewrites it.
+    static func edited(_ pairs: [KeyValuePair], from body: String) -> String? {
+        let new = Self.body(from: pairs)
+        return new == Self.body(from: Self.pairs(from: body)) ? nil : new
+    }
+
+    /// What a form name or value keeps unencoded: query characters other than the separators `&` and `=`, and `+` (a space);
+    /// and braces, so a `{{variable}}` typed in a field is still one when the request is resolved.
+    private static let fieldAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+")).union(CharacterSet(charactersIn: "{}"))
 
     /// The enabled, named fields, percent-encoded and joined with `&`.
     static func body(from pairs: [KeyValuePair]) -> String {

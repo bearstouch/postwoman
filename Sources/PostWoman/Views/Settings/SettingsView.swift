@@ -144,7 +144,7 @@ extension View {
 /// Request defaults and history retention.
 struct GeneralSettingsView: View {
     /// The default timeout in seconds for HTTP requests, persisted across app launches.
-    @AppStorage("defaultTimeout") private var defaultTimeout: Double = 30.0
+    @AppStorage(RequestTimeout.key) private var defaultTimeout: Double = RequestTimeout.defaultSeconds
     @AppStorage(HistoryRetention.limitKey) private var historyLimit = HistoryRetention.defaultLimit
     @Environment(\.modelContext) private var modelContext
     @Query private var history: [RequestHistory]

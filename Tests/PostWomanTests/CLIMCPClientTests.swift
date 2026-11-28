@@ -123,7 +123,7 @@ final class CLIMCPClientTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json, text/event-stream")
             XCTAssertEqual(request.value(forHTTPHeaderField: "MCP-Protocol-Version"), "2025-06-18")
-            XCTAssertEqual(request.timeoutInterval, 120, "Longer than request_execute's 30 s wait")
+            XCTAssertEqual(request.timeoutInterval, 660, "Longer than request_execute's wait, which is the app's timeout setting (at most 600 s)")
         }
         XCTAssertEqual(requests.last?.httpMethod, "DELETE")
         XCTAssertEqual(requests.last?.timeoutInterval, 5)

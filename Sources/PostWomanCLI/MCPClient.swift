@@ -191,8 +191,8 @@ final class MCPClient: Sendable {
         var message: [String: JSONValue] = ["jsonrpc": .string("2.0"), "method": .string(method)]
         if !notification { message["id"] = .number(1) }
         if let params { message["params"] = params }
-        // request_execute waits for the remote server (30 s), so allow more than that.
-        var request = URLRequest(url: connection.url, timeoutInterval: 120)
+        // request_execute waits for the remote server as long as the app's timeout setting allows (up to 600 s), so allow more.
+        var request = URLRequest(url: connection.url, timeoutInterval: 660)
         request.httpMethod = "POST"
         request.httpBody = Data(JSONValue.object(message).compact.utf8)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -228,7 +228,9 @@ final class MCPClient: Sendable {
 /// Finding the endpoint and token: flags, then environment variables, then each app's own files.
 enum ConnectionResolver {
     static func candidates(server: String?, token: String?, tokenFile: String?, environment: CLIEnvironment) throws(CLIFailure) -> [Connection] {
-        let explicitURL = try (server ?? environment.variable("POSTWOMAN_URL")).map { text throws(CLIFailure) in try url(text) }
+        // An empty POSTWOMAN_URL (exported blank by an env file) is no choice, like an empty POSTWOMAN_TOKEN; an empty --server is a mistake.
+        let fromEnvironment = environment.variable("POSTWOMAN_URL").flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        let explicitURL = try (server ?? fromEnvironment).map { text throws(CLIFailure) in try url(text) }
         let fallback = try url(MCPClient.defaultURL)
         // Any flag beats any environment variable: --agent-token, --agent-token-file, POSTWOMAN_TOKEN, POSTWOMAN_TOKEN_FILE.
         func read(_ path: String) throws(CLIFailure) -> String {
@@ -246,7 +248,11 @@ enum ConnectionResolver {
             return urls.map { Connection(url: $0, token: explicitToken) }
         }
         var result: [Connection] = []
-        for app in AppLocation.all(home: environment.home) {
+        // An app whose server is on goes first, one that says it is off last: every refused token counts towards the server's
+        // sign-in limit, so a leftover token from another build, tried first, would lock everyone out after a few commands.
+        let apps = AppLocation.all(home: environment.home).map { ($0, serverIsOn($0, environment)) }
+        for app in apps.filter({ $0.1 == true }) + apps.filter({ $0.1 == nil }) + apps.filter({ $0.1 == false }) {
+            let app = app.0
             guard let data = try? environment.readFile(app.tokenPath) else { continue }
             let token = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !token.isEmpty else { continue }
@@ -258,15 +264,30 @@ enum ConnectionResolver {
 
     /// The endpoint an app's saved Remote Agent settings point at (a wildcard bind as its loopback address).
     static func appURL(_ app: AppLocation, _ environment: CLIEnvironment) -> URL? {
-        guard let path = app.preferencesPath, let plist = try? environment.readFile(path),
-            let preferences = try? PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any],
-            let data = preferences["remoteAgent.settings"] as? Data, let settings = try? JSONDecoder().decode(JSONValue.self, from: data),
-            let port = settings["port"]?.number.flatMap({ Int(exactly: $0) }), (0...65535).contains(port)
-        else { return nil }
+        guard let settings = savedSettings(app, environment), let port = settings["port"]?.number.flatMap({ Int(exactly: $0) }), (0...65535).contains(port) else { return nil }
         var host = settings["bindAddress"]?.string ?? "127.0.0.1"
         if host == "0.0.0.0" { host = "127.0.0.1" }
         if host == "::" { host = "::1" }
         return URL(string: "http://\(host.contains(":") ? "[\(host)]" : host):\(port)/mcp")
+    }
+
+    /// Whether an app's saved settings turn its MCP server on. It is off until someone turns it on, so an app that has saved
+    /// nothing counts as off; nil when the CLI can't tell (`swift run` keeps its settings elsewhere, or the file is unreadable).
+    static func serverIsOn(_ app: AppLocation, _ environment: CLIEnvironment) -> Bool? {
+        guard let path = app.preferencesPath else { return nil }
+        guard let plist = try? environment.readFile(path) else { return false }
+        guard let preferences = try? PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any] else { return nil }
+        guard let stored = preferences["remoteAgent.settings"] else { return false }
+        guard let data = stored as? Data, let settings = try? JSONDecoder().decode(JSONValue.self, from: data) else { return nil }
+        return settings["mcpEnabled"] == .bool(true)
+    }
+
+    private static func savedSettings(_ app: AppLocation, _ environment: CLIEnvironment) -> JSONValue? {
+        guard let path = app.preferencesPath, let plist = try? environment.readFile(path),
+            let preferences = try? PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any],
+            let data = preferences["remoteAgent.settings"] as? Data
+        else { return nil }
+        return try? JSONDecoder().decode(JSONValue.self, from: data)
     }
 
     static func url(_ text: String) throws(CLIFailure) -> URL {

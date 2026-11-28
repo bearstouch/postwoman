@@ -19,7 +19,7 @@ struct CURLGenerator {
             parts.append("-N")
         }
 
-        // cURL defaults to GET, but switches to POST for -d, so a GET with a body is spelled out too. HEAD is -I:
+        // cURL defaults to GET, but switches to POST for a body, so a GET with a body is spelled out too. HEAD is -I:
         // with -X HEAD, curl waits for a body that never comes.
         let hasBody = request.sendsBody
         if request.method == .head {
@@ -30,30 +30,39 @@ struct CURLGenerator {
 
         parts.append(quoted(urlWithParams(request)))
 
-        // Add HTTP headers
-        for header in request.headers where header.isEnabled && !header.key.isEmpty {
-            parts.append("-H " + quoted("\(header.key): \(header.value)"))
-        }
-
-        // Add authentication
+        // Authentication, as the app applies it: a bearer token or Basic credentials replace an Authorization header.
+        var authentication: String?
         switch request.authenticationType {
         case .bearer:
-            if let token = request.authBearerToken, !token.isEmpty {
-                parts.append("-H " + quoted("Authorization: Bearer \(token)"))
-            }
+            if let token = request.authBearerToken, !token.isEmpty { authentication = "-H " + quoted("Authorization: Bearer \(token)") }
         case .basic:
-            if let username = request.authBasicUsername,
-                let password = request.authBasicPassword
-            {
-                parts.append("-u " + quoted("\(username):\(password)"))
+            if let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword) {
+                authentication = "-u " + quoted("\(username):\(password)")
             }
         default:
             break
         }
 
+        // The app sends each header name once, with its last value; curl would send every -H line, and with a written
+        // Authorization header would ignore -u.
+        let enabledHeaders = request.headers.filter { $0.isEnabled && !$0.key.isEmpty }
+        for (index, header) in enabledHeaders.enumerated() {
+            let name = header.key.lowercased()
+            if enabledHeaders[(index + 1)...].contains(where: { $0.key.lowercased() == name }) { continue }
+            if authentication != nil, name == "authorization" { continue }
+            // `Name;` is curl's spelling of a header with an empty value; `Name:` would send none, or remove curl's own.
+            parts.append("-H " + quoted(header.value.isEmpty ? "\(header.key);" : "\(header.key): \(header.value)"))
+        }
+        if let authentication { parts.append(authentication) }
+
         // Add request body if present
-        if hasBody {
-            parts.append("-d " + quoted(request.bodyContent))
+        if hasBody, let fields = MultipartForm.fields(of: request) {
+            // --form-string, not -F: a value starting with @ or < is sent as written, not read from a file. curl adds the
+            // multipart Content-Type and its boundary.
+            for field in fields { parts.append("--form-string " + quoted("\(field.key)=\(field.value)")) }
+        } else if hasBody {
+            // --data-raw, not -d: with -d a body that starts with @ names a file to upload.
+            parts.append("--data-raw " + quoted(request.bodyContent))
 
             // Add Content-Type header if not already specified
             if request.headers.first(where: { $0.key.lowercased() == "content-type" && $0.isEnabled }) == nil,

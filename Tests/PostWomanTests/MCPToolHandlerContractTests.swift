@@ -121,6 +121,133 @@ final class MCPToolHandlerContractTests: XCTestCase {
 
     // MARK: - Invalid params
 
+    func testACollectionCreatedByAnAgentGoesAfterTheLastOneEvenAfterDeletions() async throws {
+        let first = try await call("collection_create", ["name": .string("A")])
+        _ = try await call("collection_create", ["name": .string("B")])
+        let third = try await call("collection_create", ["name": .string("C")])
+        _ = try await call("collection_delete", ["id": id(first)])
+        let fourth = try await call("collection_create", ["name": .string("D")])
+        let order = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<Folder>()).map { ($0.id, $0.sortOrder) })
+        XCTAssertGreaterThan(try XCTUnwrap(order[try XCTUnwrap(uuid(id(fourth)))]), try XCTUnwrap(order[try XCTUnwrap(uuid(id(third)))]), "Not level with C")
+    }
+
+    // MARK: History fields
+
+    func testAnAbsurdResponseTimeIsRefusedInsteadOfStoredAsAnEntryThatCannotBeRead() async throws {
+        // 1e308 ms rounds to infinity in the reply, which JSON can't hold: the entry was saved and every later read of it failed.
+        let error = await failure("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200), "timeMs": .number(1e308)])])
+        XCTAssertEqual(error?.code, "INVALID_PARAMS")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<RequestHistory>()), 0)
+        let day = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200), "timeMs": .number(86_400_000)])])
+        XCTAssertEqual(day["response"]?["timeMs"], .number(86_400_000))
+        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: day.data))
+    }
+
+    func testClearingAnErrorMessageMakesA2xxEntrySuccessfulAgain() async throws {
+        let entry = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(200)])])
+        XCTAssertEqual(entry["wasSuccessful"], .bool(true))
+        let failed = try await call("history_update", ["id": id(entry), "errorMessage": .string("flaky")])
+        XCTAssertEqual(failed["wasSuccessful"], .bool(false))
+        let cleared = try await call("history_update", ["id": id(entry), "errorMessage": .string("")])
+        XCTAssertEqual(cleared["errorMessage"], .null)
+        XCTAssertEqual(cleared["wasSuccessful"], .bool(true), "A 200 with no error is a success")
+
+        let notFound = try await call("history_create", ["url": .string("https://a.test"), "response": .object(["status": .number(404)])])
+        let stillFailed = try await call("history_update", ["id": id(notFound), "errorMessage": .string("")])
+        XCTAssertEqual(stillFailed["wasSuccessful"], .bool(false), "Clearing the message doesn't make a 404 a success")
+    }
+
+    // MARK: History retention
+
+    func testAnEntryOlderThanEverythingKeptIsRefusedInsteadOfReportedAsCreated() async throws {
+        let suite = "MCPToolHandlerContractTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(2, forKey: HistoryRetention.limitKey)
+        handler = MCPToolHandler(container: container, defaults: defaults)
+
+        let first = try await call("history_create", ["url": .string("https://a.test/1")])
+        let second = try await call("history_create", ["url": .string("https://a.test/2")])
+        // History is full, and retention keeps the newest: this one would be deleted as soon as it was stored.
+        let old = await failure("history_create", ["url": .string("https://a.test/old"), "timestamp": .string("2000-01-01T00:00:00Z")])
+        XCTAssertEqual(old?.code, "NOT_ALLOWED")
+        XCTAssertEqual(old?.message, "History keeps the 2 most recent entries, and this one is older than all of them. Raise the limit in Settings → General to add it.")
+        let kept = Set(try context.fetch(FetchDescriptor<RequestHistory>()).map(\.id))
+        XCTAssertEqual(kept, Set([uuid(id(first)), uuid(id(second))].compactMap { $0 }), "The entries that were there stay")
+
+        // A newer entry still replaces the oldest.
+        let newer = try await call("history_create", ["url": .string("https://a.test/3")])
+        _ = try await call("history_get", ["id": id(newer)])
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<RequestHistory>()), 2)
+    }
+
+    // MARK: The user's unsaved work
+
+    func testAFailedToolCallKeepsTheUsersUnsavedWork() async throws {
+        // As the windows do: inserted and edited on the main context, saved later by autosave.
+        let folder = Folder(name: "Typed by the user")
+        context.insert(folder)
+        let request = APIRequest(name: "Draft", url: "https://draft.test")
+        context.insert(request)
+        request.folder = folder
+
+        let missing = await failure("request_get", ["id": .string(UUID().uuidString)])
+        XCTAssertEqual(missing?.code, "NOT_FOUND")
+        let invalid = await failure("collection_create", [:])
+        XCTAssertEqual(invalid?.code, "INVALID_PARAMS")
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed by the user"], "A tool's rollback undoes only what the tool did")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<APIRequest>()).map(\.url), ["https://draft.test"])
+    }
+
+    func testAFailedToolCallStillUndoesItsOwnChanges() async throws {
+        let fixture = try await fixture()
+        let folders = try context.fetchCount(FetchDescriptor<Folder>())
+        let error = await failure("request_update", ["id": id(fixture.request), "name": .string("Renamed"), "method": .string("NOPE")])
+        XCTAssertEqual(error?.code, "INVALID_PARAMS")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Folder>()), folders)
+        let unchanged = try await call("request_get", ["id": id(fixture.request)])
+        XCTAssertEqual(text(unchanged["name"]), text(fixture.request["name"]))
+    }
+
+    /// A target that answers after `delay` seconds.
+    private func slowServer(_ delay: TimeInterval) throws -> (MCPListener, UInt16) {
+        let listener = MCPListener { _ in
+            try? await Task.sleep(for: .seconds(delay))
+            return .json(200, JSONValue.object(["ok": .bool(true)]).data)
+        }
+        return (listener, try listener.start(address: "127.0.0.1", port: 0))
+    }
+
+    func testAFailedSendKeepsWhatTheUserDidWhileItWasOnItsWay() async throws {
+        let suite = "MCPToolHandlerContractTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(1.0, forKey: RequestTimeout.key)
+        let (listener, port) = try slowServer(2)
+        defer { listener.stop() }
+        handler = MCPToolHandler(container: container, client: HTTPClient(session: URLSession(configuration: .ephemeral), defaults: defaults), defaults: defaults)
+        let handler = try XCTUnwrap(handler)
+        // The request times out after a second; without History nothing else saves.
+        let send = Task { @MainActor in
+            await handler.call("request_execute", ["request": .object(["url": .string("http://127.0.0.1:\(port)/")]), "recordHistory": .bool(false)])
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        context.insert(Folder(name: "Typed during the send"))
+        guard case .failure(let error) = await send.value else { return XCTFail("The request times out") }
+        XCTAssertEqual(error.code, "REQUEST_FAILED")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Folder>()).map(\.name), ["Typed during the send"])
+    }
+
+    func testAnAnswerSlowerThanTheStreamLimitIsStillReturnedWhenItIsNotAStream() async throws {
+        // Only a stream is cut off after the limit (90 s in the app); anything else has as long as the timeout setting allows.
+        let (listener, port) = try slowServer(1)
+        defer { listener.stop() }
+        handler.streamDeadline = 0.2
+        let result = try await call("request_execute", ["request": .object(["url": .string("http://127.0.0.1:\(port)/")]), "recordHistory": .bool(false)])
+        XCTAssertEqual(result["response"]?["status"], .number(200))
+    }
+
     func testAnUnknownToolIsInvalidParams() async {
         let error = await failure("collection_drop")
         XCTAssertEqual(error?.code, "INVALID_PARAMS")
@@ -482,6 +609,26 @@ final class MCPToolHandlerContractTests: XCTestCase {
             + (entry.queryParams ?? []).map(\.value)
         XCTAssertFalse(recorded.contains { $0.contains(secret) }, "\(recorded)")
         XCTAssertTrue(entry.requestHeaders.contains { $0.value == "{{authHeader}}" || $0.value == "Bearer {{apiKey}}" })
+    }
+
+    func testASecretWhoseKeyWasTypedWithASpaceKeepsItsValueWhenSentBackWithoutOne() async throws {
+        let collection = try await call("collection_create", ["name": .string("C")])
+        let folder = try XCTUnwrap(try context.fetch(FetchDescriptor<Folder>()).first)
+        let defaults = try XCTUnwrap(folder.defaultEnvironment)
+        // As typed in the app, which stores the key as written and resolves it trimmed.
+        defaults.variables = [Variable(key: "apiKey ", value: "sk-SAVED", isSecret: true)]
+        try context.save()
+        XCTAssertNotNil(uuid(id(collection)))
+
+        let updated = try await call(
+            "environment_update",
+            [
+                "id": .string(defaults.id.uuidString),
+                "variables": .array([.object(["key": .string("apiKey "), "secret": .bool(true)]), .object(["key": .string("new"), "value": .string("x")])])
+            ])
+        XCTAssertEqual(list(updated["variables"]).first?["valueSet"], .bool(true))
+        XCTAssertEqual(defaults.variables.first?.value, "sk-SAVED", "A secret sent back without a value keeps the saved one")
+        XCTAssertEqual(defaults.variables.first?.isSecret, true)
     }
 
     func testSecretValuesReadAsNullAndUnmarkingWithoutAValueClearsThem() async throws {

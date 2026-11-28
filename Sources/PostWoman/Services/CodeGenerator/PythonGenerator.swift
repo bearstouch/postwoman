@@ -21,11 +21,14 @@ struct PythonGenerator {
 
         let enabledParams = request.queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
         if !enabledParams.isEmpty {
-            code += "params = {\n"
+            // A dict would keep only the last value of a repeated name (`id=1&id=2`), so those go as a list of pairs.
+            let repeats = Set(enabledParams.map(\.key)).count < enabledParams.count
+            code += repeats ? "params = [\n" : "params = {\n"
             for param in enabledParams {
-                code += "    \(PythonLiteral.string(param.key)): \(PythonLiteral.string(param.value)),\n"
+                let key = PythonLiteral.string(param.key), value = PythonLiteral.string(param.value)
+                code += repeats ? "    (\(key), \(value)),\n" : "    \(key): \(value),\n"
             }
-            code += "}\n\n"
+            code += repeats ? "]\n\n" : "}\n\n"
         }
 
         let enabledHeaders = request.headers.filter { $0.isEnabled && !$0.key.isEmpty }
@@ -35,9 +38,11 @@ struct PythonGenerator {
         // written with `data=`, and the Content-Type the app would send.
         let hasBody = request.sendsBody
         let jsonLiteral = hasBody && request.bodyType == .json ? PythonLiteral(json: request.bodyContent) : nil
-        let addsJSONContentType =
-            hasBody && request.bodyType == .json && jsonLiteral == nil && !enabledHeaders.contains { $0.key.lowercased() == "content-type" }
-        if addsJSONContentType { hasHeaders = true }
+        // requests writes the Content-Type itself for `json=` and for multipart `files=`, and none for a `data=` string, so
+        // that one gets the body type's, as the app sends it.
+        let sendsData = hasBody && jsonLiteral == nil && MultipartForm.fields(of: request) == nil
+        let addedContentType = sendsData && !enabledHeaders.contains { $0.key.lowercased() == "content-type" } ? request.bodyType.mimeType : nil
+        if addedContentType != nil { hasHeaders = true }
 
         if request.authenticationType == .bearer, let token = request.authBearerToken, !token.isEmpty {
             hasHeaders = true
@@ -49,8 +54,8 @@ struct PythonGenerator {
                 code += "    \(PythonLiteral.string(header.key)): \(PythonLiteral.string(header.value)),\n"
             }
 
-            if addsJSONContentType, let mimeType = ContentType.json.mimeType {
-                code += "    \"Content-Type\": \(PythonLiteral.string(mimeType)),\n"
+            if let addedContentType {
+                code += "    \"Content-Type\": \(PythonLiteral.string(addedContentType)),\n"
             }
 
             if request.authenticationType == .bearer,
@@ -64,15 +69,20 @@ struct PythonGenerator {
 
         var authParam = ""
         if request.authenticationType == .basic,
-            let username = request.authBasicUsername,
-            let password = request.authBasicPassword
+            let (username, password) = AuthenticationHandler.basicCredentials(username: request.authBasicUsername, password: request.authBasicPassword)
         {
             code += "auth = (\(PythonLiteral.string(username)), \(PythonLiteral.string(password)))\n\n"
             authParam = ", auth=auth"
         }
 
         var bodyParam = ""
-        if hasBody {
+        if hasBody, let fields = MultipartForm.fields(of: request) {
+            // `files=` makes requests send multipart/form-data with its own boundary; (None, value) is a field, not a file.
+            code += "files = [\n"
+            for field in fields { code += "    (\(PythonLiteral.string(field.key)), (None, \(PythonLiteral.string(field.value)))),\n" }
+            code += "]\n\n"
+            bodyParam = ", files=files"
+        } else if hasBody {
             if let jsonLiteral {
                 code += """
                     json_data = \(jsonLiteral.text)
@@ -139,6 +149,8 @@ struct PythonLiteral {
         guard let text = reader.value(indent: 0) else { return nil }
         reader.skipWhitespace()
         guard reader.isAtEnd else { return nil }
+        // `json=None` means "no body" to requests, so a body of `null` is sent as written instead.
+        guard text != "None" else { return nil }
         self.text = text
     }
 

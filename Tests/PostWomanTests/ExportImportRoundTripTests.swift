@@ -88,7 +88,13 @@ final class ExportImportRoundTripTests: XCTestCase {
         for (old, new) in zip(before, after) {
             XCTAssertNotEqual(new.id, old.id)
             XCTAssertIdentical(new.folder, imported)
-            XCTAssertEqual(RequestSnapshot(new), RequestSnapshot(old), old.name)
+            // Every field, with rows compared by what they say: each imported row has an ID of its own.
+            var expected = RequestSnapshot(old), actual = RequestSnapshot(new)
+            func rows(_ pairs: [KeyValuePair]) -> [String] { pairs.map { "\($0.key)=\($0.value) \($0.isEnabled)" } }
+            XCTAssertEqual(rows(actual.headers), rows(expected.headers), old.name)
+            XCTAssertEqual(rows(actual.queryParams), rows(expected.queryParams), old.name)
+            (expected.headers, expected.queryParams, actual.headers, actual.queryParams) = ([], [], [], [])
+            XCTAssertEqual(actual, expected, old.name)
             XCTAssertEqual(new.authOAuthConfig, old.authOAuthConfig, old.name)
         }
         XCTAssertEqual(after[2].authOAuthConfig, oauth)
@@ -168,6 +174,42 @@ final class ExportImportRoundTripTests: XCTestCase {
         XCTAssertNotNil(imported.defaultEnvironment, "An imported collection always has a Default")
         XCTAssertEqual(imported.overrideEnvironments, [])
         XCTAssertNil(imported.selectedEnvironmentID)
+    }
+
+    func testTheFirstOfTwoEnvironmentsWithTheSameNameStaysSelected() throws {
+        let folder = Folder(name: "Twins")
+        context.insert(folder)
+        folder.ensureDefaultEnvironment()
+        let first = folder.addEnvironment(named: "Staging", color: .orange, variables: [Variable(key: "host", value: "first.example.com")])
+        folder.addEnvironment(named: "Staging", color: .red, variables: [Variable(key: "host", value: "second.example.com")])
+        folder.selectedEnvironment = first
+        let imported = try ExportImportService.importFolder(from: try ExportImportService.exportFolder(folder), context: context, existingFolderCount: 1)
+        XCTAssertEqual(imported.selectedEnvironment?.variables.map(\.value), ["first.example.com"], "Requests resolve with the same environment as before")
+    }
+
+    func testImportedRowsGetIdentitiesOfTheirOwn() throws {
+        let original = makeFullCollection()
+        let data = try ExportImportService.exportFolder(original)
+        let first = try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 1)
+        let second = try ExportImportService.importFolder(from: data, context: context, existingFolderCount: 2)
+        func ids(_ folder: Folder) -> [UUID] {
+            (folder.environments ?? []).flatMap { $0.variables.map(\.id) } + (folder.requests ?? []).flatMap { $0.headers.map(\.id) + $0.queryParams.map(\.id) }
+        }
+        let all = ids(original) + ids(first) + ids(second)
+        XCTAssertFalse(ids(original).isEmpty)
+        XCTAssertEqual(Set(all).count, all.count, "No variable, header or parameter shares an ID with the source or with another import")
+    }
+
+    func testAFileThatRepeatsARowIDStillImportsDistinctRows() throws {
+        let id = UUID().uuidString
+        let file = """
+            {"version":"1.0","exportDate":"2026-01-01T00:00:00Z","folder":{"name":"Edited","requests":[],"environments":[{"name":"Default","isDefault":true,"color":"gray",
+            "variables":[{"id":"\(id)","key":"a","value":"1","isEnabled":true,"isSecret":false},{"id":"\(id)","key":"b","value":"2","isEnabled":true,"isSecret":false}]}]}}
+            """
+        let imported = try ExportImportService.importFolder(from: Data(file.utf8), context: context, existingFolderCount: 0)
+        let variables = try XCTUnwrap(imported.defaultEnvironment?.variables)
+        XCTAssertEqual(variables.map(\.key), ["a", "b"])
+        XCTAssertNotEqual(variables[0].id, variables[1].id, "Deleting one row in the editor must not delete the other")
     }
 
     func testAStaleSelectionIsNotExported() throws {

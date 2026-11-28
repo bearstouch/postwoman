@@ -21,7 +21,7 @@ final class CURLGeneratorTests: XCTestCase {
         XCTAssertTrue(lines.contains("-X POST"))
         XCTAssertTrue(lines.contains("-H 'Accept: application/json'"))
         XCTAssertTrue(lines.contains("-H 'Authorization: Bearer token'"))
-        XCTAssertTrue(lines.contains(#"-d '{"name":"it'\''s"}'"#))
+        XCTAssertTrue(lines.contains(#"--data-raw '{"name":"it'\''s"}'"#))
         XCTAssertTrue(lines.contains("-H 'Content-Type: application/json'"))
     }
 }

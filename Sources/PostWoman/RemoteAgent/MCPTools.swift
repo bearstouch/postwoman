@@ -133,7 +133,10 @@ enum MCPTools {
         "method": enumeration(methods, "HTTP method."),
         "headers": pairs("Request headers. Replaces the whole list."),
         "queryParams": pairs("Query parameters, added to the URL when sent. Replaces the whole list."),
-        "bodyType": enumeration(bodyTypes, "Body type; it sets Content-Type unless a header does. none sends no body."),
+        "bodyType": enumeration(
+            bodyTypes,
+            "Body type; it sets Content-Type unless a header does. none sends no body, and neither do GET and HEAD. form-data takes its fields as a=1&b=2 (percent-encoded) and sends them as multipart parts, unless a Content-Type header is set: then the body goes as written."
+        ),
         "body": string("Raw body text."),
         "auth": auth(oauth2: true)
     ]
@@ -149,7 +152,7 @@ enum MCPTools {
         "properties": .object([
             "status": integer("HTTP status code.", minimum: 0, maximum: 999), "headers": pairs("Response headers."), "body": string("Response body."),
             "contentType": string("Content-Type of the body."),
-            "timeMs": .object(["type": .string("number"), "minimum": .number(0), "description": .string("Response time in milliseconds.")])
+            "timeMs": .object(["type": .string("number"), "minimum": .number(0), "maximum": .number(86_400_000), "description": .string("Response time in milliseconds.")])
         ])
     ])
 

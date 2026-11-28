@@ -96,13 +96,18 @@ final class HTTPClient {
     /// The URLSession used for network requests.
     private let session: URLSession
 
+    /// Where the timeout chosen in Settings → General is read from, at each send.
+    private let defaults: UserDefaults
+
     /// Service for applying authentication to requests.
     private let authHandler = AuthenticationHandler()
 
     /// Creates a new HTTP client with the specified URLSession.
     /// - Parameter session: URLSession to use for requests (defaults to shared session)
-    init(session: URLSession = .shared) {
+    ///   - defaults: Where the timeout chosen in Settings is read from.
+    init(session: URLSession = .shared, defaults: UserDefaults = .standard) {
         self.session = session
+        self.defaults = defaults
     }
 
     /// How often `onProgress` hears about a stream, at most.
@@ -227,7 +232,9 @@ final class HTTPClient {
         // Configure the URL request. The timeout is the longest wait between packets, so long streams are fine.
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
-        urlRequest.timeoutInterval = 30
+        urlRequest.timeoutInterval = RequestTimeout.seconds(in: defaults)
+        // Send means ask the server: never answer from URLCache, which would show a cacheable response again as if fresh.
+        urlRequest.cachePolicy = .reloadIgnoringLocalCacheData
 
         // Apply headers
         for header in request.headers where header.isEnabled && !header.key.isEmpty {
@@ -244,7 +251,13 @@ final class HTTPClient {
         )
 
         // Set request body if present
-        if request.sendsBody {
+        if request.sendsBody, let fields = MultipartForm.fields(of: request) {
+            // No named field, nothing to send (as the generated cURL and Python do).
+            guard !fields.isEmpty else { return urlRequest }
+            let boundary = MultipartForm.makeBoundary()
+            urlRequest.httpBody = MultipartForm.body(fields, boundary: boundary)
+            urlRequest.setValue(MultipartForm.contentType(boundary: boundary), forHTTPHeaderField: "Content-Type")
+        } else if request.sendsBody {
             urlRequest.httpBody = request.bodyContent.data(using: .utf8)
 
             // Set Content-Type header if not already set
@@ -264,7 +277,8 @@ final class HTTPClient {
             statusCode: response.statusCode,
             headers: headers,
             // A stream can stop mid-character, so decode it leniently.
-            body: stream == nil ? String(data: data, encoding: .utf8) : String(decoding: data, as: UTF8.self),
+            body: stream == nil
+                ? Self.text(data, charset: response.textEncodingName, contentType: response.value(forHTTPHeaderField: "Content-Type")) : String(decoding: data, as: UTF8.self),
             responseTime: total,
             contentType: response.value(forHTTPHeaderField: "Content-Type"),
             cookies: ResponseCookie.parse(headerFields: headerFields, url: response.url ?? url),
@@ -272,6 +286,20 @@ final class HTTPClient {
             bodySize: data.count,
             stream: stream
         )
+    }
+
+    /// A response body as text: in the charset its Content-Type declares, else UTF-8, else, for `text/*`, Latin-1 (what such
+    /// a body is when it isn't UTF-8). Nil when the bytes aren't text (an image, say).
+    nonisolated static func text(_ data: Data, charset: String?, contentType: String?) -> String? {
+        if let charset = charset?.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")), !charset.isEmpty {
+            let encoding = CFStringConvertIANACharSetNameToEncoding(charset as CFString)
+            if encoding != kCFStringEncodingInvalidId, let text = String(data: data, encoding: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))) {
+                return text
+            }
+        }
+        if let text = String(data: data, encoding: .utf8) { return text }
+        guard contentType?.lowercased().hasPrefix("text/") == true else { return nil }
+        return String(data: data, encoding: .isoLatin1)
     }
 
     /// Parses HTTP response headers into KeyValuePair objects.

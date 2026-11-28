@@ -8,8 +8,10 @@ import Foundation
 enum RequestURL {
     /// `url` with every character a URL can't hold after its host percent-encoded (spaces, `{ } [ ] " < > \ ^ |`, non-ASCII),
     /// existing `%XX` escapes kept, and a `%` that starts no escape written as `%25`. The scheme and host are left as written,
-    /// so `[::1]` and international host names are untouched. A URL without `://` is returned unchanged.
+    /// so `[::1]` and international host names are untouched. Whitespace around the URL is dropped. A URL without `://` is otherwise returned unchanged.
     static func encoded(_ url: String) -> String {
+        // Whitespace around a URL is never meant (a pasted trailing space or newline).
+        let url = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let schemeEnd = url.range(of: "://") else { return url }
         let rest = url[schemeEnd.upperBound...]
         let authorityEnd = rest.firstIndex { "/?#".contains($0) } ?? rest.endIndex

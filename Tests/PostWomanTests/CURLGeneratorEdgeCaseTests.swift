@@ -49,12 +49,36 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testABodyStartingWithAnAtSignIsSentAsTextNotReadFromAFile() throws {
+        // `curl -d @name` uploads the file `name`; the app sends the characters.
+        for body in ["@/etc/hosts", "@channel hi", "@"] {
+            let request = post(body, type: .text)
+            XCTAssertTrue(parts(request).contains("--data-raw '\(body)'"), body)
+            XCTAssertFalse(parts(request).contains { $0.hasPrefix("-d ") || $0.hasPrefix("--data ") || $0.hasPrefix("--data-binary ") }, body)
+            XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-X", "POST", "https://api.example.com/items", "--data-raw", body, "-H", "Content-Type: text/plain"])
+        }
+    }
+
+    func testFormDataFieldsAreSentAsLiteralMultipartFields() throws {
+        let request = post("name=Ana%20Lu&file=@/etc/hosts&q=%3Cx&it's=1", type: .formData)
+        XCTAssertEqual(
+            parts(request),
+            [
+                "curl", "-X POST", "'https://api.example.com/items'", "--form-string 'name=Ana Lu'", "--form-string 'file=@/etc/hosts'", "--form-string 'q=<x'",
+                "--form-string 'it'\\''s=1'"
+            ], "No -d and no Content-Type: curl writes the multipart header with its boundary, and never reads a file for a value")
+        XCTAssertEqual(
+            try shellWords(CURLGenerator().generate(from: request)),
+            ["-X", "POST", "https://api.example.com/items", "--form-string", "name=Ana Lu", "--form-string", "file=@/etc/hosts", "--form-string", "q=<x", "--form-string", "it's=1"])
+    }
+
     func testGetWithABodySpellsOutTheMethodSoCurlDoesNotSendAPost() throws {
         let request = APIRequest(name: "g", url: "https://h", method: .get)
         request.bodyType = .text
         request.bodyContent = "x"
-        XCTAssertEqual(parts(request), ["curl", "-X GET", "'https://h'", "-d 'x'", "-H 'Content-Type: text/plain'"])
-        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["-X", "GET", "https://h", "-d", "x", "-H", "Content-Type: text/plain"])
+        // The app can't send a GET with a body, so the command leaves it out too: nothing turns the GET into a POST.
+        XCTAssertEqual(parts(request), ["curl", "'https://h'"])
+        XCTAssertEqual(try shellWords(CURLGenerator().generate(from: request)), ["https://h"])
     }
 
     func testGetWithoutAnEmittedBodyStillOmitsTheMethod() {
@@ -80,7 +104,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
             request.method = method
             XCTAssertEqual(
                 try shellWords(CURLGenerator().generate(from: request)),
-                ["-X", method.rawValue, "https://api.example.com/items", "-d", #"{"a":1}"#, "-H", "Content-Type: application/json"], method.rawValue)
+                ["-X", method.rawValue, "https://api.example.com/items", "--data-raw", #"{"a":1}"#, "-H", "Content-Type: application/json"], method.rawValue)
         }
     }
 
@@ -93,7 +117,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         XCTAssertEqual(
             parts(request),
             [
-                "curl", "-X POST", "'https://api.example.com/items?v=2'", "-H 'Accept: */*'", "-H 'X-Trace: 1'", "-H 'Authorization: Bearer t'", #"-d '{"a":1}'"#,
+                "curl", "-X POST", "'https://api.example.com/items?v=2'", "-H 'Accept: */*'", "-H 'X-Trace: 1'", "-H 'Authorization: Bearer t'", #"--data-raw '{"a":1}'"#,
                 "-H 'Content-Type: application/json'"
             ])
     }
@@ -101,7 +125,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     func testDisabledAndKeylessHeadersAreLeftOut() {
         let request = APIRequest(name: "h", url: "https://api.example.com")
         request.headers = [KeyValuePair(key: "Off", value: "1", isEnabled: false), KeyValuePair(key: "", value: "keyless"), KeyValuePair(key: "On", value: "")]
-        XCTAssertEqual(parts(request), ["curl", "'https://api.example.com'", "-H 'On: '"], "An enabled header with an empty value is still sent")
+        XCTAssertEqual(parts(request), ["curl", "'https://api.example.com'", "-H 'On;'"], "An enabled header with an empty value is still sent")
     }
 
     func testDisabledAndKeylessParamsLeaveTheURLWithoutAQuestionMark() {
@@ -169,9 +193,10 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testEachBodyTypeAddsItsContentType() {
-        for type in ContentType.allCases where type != .none {
+        // Form Data goes as --form-string fields (testFormDataFieldsAreSentAsLiteralMultipartFields).
+        for type in ContentType.allCases where type != .none && type != .formData {
             let lines = parts(post("x", type: type))
-            XCTAssertEqual(lines.suffix(2), ["-d 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
+            XCTAssertEqual(lines.suffix(2), ["--data-raw 'x'", "-H 'Content-Type: \(type.mimeType!)'"], type.rawValue)
         }
     }
 
@@ -191,7 +216,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
     }
 
     func testBodyQuotesAreClosedEscapedAndReopened() {
-        let cases = [("it's", #"-d 'it'\''s'"#), ("''", #"-d ''\'''\'''"#), ("'start", #"-d ''\''start'"#), ("end'", #"-d 'end'\'''"#)]
+        let cases = [("it's", #"--data-raw 'it'\''s'"#), ("''", #"--data-raw ''\'''\'''"#), ("'start", #"--data-raw ''\''start'"#), ("end'", #"--data-raw 'end'\'''"#)]
         for (body, expected) in cases {
             XCTAssertEqual(parts(post(body, type: .text))[3], expected, body)
         }
@@ -203,7 +228,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         ]
         for body in bodies {
             let words = try shellWords(CURLGenerator().generate(from: post(body, type: .text)))
-            XCTAssertEqual(words, ["-X", "POST", "https://api.example.com/items", "-d", body, "-H", "Content-Type: text/plain"], body)
+            XCTAssertEqual(words, ["-X", "POST", "https://api.example.com/items", "--data-raw", body, "-H", "Content-Type: text/plain"], body)
         }
     }
 
@@ -241,8 +266,42 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         }
     }
 
+    func testAHeaderWithAnEmptyValueIsStillSent() {
+        // The app sends `X-Empty:` with no value. For curl `-H 'X-Empty: '` means "don't send it" (and drops Accept or User-Agent).
+        let request = APIRequest(name: "h", url: "https://h")
+        request.headers = [KeyValuePair(key: "X-Empty", value: ""), KeyValuePair(key: "Accept", value: "")]
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'X-Empty;'", "-H 'Accept;'"])
+    }
+
+    func testARepeatedHeaderIsSentOnceWithItsLastValueAsTheAppSendsIt() {
+        let request = APIRequest(name: "h", url: "https://h")
+        request.headers = [
+            KeyValuePair(key: "X-A", value: "1"), KeyValuePair(key: "Accept", value: "*/*"), KeyValuePair(key: "x-a", value: "2"),
+            KeyValuePair(key: "X-A", value: "off", isEnabled: false)
+        ]
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-H 'x-a: 2'"])
+    }
+
+    func testTheChosenAuthenticationReplacesAnAuthorizationHeader() {
+        let request = APIRequest(name: "a", url: "https://h")
+        request.headers = [KeyValuePair(key: "authorization", value: "Custom x"), KeyValuePair(key: "Accept", value: "*/*")]
+        request.authenticationType = .basic
+        request.authBasicUsername = "user"
+        request.authBasicPassword = "pass"
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-u 'user:pass'"], "curl would send the header instead of -u")
+        request.authenticationType = .bearer
+        request.authBearerToken = "tok"
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'Accept: */*'", "-H 'Authorization: Bearer tok'"], "Not both Authorization lines")
+        // Authentication that sends nothing leaves the header, as in the app.
+        request.authBearerToken = ""
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'authorization: Custom x'", "-H 'Accept: */*'"])
+        request.authenticationType = .none
+        XCTAssertEqual(parts(request), ["curl", "'https://h'", "-H 'authorization: Custom x'", "-H 'Accept: */*'"])
+    }
+
     func testBasicAuthUsesDashUAndNeedsBothFields() {
-        let cases: [(String?, String?, String?)] = [("user", "pass", "-u 'user:pass'"), ("user", "", "-u 'user:'"), ("", "", "-u ':'"), ("user", nil, nil), (nil, "pass", nil)]
+        let cases: [(String?, String?, String?)] = [("user", "pass", "-u 'user:pass'"), ("user", "", "-u 'user:'"), ("", "", "-u ':'"), ("user", nil, "-u 'user:'"), (nil, "pass", "-u ':pass'"), (nil, nil, nil)]
+        // A field never typed in (nil) counts as empty; with neither there is nothing to send.
         for (username, password, expected) in cases {
             let request = APIRequest(name: "a", url: "https://h")
             request.authenticationType = .basic
@@ -273,7 +332,7 @@ final class CURLGeneratorEdgeCaseTests: XCTestCase {
         let lines = parts(request)
         XCTAssertEqual(lines[2], "'https://例え.jp/%E3%83%91%E3%82%B9'", "The path as the app sends it; the host is left for curl to convert")
         XCTAssertEqual(lines[3], "-H 'X-Name: Zoë'")
-        XCTAssertEqual(lines[4], "-d '{\"name\":\"Zoë 💅\"}'")
+        XCTAssertEqual(lines[4], "--data-raw '{\"name\":\"Zoë 💅\"}'")
     }
 
     func testGeneratingDoesNotChangeTheRequest() {

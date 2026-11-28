@@ -77,6 +77,15 @@ final class PythonGeneratorTests: XCTestCase {
             """)
     }
 
+    func testFormDataFieldsGoAsMultipartFields() throws {
+        let request = body("name=Ana%20Lu&q=%22x%22&name=again", .formData)
+        XCTAssertEqual(call(request), "response = requests.post(url, files=files)")
+        XCTAssertFalse(code(request).contains("Content-Type"), "requests writes the multipart header with its boundary")
+        let received = try XCTUnwrap(try pythonCall(code(request)))
+        XCTAssertEqual(received["files"] as? NSArray, [["name", [NSNull(), "Ana Lu"]], ["q", [NSNull(), "\"x\""]], ["name", [NSNull(), "again"]]] as NSArray)
+        XCTAssertNil(received["data"])
+    }
+
     func testMethodsAreLowercasedRequestsFunctions() {
         for method in HTTPMethod.allCases {
             let redirects = method == .head ? ", allow_redirects=True" : ""
@@ -142,6 +151,8 @@ final class PythonGeneratorTests: XCTestCase {
         XCTAssertTrue(lines(request).contains(#"auth = ("u\"1", "p\\2")"#))
         XCTAssertEqual(call(request), "response = requests.get(url, auth=auth)")
         request.authBasicPassword = nil
+        XCTAssertTrue(lines(request).contains(#"auth = ("u\"1", "")"#), "A password never typed is an empty one")
+        request.authBasicUsername = nil
         XCTAssertFalse(code(request).contains("auth"))
     }
 
@@ -180,11 +191,51 @@ final class PythonGeneratorTests: XCTestCase {
     }
 
     func testOtherBodiesAreTripleQuotedData() {
-        for type in ContentType.allCases where type != .none && type != .json {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             let request = body("a=1&b=2\nsecond", type)
             XCTAssertTrue(code(request).contains("data = \"\"\"a=1&b=2\nsecond\"\"\"\n"), type.rawValue)
-            XCTAssertEqual(call(request), "response = requests.post(url, data=data)", type.rawValue)
+            XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)", type.rawValue)
         }
+    }
+
+    func testAJSONBodyOfNullIsSentAsWrittenNotAsNoBody() throws {
+        // requests reads `json=None` as no body at all; the app sends the four characters with the JSON Content-Type.
+        for content in ["null", " null\n"] {
+            let request = body(content, .json)
+            XCTAssertEqual(call(request), "response = requests.post(url, headers=headers, data=data)", content)
+            let received = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual(received["data"] as? String, content)
+            XCTAssertEqual((received["headers"] as? [String: String])?["Content-Type"], "application/json")
+            XCTAssertNil(received["json"])
+        }
+        XCTAssertEqual(call(body("[null]", .json)), "response = requests.post(url, json=json_data)", "null inside a value is still None")
+    }
+
+    func testARepeatedParamIsSentEachTimeInOrder() throws {
+        // A dict keeps only the last value of a repeated key; the app sends ?id=1&tag=a&id=2.
+        let request = APIRequest(name: "q", url: "https://h")
+        request.queryParams = [KeyValuePair(key: "id", value: "1"), KeyValuePair(key: "tag", value: "a"), KeyValuePair(key: "id", value: "2")]
+        let output = lines(request)
+        let start = try XCTUnwrap(output.firstIndex(of: "params = ["))
+        XCTAssertEqual(Array(output[start...(start + 4)]), ["params = [", #"    ("id", "1"),"#, #"    ("tag", "a"),"#, #"    ("id", "2"),"#, "]"])
+        let captured = try XCTUnwrap(try pythonCall(code(request)))
+        XCTAssertEqual(captured["params"] as? [[String]], [["id", "1"], ["tag", "a"], ["id", "2"]])
+    }
+
+    func testTextBodiesCarryTheContentTypeTheAppSends() throws {
+        // requests sets no Content-Type for a str body, and the app always sends the body type's.
+        for type in [ContentType.xml, .text, .urlEncoded] {
+            let request = body("<a/>", type)
+            let received = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual((received["headers"] as? [String: String])?["Content-Type"], type.mimeType, type.rawValue)
+            request.headers = [KeyValuePair(key: "content-type", value: "application/vnd.custom")]
+            let own = try XCTUnwrap(try pythonCall(code(request)))
+            XCTAssertEqual(own["headers"] as? [String: String], ["content-type": "application/vnd.custom"], "The request's own Content-Type is the only one")
+        }
+        XCTAssertFalse(code(body("ignored", .none)).contains("Content-Type"))
+        let head = body("<a/>", .xml)
+        head.method = .head
+        XCTAssertFalse(code(head).contains("Content-Type"), "No body, no Content-Type")
     }
 
     func testNoBodyForTheNoneTypeOrEmptyContent() {
@@ -276,7 +327,7 @@ final class PythonGeneratorTests: XCTestCase {
             #"path C:\new\table \\ done"#, #"say """hi""" there"#, "ends with a quote\"", "\"starts with a quote", "crlf\r\nline\ttab\u{1}ctl \u{85}", "a=1&b=\\n2",
             "<x>\n  naïve 💅\n</x>\n"
         ]
-        for type in ContentType.allCases where type != .none && type != .json {
+        for type in ContentType.allCases where type != .none && type != .json && type != .formData {
             for content in contents {
                 let captured = try XCTUnwrap(try pythonCall(code(body(content, type))), "\(type.rawValue): \(content.debugDescription) should run")
                 XCTAssertEqual(captured["data"] as? String, content, type.rawValue)

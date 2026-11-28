@@ -38,6 +38,10 @@ final class Folder {
         return (orders.max() ?? -1) + 1
     }
 
+    /// Where a new collection goes: after the last of `folders`, so it never lands above or ties with another, even after
+    /// deletions (a count would).
+    static func nextSortOrder(after folders: [Folder]) -> Int { (folders.map(\.sortOrder).max() ?? -1) + 1 }
+
     /// The environment requests resolve `{{variables}}` with, on top of Default. Nil means Default only.
     var selectedEnvironmentID: UUID?
 

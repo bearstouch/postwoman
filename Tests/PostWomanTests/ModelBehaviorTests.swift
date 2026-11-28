@@ -20,12 +20,15 @@ final class ModelBehaviorTests: XCTestCase {
     }
 
     func testOnlyHeadLeavesTheBodyOut() {
-        XCTAssertEqual(HTTPMethod.allCases.filter { !$0.sendsBody }, [.head])
+        // GET as well: URLSession fails a GET that has a body before sending it.
+        XCTAssertEqual(HTTPMethod.allCases.filter { !$0.sendsBody }, [.get, .head])
         let request = APIRequest(name: "h", url: "https://h", method: .head)
         request.bodyType = .json
         request.bodyContent = #"{"a":1}"#
         XCTAssertFalse(request.sendsBody)
-        for method in [HTTPMethod.post, .patch, .options, .get] {
+        request.method = .get
+        XCTAssertFalse(request.sendsBody)
+        for method in [HTTPMethod.post, .put, .patch, .delete, .options] {
             request.method = method
             XCTAssertTrue(request.sendsBody, method.rawValue)
         }

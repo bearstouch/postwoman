@@ -8,12 +8,12 @@ enum RequestTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The count on the tab: active params or headers, 1 for a body (that the method sends) or an auth type, nil (no badge) when there is none.
+    /// The count on the tab: active params or headers, 1 for a body that is sent (a body type, text, and a method that sends one) or an auth type, nil (no badge) when there is none.
     func badge(for request: APIRequest) -> Int? {
         switch self {
         case .params: return request.queryParams.activeCount > 0 ? request.queryParams.activeCount : nil
         case .headers: return request.headers.activeCount > 0 ? request.headers.activeCount : nil
-        case .body: return request.bodyContent.isEmpty || !request.method.sendsBody ? nil : 1
+        case .body: return request.sendsBody ? 1 : nil
         case .auth: return request.authenticationType != .none ? 1 : nil
         }
     }

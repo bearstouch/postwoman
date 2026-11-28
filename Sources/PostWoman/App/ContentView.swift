@@ -24,6 +24,9 @@ struct ContentView: View {
         case folder(UUID)
     }
 
+    /// The window this view is in: menu commands are handled by the front window only.
+    @State private var commandWindow = CommandWindow()
+
     /// Controls the visibility of the NavigationSplitView columns.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -88,32 +91,27 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 300)
         } detail: {
             // Detail column showing request editor or empty state
-            Group {
-                if selection.sidebar == .history, let history = selection.history, !history.isDeleted {
-                    HistoryDetailView(history: history, onRestore: restore)
-                } else if let request = selection.request, !request.isDeleted {
-                    RequestEditorView(request: request)
-                } else {
-                    EmptyStateView()
+            ContentDetailView(selection: selection, onRestore: restore)
+                .overlay(alignment: .top) { HairlineDivider() }
+                .themedSplitDividers()
+                .frame(minWidth: 600, idealWidth: 600)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        EnvironmentMenu(folder: currentFolder)
+                    }
                 }
-            }
-            .overlay(alignment: .top) { HairlineDivider() }
-            .themedSplitDividers()
-            .frame(minWidth: 600, idealWidth: 600)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    EnvironmentMenu(folder: currentFolder)
-                }
-            }
         }
         .navigationSplitViewStyle(.balanced)
         // The window draws no titlebar separator; each pane's top hairline (above) takes its place.
         .background(ThemedWindowChrome())
+        .background(CommandWindowReader(holder: commandWindow, registers: true))
         .frame(minWidth: 1100, minHeight: 700)
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             createFolder()
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewRequest)) { _ in
+            guard commandWindow.acceptsCommands else { return }
             createRequest()
         }
         .sheet(item: $selection.managedFolder) { folder in
@@ -123,12 +121,15 @@ struct ContentView: View {
             NewEnvironmentView(folder: folder)
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageEnvironments)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.managedFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .newEnvironment)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.newEnvironmentFolder = selection.folder(for: notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectEnvironment)) { notification in
+            guard commandWindow.acceptsCommands else { return }
             selection.selectEnvironment(notification.userInfo, in: folders)
         }
         .onReceive(NotificationCenter.default.publisher(for: .remoteAgentWillDelete)) { notification in
@@ -159,11 +160,31 @@ struct ContentView: View {
     private func importCollection() {
         ExportImportService.importFolderWithDialog(
             context: modelContext,
-            existingFolderCount: folders.count
+            existingFolderCount: Folder.nextSortOrder(after: folders)
         ) { importedFolder in
             if let folder = importedFolder {
                 selection.sidebar = .folder(folder.id)
             }
+        }
+    }
+}
+
+/// The detail column: the selected History entry, else the request being edited, else the empty state.
+struct ContentDetailView: View {
+    let selection: ContentSelection
+    let onRestore: (RequestHistory) -> Void
+
+    var body: some View {
+        switch selection.detail {
+        case .history(let history):
+            HistoryDetailView(history: history, onRestore: onRestore)
+        case .request(let request):
+            // One editor per request: without the identity, selecting another request would keep the first one's response,
+            // send in flight, open tab and form fields, and an edit would then write those fields into the other request.
+            RequestEditorView(request: request)
+                .id(request.id)
+        case .empty:
+            EmptyStateView()
         }
     }
 }
