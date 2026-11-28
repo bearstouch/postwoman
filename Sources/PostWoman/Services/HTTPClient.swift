@@ -228,6 +228,8 @@ final class HTTPClient {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.timeoutInterval = 30
+        // Send means ask the server: never answer from URLCache, which would show a cacheable response again as if fresh.
+        urlRequest.cachePolicy = .reloadIgnoringLocalCacheData
 
         // Apply headers
         for header in request.headers where header.isEnabled && !header.key.isEmpty {

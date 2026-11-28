@@ -152,6 +152,12 @@ final class HTTPClientRequestTests: XCTestCase {
         XCTAssertEqual(received.request.value(forHTTPHeaderField: "X-Dup"), "second")
     }
 
+    func testEverySendGoesToTheServerInsteadOfTheLocalCache() async throws {
+        // A response with `Cache-Control: max-age` would otherwise be shown again, as if fresh, without a request.
+        let received = try await send(makeRequest())
+        XCTAssertEqual(received.request.cachePolicy, .reloadIgnoringLocalCacheData)
+    }
+
     func testUsesAThirtySecondTimeout() async throws {
         let received = try await send(makeRequest())
         XCTAssertEqual(received.request.timeoutInterval, 30)
