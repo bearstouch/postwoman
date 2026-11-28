@@ -170,6 +170,17 @@ final class ExportImportRoundTripTests: XCTestCase {
         XCTAssertNil(imported.selectedEnvironmentID)
     }
 
+    func testTheFirstOfTwoEnvironmentsWithTheSameNameStaysSelected() throws {
+        let folder = Folder(name: "Twins")
+        context.insert(folder)
+        folder.ensureDefaultEnvironment()
+        let first = folder.addEnvironment(named: "Staging", color: .orange, variables: [Variable(key: "host", value: "first.example.com")])
+        folder.addEnvironment(named: "Staging", color: .red, variables: [Variable(key: "host", value: "second.example.com")])
+        folder.selectedEnvironment = first
+        let imported = try ExportImportService.importFolder(from: try ExportImportService.exportFolder(folder), context: context, existingFolderCount: 1)
+        XCTAssertEqual(imported.selectedEnvironment?.variables.map(\.value), ["first.example.com"], "Requests resolve with the same environment as before")
+    }
+
     func testAStaleSelectionIsNotExported() throws {
         let folder = makeFullCollection()
         let staging = try XCTUnwrap(folder.selectedEnvironment)

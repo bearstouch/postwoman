@@ -184,7 +184,8 @@ enum ExportImportService {
             } else {
                 let environment = folder.addEnvironment(
                     named: exported.name, color: EnvironmentColor(rawValue: exported.color) ?? .gray, variables: exported.variables)
-                if exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
+                // The first of that name: names aren't unique, and the last match would pick another environment.
+                if folder.selectedEnvironment == nil, exported.name == container.folder.selectedEnvironment { folder.selectedEnvironment = environment }
             }
         }
 
